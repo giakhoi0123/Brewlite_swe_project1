@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><title>BrewLite - Trạm pha chế Barista</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=Noto+Serif:wght@600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-container":"#f0ede9","on-surface-variant":"#504443","error-container":"#ffdad6","on-error-container":"#93000a","on-tertiary-fixed-variant":"#683c0c","on-secondary":"#ffffff","on-secondary-fixed":"#2d1604","surface-container-low":"#f6f3ee","background":"#fcf9f4","tertiary-container":"#532c00","on-error":"#ffffff","inverse-primary":"#e8bcb7","secondary-fixed":"#ffdcc6","surface-dim":"#dcdad5","secondary-fixed-dim":"#eabda0","primary-fixed":"#ffdad6","surface-container-lowest":"#ffffff","inverse-on-surface":"#f3f0eb","on-tertiary-container":"#cd925b","tertiary-fixed-dim":"#fab97f","secondary-container":"#ffd1b3","on-primary":"#ffffff","surface-bright":"#fcf9f4","tertiary-fixed":"#ffdcc0","on-background":"#1c1c19","primary":"#331917","on-tertiary":"#ffffff","on-surface":"#1c1c19","surface-tint":"#785652","on-primary-container":"#be9590","on-secondary-fixed-variant":"#5f402a","on-primary-fixed":"#2d1512","surface-variant":"#e5e2dd","outline":"#827472","primary-fixed-dim":"#e8bcb7","on-tertiary-fixed":"#2d1600","on-secondary-container":"#7a5840","outline-variant":"#d4c3c0","tertiary":"#341a00","secondary":"#79573f","primary-container":"#4b2e2b","surface-container-high":"#ebe8e3","surface-container-highest":"#e5e2dd","error":"#ba1a1a","on-primary-fixed-variant":"#5e3f3b","inverse-surface":"#31302d","surface":"#fcf9f4"},borderRadius:{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},spacing:{"space-lg":"1.5rem","space-sm":"0.5rem","gutter-mobile":"0.75rem","margin":"2rem","margin-mobile":"1rem","space-md":"1rem","gutter":"1rem","space-xs":"0.25rem","space-xl":"2.5rem"},fontFamily:{"title-sm":["Be Vietnam Pro"],"headline-xl":["Noto Serif"],"label-md":["Be Vietnam Pro"],"body-sm":["Be Vietnam Pro"],"body-lg":["Be Vietnam Pro"],"headline-lg":["Noto Serif"],"headline-sm":["Noto Serif"],"headline-xl-mobile":["Noto Serif"],"title-md":["Be Vietnam Pro"],"label-sm":["Be Vietnam Pro"],"title-lg":["Be Vietnam Pro"],"headline-md":["Noto Serif"],"label-lg":["Be Vietnam Pro"],"headline-lg-mobile":["Noto Serif"],"body-md":["Be Vietnam Pro"]},fontSize:{"title-sm":["14px",{"lineHeight":"20px","fontWeight":"600"}],"headline-xl":["40px",{"lineHeight":"48px","fontWeight":"700"}],"label-md":["12px",{"lineHeight":"16px","fontWeight":"500"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-lg":["32px",{"lineHeight":"40px","fontWeight":"600"}],"headline-sm":["20px",{"lineHeight":"28px","fontWeight":"600"}],"headline-xl-mobile":["30px",{"lineHeight":"38px","fontWeight":"700"}],"title-md":["16px",{"lineHeight":"24px","fontWeight":"600"}],"label-sm":["11px",{"lineHeight":"14px","fontWeight":"500"}],"title-lg":["18px",{"lineHeight":"26px","fontWeight":"600"}],"headline-md":["24px",{"lineHeight":"32px","fontWeight":"600"}],"label-lg":["14px",{"lineHeight":"20px","fontWeight":"500"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","fontWeight":"600"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}]}}}}</script></head><body class="bg-surface font-body-md text-body-md text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(75,46,43,0.06)]"><div class="h-16 px-space-lg flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg"><a class="flex items-center gap-space-sm" data-path="barista-tong-quan" href="#"><img alt="BrewLite Logo" class="h-7 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQQPSEeE0NKrtWlD36-6QGwv6hEZPy48XA96VPbaxMinQV8jWZBuC1LAROusExxXDS1G9N2mKgudlz7JwsSs3PecCz-63FvVMTFaDw8dqoQ50KkIqeiqZbVZg6vFE-D9GHUdlmOlo8O5cLdcz_2VEXPILux8BcbV1U0poKYzTcB6VnWaEPVOpsg39Ct1hCvgH_WsLFj_Cfh3PehWwwnV7h5NNZMaaAmmU0J8gXWRuPlsyYtUrXFAITFw"/><span class="font-headline-sm text-headline-sm text-primary tracking-tight">BrewLite KDS</span></a><span class="hidden sm:inline-block px-2.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold">Trạm Barista</span></div><div class="flex items-center gap-space-md"><div class="flex items-center gap-2 px-3 py-1 rounded bg-surface-container-high text-on-surface font-label-md text-label-md"><span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span><span>Hệ thống trực tuyến</span></div><div class="flex items-center gap-space-sm pl-space-xs"><div class="text-right hidden sm:block"><p class="font-title-sm text-title-sm text-primary leading-tight">Nguyễn Văn Bình</p><p class="font-label-sm text-label-sm text-secondary font-medium">Nhân viên pha chế</p></div><div class="w-9 h-9 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-title-sm font-bold">BP</div></div></div></div></header><aside class="fixed top-16 left-0 bottom-0 z-40 w-64 bg-surface-container-low shadow-[1px_0_12px_rgba(75,46,43,0.04)] flex flex-col justify-between py-space-md"><div class="flex flex-col gap-space-sm px-space-sm"><div class="px-space-sm py-space-xs text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider font-semibold">Điều hành pha chế</div><nav class="flex flex-col gap-1" data-active-classes="bg-surface-container-high text-primary font-semibold shadow-sm"><a class="flex items-center px-space-sm py-2 rounded font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="barista-tong-quan" href="#">Tổng quan</a><a class="flex items-center px-space-sm py-2 rounded font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="barista-don-cho-pha" href="#">Đơn chờ pha</a><a class="flex items-center px-space-sm py-2 rounded font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="barista-dang-pha-che" href="#">Đang pha chế</a><a class="flex items-center px-space-sm py-2 rounded font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="barista-cho-giao" href="#">Chờ giao</a><a class="flex items-center px-space-sm py-2 rounded font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="barista-lich-su-xu-ly" href="#">Lịch sử xử lý</a></nav></div><div class="px-space-md pt-space-md border-t border-surface-variant/40"><a class="font-label-md text-label-md text-on-surface-variant hover:text-error transition-colors block text-center py-2" data-path="dang-xuat" href="#">Đăng xuất ca trực</a></div></aside><main class="w-full pt-16 pl-64 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- Barista Header Ribbon -->
+<div class="px-space-lg py-space-md bg-surface-container-low shadow-sm flex flex-wrap items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-2xl">local_cafe</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-primary">Trạm Barista KDS #02</span>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-primary font-label-sm text-label-sm font-semibold">Flagship Quận 1</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+          Pha chế trưởng: <strong class="text-primary font-semibold">Trần Minh Trí (BAR-08)</strong> • Trực ca chiều: 14:00 - 22:00
+        </p>
+</div>
+</div>
+<!-- Live Status Controls -->
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-3 px-space-md py-2 bg-surface-container-lowest rounded-xl shadow-sm">
+<span class="relative flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-600"></span>
+</span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant leading-none">Chế độ vận hành</span>
+<span class="font-title-sm text-title-sm text-primary leading-tight">Nhận đơn tự động (Online)</span>
+</div>
+</div>
+<!-- Alert Notification Pill -->
+<button class="relative flex items-center justify-center w-11 h-11 rounded-xl bg-surface-container-lowest text-primary shadow-sm hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-2xl">notifications_active</span>
+<span class="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[20px] text-center rounded-full bg-error text-on-error font-label-sm text-label-sm font-bold shadow-md animate-bounce">
+          3
+        </span>
+</button>
+<button class="flex items-center gap-2 px-space-md py-2.5 rounded-xl bg-error-container text-on-error-container font-label-lg text-label-lg font-semibold hover:bg-error hover:text-on-error transition-all shadow-sm" id="open-emergency-btn">
+<span class="material-symbols-outlined text-xl">report_problem</span>
+<span>Xử lý sự cố</span>
+</button>
+</div>
+</div>
+<div class="px-space-lg py-space-lg flex flex-col gap-space-xl">
+<!-- Quick Analytics KPIs (SCREEN 15) -->
+<section class="grid grid-cols-2 md:grid-cols-5 gap-space-md">
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">Đơn mới chờ pha</span>
+<span class="material-symbols-outlined text-secondary">pending_actions</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-primary">04</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">đơn cấp bách</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">Đang pha chế</span>
+<span class="material-symbols-outlined text-secondary">coffee_maker</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-primary">02</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">3 máy đang chạy</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">Chờ giao tại quầy</span>
+<span class="material-symbols-outlined text-secondary">takeout_dining</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-primary">05</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">quầy A &amp; B</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">Đã ra món hôm nay</span>
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-primary">38</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">+12% so hôm qua</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-primary text-on-primary shadow-md flex flex-col justify-between col-span-2 md:col-span-1">
+<div class="flex items-center justify-between text-on-primary-container">
+<span class="font-label-sm text-label-sm uppercase tracking-wider font-semibold text-primary-fixed">Tốc độ chuẩn</span>
+<span class="material-symbols-outlined text-primary-fixed">timer</span>
+</div>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-on-primary font-bold">4.8</span>
+<span class="font-label-sm text-label-sm text-on-primary/80">phút / đơn hàng</span>
+</div>
+</div>
+</section>
+<!-- Operational Kanban Board (SCREEN 16) -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-space-lg items-start">
+<!-- COLUMN 1: Chờ pha chế (PAID / NEW) -->
+<div class="flex flex-col gap-space-md bg-surface-container-low p-space-md rounded-xl shadow-sm">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<h2 class="font-title-lg text-title-lg text-primary">1. Chờ pha chế (PAID)</h2>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-primary font-label-md text-label-md font-bold">4 đơn</span>
+</div>
+<!-- Ticket 1042: Urgent with Customizations -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-md flex flex-col gap-space-sm relative overflow-hidden transition-all hover:shadow-lg">
+<div class="absolute top-0 left-0 right-0 h-1.5 bg-error"></div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight">#BL-1042</span>
+<span class="px-2 py-0.5 rounded-md bg-error-container text-on-error-container font-label-sm text-label-sm font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">alarm</span> 10 phút trước
+              </span>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-semibold">Tự đến lấy</span>
+</div>
+<!-- Recipe List -->
+<div class="flex flex-col gap-space-xs py-1">
+<!-- Item 1 -->
+<div class="p-2.5 rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-title-sm text-title-sm text-primary font-bold">2x Cà phê sữa đá Sài Gòn</span>
+<span class="px-1.5 py-0.5 rounded bg-secondary text-on-secondary font-label-sm text-label-sm">Size M</span>
+</div>
+<div class="flex flex-wrap gap-1.5 mt-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm font-medium">70% Đường</span>
+<span class="px-2 py-0.5 rounded bg-error-container text-on-error-container font-label-sm text-label-sm font-bold">Đá riêng ly riêng</span>
+<span class="px-2 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-semibold">+ Trân châu đen</span>
+<span class="px-2 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-semibold">+ Thạch cà phê</span>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="p-2.5 rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-title-sm text-title-sm text-primary font-bold">1x Trà đào cam sả</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Size L</span>
+</div>
+<div class="flex flex-wrap gap-1.5 mt-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm font-medium">50% Ngọt</span>
+<span class="px-2 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-semibold">+ Thạch đào giòn</span>
+</div>
+</div>
+</div>
+<!-- Special Note Alert Box -->
+<div class="px-3 py-2 rounded-lg bg-secondary-container/50 flex items-start gap-2 text-on-secondary-container">
+<span class="material-symbols-outlined text-lg leading-tight text-secondary">edit_note</span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm font-bold">Ghi chú từ khách:</span>
+<p class="font-body-sm text-body-sm leading-snug">"Ít ngọt, đá riêng giúp mình mang về công ty"</p>
+</div>
+</div>
+<div class="pt-2 flex items-center gap-2">
+<button class="flex-1 py-3 px-space-md rounded-lg bg-primary text-on-primary font-title-sm text-title-sm flex items-center justify-center gap-2 hover:bg-primary-container transition-all shadow-sm">
+<span class="material-symbols-outlined text-xl">play_circle</span>
+<span>Bắt đầu pha chế</span>
+</button>
+<button class="p-3 rounded-lg bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-colors" onclick="openCancellationModal('BL-1042')" title="Báo sự cố đơn">
+<span class="material-symbols-outlined text-xl">cancel</span>
+</button>
+</div>
+</article>
+<!-- Ticket 1043: Simple order -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-md flex flex-col gap-space-sm relative overflow-hidden transition-all hover:shadow-lg">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight">#BL-1043</span>
+<span class="px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-medium">
+                4 phút trước
+              </span>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-primary font-label-sm text-label-sm font-semibold">Uống tại quán</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-title-sm text-title-sm text-primary font-bold">1x Bạc xỉu ba tầng nghệ thuật</span>
+<span class="px-1.5 py-0.5 rounded bg-secondary text-on-secondary font-label-sm text-label-sm">Size M</span>
+</div>
+<div class="flex flex-wrap gap-1 mt-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Sữa tươi thanh trùng</span>
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Chuẩn đá</span>
+</div>
+</div>
+<div class="pt-2 flex items-center gap-2">
+<button class="flex-1 py-3 px-space-md rounded-lg bg-primary text-on-primary font-title-sm text-title-sm flex items-center justify-center gap-2 hover:bg-primary-container transition-all shadow-sm">
+<span class="material-symbols-outlined text-xl">play_circle</span>
+<span>Bắt đầu pha chế</span>
+</button>
+<button class="p-3 rounded-lg bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-colors" onclick="openCancellationModal('BL-1043')">
+<span class="material-symbols-outlined text-xl">cancel</span>
+</button>
+</div>
+</article>
+</div>
+<!-- COLUMN 2: Đang pha chế (PREPARING) -->
+<div class="flex flex-col gap-space-md bg-surface-container-low p-space-md rounded-xl shadow-sm">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-tertiary-fixed-dim animate-pulse"></span>
+<h2 class="font-title-lg text-title-lg text-primary">2. Đang pha chế (PREPARING)</h2>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-md text-label-md font-bold">2 đơn</span>
+</div>
+<!-- Ticket 1040: Craft Latte -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-md flex flex-col gap-space-sm relative overflow-hidden ring-2 ring-secondary/30">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight">#BL-1040</span>
+<span class="px-2 py-0.5 rounded-md bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm animate-spin">refresh</span> Đã pha 3 phút
+              </span>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-semibold">Giao GrabFood</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-title-sm text-title-sm text-primary font-bold">2x Cappuccino nóng</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Ly sứ</span>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm text-secondary">palette</span>
+<span class="font-body-sm text-body-sm font-medium">Yêu cầu vẽ lá Latte Art chuẩn triển lãm</span>
+</div>
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Hạt Arabica Cầu Đất</span>
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Sữa yến mạch Oatly</span>
+</div>
+</div>
+<!-- Live Progress Tracker -->
+<div class="flex flex-col gap-1 py-1">
+<div class="flex justify-between font-label-sm text-label-sm text-on-surface-variant">
+<span>Đang đánh bọt sữa Microfoam</span>
+<span class="font-semibold text-secondary">75%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container-high overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 75%"></div>
+</div>
+</div>
+<div class="pt-2 flex items-center gap-2">
+<button class="flex-1 py-3 px-space-md rounded-lg bg-secondary text-on-secondary font-title-sm text-title-sm flex items-center justify-center gap-2 hover:bg-primary transition-all shadow-sm">
+<span class="material-symbols-outlined text-xl">check_circle</span>
+<span>Hoàn tất pha (Chuyển READY)</span>
+</button>
+<button class="p-3 rounded-lg bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-colors" onclick="openCancellationModal('BL-1040')">
+<span class="material-symbols-outlined text-xl">cancel</span>
+</button>
+</div>
+</article>
+<!-- Ticket 1041 -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-md flex flex-col gap-space-sm relative overflow-hidden">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight">#BL-1041</span>
+<span class="px-2 py-0.5 rounded-md bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-semibold">
+                Đã pha 1 phút
+              </span>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-primary font-label-sm text-label-sm font-semibold">Quầy Takeaway</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-title-sm text-title-sm text-primary font-bold">1x Uji Matcha Latte đá</span>
+<span class="px-1.5 py-0.5 rounded bg-secondary text-on-secondary font-label-sm text-label-sm">Size L</span>
+</div>
+<div class="flex flex-wrap gap-1 mt-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Đường 30%</span>
+<span class="px-2 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm">+ Kem cheese mặn</span>
+</div>
+</div>
+<div class="pt-2 flex items-center gap-2">
+<button class="flex-1 py-3 px-space-md rounded-lg bg-secondary text-on-secondary font-title-sm text-title-sm flex items-center justify-center gap-2 hover:bg-primary transition-all shadow-sm">
+<span class="material-symbols-outlined text-xl">check_circle</span>
+<span>Hoàn tất pha chế</span>
+</button>
+<button class="p-3 rounded-lg bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-colors" onclick="openCancellationModal('BL-1041')">
+<span class="material-symbols-outlined text-xl">cancel</span>
+</button>
+</div>
+</article>
+</div>
+<!-- COLUMN 3: Sẵn sàng nhận tại quầy (READY) -->
+<div class="flex flex-col gap-space-md bg-surface-container-low p-space-md rounded-xl shadow-sm">
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-emerald-600"></span>
+<h2 class="font-title-lg text-title-lg text-primary">3. Sẵn sàng giao (READY)</h2>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-primary font-label-md text-label-md font-bold">5 đơn</span>
+</div>
+<!-- Ticket 1039: Ready for Handover -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-md flex flex-col gap-space-sm relative overflow-hidden border-2 border-emerald-600/30">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight">#BL-1039</span>
+<span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-label-sm text-label-sm font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">notifications</span> Đã reo chuông
+              </span>
+</div>
+<div class="px-2.5 py-1 rounded-md bg-primary text-on-primary font-title-sm text-title-sm font-bold">
+              Kệ B-04
+            </div>
+</div>
+<!-- Customer Handover Verification Code -->
+<div class="p-3 rounded-xl bg-surface-container flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Mã 4 số xác nhận khách đọc</span>
+<span class="font-headline-md text-headline-md text-primary font-bold tracking-widest">0 2 3 4</span>
+</div>
+<span class="material-symbols-outlined text-3xl text-secondary">qr_code_scanner</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-title-sm text-title-sm text-primary font-bold">1x Americano đá pha máy</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">Size L</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Không đường, ly giấy giữ nhiệt thân thiện</span>
+</div>
+<div class="pt-2">
+<button class="w-full py-3.5 px-space-md rounded-lg bg-emerald-800 text-white font-title-sm text-title-sm flex items-center justify-center gap-2 hover:bg-emerald-900 transition-all shadow-md">
+<span class="material-symbols-outlined text-xl">task_alt</span>
+<span>Xác nhận đã giao cho khách</span>
+</button>
+</div>
+</article>
+<!-- More ready order pills summary -->
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col gap-2">
+<div class="flex items-center justify-between pb-1">
+<span class="font-label-md text-label-md text-on-surface-variant font-semibold">Các đơn đang chờ tại quầy:</span>
+<span class="font-label-sm text-label-sm text-secondary font-bold">4 đơn khác</span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low">
+<span class="font-title-sm text-title-sm text-primary font-bold">#BL-1038 • Kệ A-01</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Mã nhận: <strong>8812</strong></span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low">
+<span class="font-title-sm text-title-sm text-primary font-bold">#BL-1037 • Kệ A-03</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Mã nhận: <strong>4920</strong></span>
+</div>
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-container-low">
+<span class="font-title-sm text-title-sm text-primary font-bold">#BL-1036 • Kệ B-02</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Mã nhận: <strong>1105</strong></span>
+</div>
+</div>
+</div>
+</section>
+<!-- Operational Inventory & Station Log Bottom Panel -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-space-lg">
+<div class="lg:col-span-2 p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">inventory</span>
+<h3 class="font-title-lg text-title-lg text-primary">Cảnh báo nguyên liệu tại quầy Barista</h3>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Cập nhật tự động theo mẻ pha</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-space-sm pt-2">
+<div class="p-space-sm rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex justify-between items-center font-label-md text-label-md">
+<span class="text-on-surface">Cốt Robusta Đắk Lắk</span>
+<span class="text-error font-bold">Còn 15%</span>
+</div>
+<div class="w-full h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+<div class="h-full bg-error rounded-full" style="width: 15%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Cần chiết thêm phin lớn</span>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex justify-between items-center font-label-md text-label-md">
+<span class="text-on-surface">Sữa tươi thanh trùng</span>
+<span class="text-secondary font-bold">Còn 42%</span>
+</div>
+<div class="w-full h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 42%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Kho còn 12 hộp 1L</span>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-low flex flex-col gap-1">
+<div class="flex justify-between items-center font-label-md text-label-md">
+<span class="text-on-surface">Thạch đào giòn</span>
+<span class="text-emerald-700 font-bold">Đầy đủ</span>
+</div>
+<div class="w-full h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+<div class="h-full bg-emerald-600 rounded-full" style="width: 85%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Đảm bảo ca tối</span>
+</div>
+</div>
+</div>
+<!-- Quick Action Guide -->
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between gap-space-sm">
+<div>
+<h4 class="font-title-md text-title-md text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">verified_user</span>
+            Quy chuẩn an toàn quầy bar
+          </h4>
+<p class="mt-1 font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+            Kiểm tra áp suất máy pha Espresso ở mức 9 bar. Sau mỗi 10 cữ trích xuất, xả vòi hơi và lau chùi bã cà phê bằng khăn vi sợi chuyên dụng.
+          </p>
+</div>
+<div class="flex items-center justify-between pt-2 border-t border-surface-container">
+<span class="font-label-sm text-label-sm text-secondary font-semibold">Quy trình HACCP chuẩn</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Kiểm định: 13:00 Hôm nay</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Cancellation & Exception Modal (SCREEN 17) -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/60 backdrop-blur-sm hidden" id="cancellation-modal">
+<div class="w-full max-w-lg bg-surface-container-lowest rounded-2xl shadow-2xl p-space-lg flex flex-col gap-space-md animate-in fade-in zoom-in duration-200">
+<!-- Modal Header -->
+<div class="flex items-start justify-between pb-space-sm border-b border-surface-container">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-error-container text-on-error-container flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">report</span>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-primary">Hủy đơn hàng sự cố</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Ghi nhận log bất khả kháng cho mã <span class="font-bold text-primary" id="modal-order-id">#BL-1042</span></p>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors" onclick="closeCancellationModal()">
+<span class="material-symbols-outlined text-2xl">close</span>
+</button>
+</div>
+<!-- Regulatory Policy Notice -->
+<div class="p-3 rounded-xl bg-surface-container-low flex items-start gap-2.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-xl text-secondary mt-0.5">policy</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-bold text-primary">Quy định thẩm quyền Barista:</span>
+<p class="font-body-sm text-body-sm">Chỉ hủy đơn khi quầy bar gặp sự cố kỹ thuật hoặc hết nguyên liệu bất ngờ. Hành động này ghi nhận log kiểm toán nhân viên (BAR-08). Không tự ý cam kết hoàn tiền mặt tại quầy khi chưa có xác nhận từ hệ thống kế toán trung tâm.</p>
+</div>
+</div>
+<!-- Reason Selection Form -->
+<form class="flex flex-col gap-space-sm" id="cancel-form" onsubmit="handleCancelSubmit(event)">
+<label class="font-label-md text-label-md font-bold text-primary">Chọn lý do huỷ đơn:</label>
+<label class="flex items-center gap-3 p-3 rounded-xl bg-surface-container-low cursor-pointer hover:bg-surface-container transition-colors">
+<input checked="" class="w-4 h-4 text-primary focus:ring-primary" name="cancel-reason" type="radio" value="out_of_stock"/>
+<div class="flex flex-col">
+<span class="font-title-sm text-title-sm text-primary">Hết nguyên liệu pha chế đột xuất</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Hết hạt Robusta đặc biệt / Sữa hạt Oatly</span>
+</div>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-xl bg-surface-container-low cursor-pointer hover:bg-surface-container transition-colors">
+<input class="w-4 h-4 text-primary focus:ring-primary" name="cancel-reason" type="radio" value="hardware_failure"/>
+<div class="flex flex-col">
+<span class="font-title-sm text-title-sm text-primary">Thiết bị máy móc gặp sự cố kỹ thuật</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Hỏng boiler áp suất máy pha / Mất điện trạm pha chế</span>
+</div>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-xl bg-surface-container-low cursor-pointer hover:bg-surface-container transition-colors">
+<input class="w-4 h-4 text-primary focus:ring-primary" name="cancel-reason" type="radio" value="customer_requested"/>
+<div class="flex flex-col">
+<span class="font-title-sm text-title-sm text-primary">Khách hàng yêu cầu hủy trực tiếp tại quầy</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Khách bận việc gấp không thể tiếp tục chờ</span>
+</div>
+</label>
+<div class="flex flex-col gap-1.5 mt-1">
+<label class="font-label-sm text-label-sm font-semibold text-primary">Chi tiết ghi chú bắt buộc cho Quản lý ca (Shift Manager):</label>
+<textarea class="w-full p-2.5 rounded-lg bg-surface-container-lowest border-0 ring-1 ring-outline-variant focus:ring-2 focus:ring-primary font-body-sm text-body-sm text-on-surface resize-none" placeholder="Nhập mô tả cụ thể về sự cố để phục vụ đối soát nguyên vật liệu cuối ca..." required="" rows="2"></textarea>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center justify-end gap-space-sm pt-space-sm">
+<button class="px-space-md py-2.5 rounded-lg bg-surface-container-high text-on-surface font-title-sm text-title-sm hover:bg-surface-container-highest transition-colors" onclick="closeCancellationModal()" type="button">
+            Quay lại pha chế
+          </button>
+<button class="px-space-md py-2.5 rounded-lg bg-error text-on-error font-title-sm text-title-sm flex items-center gap-2 hover:bg-error/90 transition-colors shadow-md" type="submit">
+<span class="material-symbols-outlined text-lg">check</span>
+<span>Xác nhận ghi log hủy đơn</span>
+</button>
+</div>
+</form>
+</div>
+</div>
+<script>
+    function openCancellationModal(orderId) {
+      const modal = document.getElementById('cancellation-modal');
+      const orderSpan = document.getElementById('modal-order-id');
+      if (orderSpan) {
+        orderSpan.textContent = '#' + (orderId || 'BL-1042');
+      }
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+    }
+
+    function closeCancellationModal() {
+      const modal = document.getElementById('cancellation-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('open-emergency-btn')?.addEventListener('click', function() {
+      openCancellationModal('BL-1042');
+    });
+
+    function handleCancelSubmit(event) {
+      event.preventDefault();
+      alert('Đã gửi yêu cầu hủy đơn thành công. Hệ thống tự động cập nhật log kiểm toán cho Barista BAR-08.');
+      closeCancellationModal();
+    }
+  </script>
+</div></main></body></html>

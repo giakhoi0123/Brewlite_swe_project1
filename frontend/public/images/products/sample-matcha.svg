@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title">
+  <title id="title">Minh họa mẫu ly matcha latte</title>
+  <rect width="800" height="600" fill="#f6f3ed"/>
+  <circle cx="400" cy="275" r="205" fill="#e8dfd5"/>
+  <ellipse cx="400" cy="493" rx="145" ry="24" fill="#2b1810" opacity=".1"/>
+  <path d="M292 166h216l-26 304H318z" fill="#fffdf9" stroke="#817470" stroke-width="8"/>
+  <path d="M308 310h184l-14 151H322z" fill="#7b8c51"/>
+  <path d="M301 220h198l-7 90H308z" fill="#e2bfb2"/>
+  <path d="M302 219c6-62 50-28 59-48 25-47 73-25 91-10 17 15 42 13 47 58z" fill="#fffdf9"/>
+  <path d="m453 188 17-93" stroke="#2b1810" stroke-width="12" stroke-linecap="round"/>
+  <path d="M331 233v210" stroke="#fff" stroke-width="12" opacity=".3"/>
+  <path d="M521 387c63-61 116-35 106 8-38 32-73 26-106-8z" fill="#7b8c51"/>
+</svg>

@@ -1,0 +1,13 @@
+{
+  "name": "brewlite",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run start:dev",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build",
+    "test": "npm --prefix frontend test && npm --prefix backend test -- --runInBand",
+    "lint": "npm --prefix frontend run lint && npm --prefix backend run lint",
+    "db:migrate": "npm --prefix backend run prisma:migrate",
+    "db:seed": "npm --prefix backend run prisma:seed"
+  }
+}

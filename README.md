@@ -1,0 +1,102 @@
+# BrewLite 1.0
+
+Ứng dụng đặt cà phê Việt và thanh toán không tiền mặt cho bài tập Công nghệ phần mềm nhóm 6 người. Gồm Next.js frontend, NestJS backend, PostgreSQL/Prisma và Docker Compose. Mã nguồn tập trung trong **`BrewLite_swe-project_1`**; `stitch/` là bản thiết kế gốc.
+
+## Phạm vi và hiện trạng
+
+- Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
+- Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout, bcrypt, cookie JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã có mã, cần chạy DB để xác minh end-to-end.
+- Orders, Payments, Promotions, Loyalty và Barista Orders **chưa có backend thật**; frontend có mock localStorage và REST adapter để thành viên phụ trách tích hợp. Thanh toán demo không phải giao dịch tiền thật.
+- Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
+
+## Cấu trúc
+
+```text
+frontend/   Next.js App Router, TypeScript, Tailwind, Zustand, service adapters
+backend/    NestJS, Prisma migrations/seed, auth/role và Products API
+stitch/     HTML, PNG, DESIGN.md gốc (không sửa)
+docs/       kế hoạch, hợp đồng, kiến trúc, trạng thái, tích hợp, bàn giao, kiểm thử
+```
+
+`frontend/src/app` có route, `components` dùng chung, `stores/cart.ts` giữ giỏ sau refresh, `services` tách interface/mock/API, `types/domain.ts` chứa DTO UI. `backend/src/auth` và `backend/src/products` là module NestJS; `backend/prisma` là nguồn schema và migration.
+
+## Chuẩn bị
+
+Cần Node.js 24, npm 11, Docker + Docker Compose (hoặc PostgreSQL 15 cài sẵn), Git. Nếu dùng Docker, khởi động Docker Desktop trước. Từ thư mục repo này:
+
+```bash
+cp .env.example .env
+# Sửa POSTGRES_PASSWORD, DATABASE_URL và JWT_SECRET trong .env
+npm --prefix frontend ci
+npm --prefix backend ci
+```
+
+Giữ `DATABASE_URL` trùng mật khẩu và cổng PostgreSQL trong `.env`. `.env` không được commit. `BARISTA_PASSWORD` là mật khẩu tự đặt, không dùng giá trị mẫu khi chia sẻ môi trường. Khi chạy local, đặt `PORT=3001`, frontend mặc định cổng 3000.
+
+### Chạy phát triển bằng PostgreSQL trong Docker
+
+```bash
+docker compose up -d postgres
+npm --prefix backend run prisma:generate
+npm run db:migrate
+npm --prefix backend run prisma:seed
+npm run dev:backend
+# terminal khác
+npm run dev:frontend
+```
+
+Mở `http://localhost:3000`. Backend là `http://localhost:3001/api`. `prisma:seed` tạo sản phẩm demo và tài khoản Barista khi `BARISTA_EMAIL`, `BARISTA_PASSWORD` có trong môi trường shell. Với backend chạy bằng npm, nạp biến từ `.env` trước seed, ví dụ `set -a; source .env; set +a; npm --prefix backend run prisma:seed` trong zsh. Lệnh seed idempotent, không đặt lại stock/giá sản phẩm đã có.
+
+Nếu cài PostgreSQL riêng, tạo database `brewlite`, cập nhật `DATABASE_URL` và chạy các lệnh Prisma ở trên. Không chạy migration vào DB đang dùng bởi repo khác trước khi kiểm tra URL.
+
+### Chạy cả ba dịch vụ với Compose
+
+```bash
+docker compose up --build
+# terminal khác, sau khi DB và backend sẵn sàng
+set -a; source .env; set +a; npm --prefix backend run prisma:seed
+```
+
+Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5433. Frontend chạy cổng 3000, backend 3001, DB 5433. Dockerfile frontend build mặc định mode mock; khi đổi mode cần build lại image.
+
+## Chế độ dữ liệu
+
+`NEXT_PUBLIC_DATA_MODE=mock` (mặc định) cho sản phẩm/đơn/thanh toán/ưu đãi/điểm/Barista. Có thể đặt trong `frontend/.env.local` khi phát triển local. Mock lưu đơn và payment trong localStorage, trả lỗi rõ ràng, có lựa chọn kết quả PAID/FAILED/UNKNOWN ở checkout. Auth **luôn** gọi NestJS/PostgreSQL, nên vẫn cần backend+DB khi demo đầy đủ. Dùng mã demo `BREW10` để thử ưu đãi; quy tắc này không phải chính sách thật.
+
+`NEXT_PUBLIC_DATA_MODE=api` gọi REST cho mọi module; cần TV4/TV5/TV6 hoàn thiện backend theo `docs/API_CONTRACT.md`. Lỗi API không tự fallback sang mock. Nếu thay `NEXT_PUBLIC_*`, khởi động lại hoặc build lại frontend.
+
+## Auth và Barista
+
+Đăng ký công khai luôn tạo CUSTOMER. Đăng nhập dùng chung; BARISTA được chuyển tới `/barista/dashboard`; CUSTOMER bị chặn khỏi màn đó. Trình duyệt giữ cookie HttpOnly; không lưu JWT ở localStorage. Endpoint mẫu `/api/barista/dashboard` có guard role và trả 401/403 đúng. Staff Orders API thực tế còn là đề xuất.
+
+Để tạo tài khoản Barista cục bộ, đặt `BARISTA_EMAIL` và `BARISTA_PASSWORD` trong `.env`, rồi nạp `.env` vào shell và chạy:
+
+```bash
+set -a; source .env; set +a
+npm --prefix backend run prisma:seed
+```
+
+Seed không tạo Barista trong `NODE_ENV=production`; không có endpoint đăng ký staff công khai. Đừng commit thông tin tài khoản thật.
+
+## Scripts và kiểm thử
+
+```bash
+npm run dev:frontend
+npm run dev:backend
+npm run build
+npm run lint
+npm run test
+npm --prefix frontend run build
+npm --prefix backend run build
+npm --prefix backend test -- --runInBand
+```
+
+Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript qua. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Docker daemon không chạy trong phiên xây dựng nên chưa có bằng chứng E2E với PostgreSQL. Kiểm thử tay ưu tiên: đăng ký/login/refresh/logout, giỏ sau refresh, 3 kết quả payment demo, tracking, role Barista và responsive mobile.
+
+## Nhóm, branch và PR
+
+TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV4 Orders/inventory/state machine; TV5 Payments/idempotency; TV6 Promotions/Loyalty/History/E2E. Chi tiết ở `docs/TEAM_HANDOFF.md`. Repo này được khởi tạo Git độc lập; dùng branch `feature/auth`, `feature/products`, `feature/orders`, `feature/payments`, `feature/loyalty`, `feature/barista` từ nhánh tích hợp do nhóm thống nhất. PR phải nêu thay đổi DTO, test và cập nhật docs. Không có remote/push được cấu hình tự động.
+
+## Đọc tiếp
+
+Bắt đầu với `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh mock dựa URL Stitch cần mạng; PostgreSQL/Compose chưa chạy E2E tại môi trường hiện tại.

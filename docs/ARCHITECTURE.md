@@ -1,0 +1,9 @@
+# Kiến trúc BrewLite
+
+Frontend Next.js App Router, TypeScript, Tailwind CSS và CSS token của `stitch/**/DESIGN.md`. `app/` chỉ điều phối màn hình; `components/` chứa shell, auth provider, thành phần UI và tóm tắt; `stores/cart.ts` dùng Zustand persist; `types/domain.ts` giữ hợp đồng chung; `services/` chứa interface, mock và REST adapter. `NEXT_PUBLIC_DATA_MODE=mock|api` chọn adapter tĩnh; lỗi API không tự chuyển sang mock. Auth luôn gọi backend thật.
+
+Backend NestJS modular monolith: `auth/` đăng ký, đăng nhập, cookie JWT, guard và role; `products/` đọc PostgreSQL; Prisma quản lý schema/migration/seed. Các module Orders, Payments, Promotions, Loyalty chưa có backend. PostgreSQL chạy qua Docker Compose hoặc cài riêng. Password băm bcrypt, role lấy từ DB khi xác thực, không tin role trong token hay body client. Cookie HttpOnly, SameSite=Lax, Secure khi NODE_ENV=production, path `/api`. Logout xóa cookie ở browser; JWT stateless còn hợp lệ đến khi hết hạn nếu đã bị đánh cắp. Cần revocation/session table nếu yêu cầu hủy ngay trên mọi thiết bị.
+
+Giỏ và đơn demo lưu localStorage theo browser; session người dùng khôi phục qua GET `/auth/me`. Backend không dùng dữ liệu demo. `POST /orders` phải tạo PENDING với giá được backend tính lại. `POST /payments` mới xác nhận PAID/PAYMENT_FAILED. UNKNOWN giữ nguyên trạng thái đến khi kiểm tra server. Mock ghi nhận idempotency key để tránh lặp và bảo toàn giỏ khi thất bại. Barista frontend chỉ hiển thị khi role BARISTA; backend staff API tương lai bắt buộc áp dụng `JwtAuthGuard` + `RolesGuard`.
+
+Ảnh sản phẩm mock lấy URL gốc trong HTML Stitch; truy cập ảnh cần mạng trên trình duyệt. Ảnh sản phẩm seed API lấy SVG tĩnh ở `frontend/public/images/products`.

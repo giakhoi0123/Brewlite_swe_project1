@@ -1,0 +1,3 @@
+# Hướng dẫn cho phiên AI tiếp theo
+
+Đọc `README.md`, `docs/PROJECT_CONTEXT.md`, rồi `docs/IMPLEMENTATION_PLAN.md` trước khi thay đổi. Chỉ làm trong repo này. Tôn trọng owner theo task, không ghi đè phần của thành viên khác. Dùng component và service interface sẵn có; mock phải nằm riêng trong `services/mock.ts`, auth luôn là backend thật. Cập nhật `docs/PROJECT_STATUS.md`, plan/API contract khi thay đổi. Chạy build/test liên quan và chỉ đánh dấu VERIFIED_COMPLETE khi toàn bộ yêu cầu đã kiểm chứng. Nêu rõ blocker, đặc biệt khi Docker/DB không chạy.

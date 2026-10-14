@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title">
+  <title id="title">Minh họa mẫu ly trà trái cây và cam</title>
+  <rect width="800" height="600" fill="#f6f3ed"/>
+  <circle cx="400" cy="275" r="205" fill="#e8dfd5"/>
+  <ellipse cx="400" cy="493" rx="145" ry="24" fill="#2b1810" opacity=".1"/>
+  <path d="M292 166h216l-26 304H318z" fill="#fffdf9" stroke="#817470" stroke-width="8"/>
+  <path d="M301 219h198l-21 242H322z" fill="#a85e27"/>
+  <rect x="331" y="235" width="57" height="55" rx="10" fill="#fffdf9" opacity=".65" transform="rotate(-12 360 262)"/>
+  <rect x="411" y="292" width="57" height="55" rx="10" fill="#fffdf9" opacity=".55" transform="rotate(14 440 320)"/>
+  <path d="m452 226 18-131" stroke="#2b1810" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="500" cy="187" r="63" fill="#feaa7f" stroke="#c87d55" stroke-width="8"/>
+  <path d="M500 134v106m-53-53h106m-91-38 76 76m-76 0 76-76" stroke="#fffdf9" stroke-width="5"/>
+  <path d="M331 316v127" stroke="#fff" stroke-width="12" opacity=".3"/>
+</svg>

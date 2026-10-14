@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title">
+  <title id="title">Minh họa mẫu tách cà phê có lớp kem</title>
+  <rect width="800" height="600" fill="#f6f3ed"/>
+  <circle cx="400" cy="275" r="205" fill="#e8dfd5"/>
+  <ellipse cx="400" cy="466" rx="177" ry="30" fill="#fffdf9" stroke="#d3c3be" stroke-width="6"/>
+  <path d="M508 266h28c80 0 78 116-11 116h-21" fill="none" stroke="#fffdf9" stroke-width="28"/>
+  <path d="M273 239h254v82c0 94-46 126-127 126s-127-32-127-126z" fill="#fffdf9"/>
+  <ellipse cx="400" cy="239" rx="127" ry="46" fill="#c87d55" stroke="#fffdf9" stroke-width="10"/>
+  <path d="M400 260c-64-21-63-49-22-42 18 3 22 16 22 16s4-13 22-16c41-7 42 21-22 42z" fill="#fffdf9"/>
+  <path d="M360 154c-20-26 20-36 0-61m81 61c-20-26 20-36 0-61" fill="none" stroke="#817470" stroke-width="7" stroke-linecap="round"/>
+</svg>
