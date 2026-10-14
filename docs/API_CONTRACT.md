@@ -6,10 +6,10 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 
 | Chủ sở hữu | Method và đường dẫn | Auth | Request DTO | Success response | Lỗi | Màn hình | Trạng thái |
 |---|---|---|---|---|---|---|---|
-| TV2 | GET `/products` | Không | Không | `ProductListItem[]` | 500 DB | Menu | Có backend, chưa xác minh DB tại repo này |
-| TV2 | GET `/products/:id` | Không | UUID path | `ProductDetail` | 400 UUID, 404, 500 | Chi tiết | Có backend, chưa xác minh DB tại repo này |
-| TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Có mã và test giả lập Prisma |
-| TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Có mã và test giả lập Prisma |
+| TV2 | GET `/products` | Không | Không | `ProductListItem[]` | 500 DB | Menu | Backend + PostgreSQL HTTP đã xác minh |
+| TV2 | GET `/products/:id` | Không | UUID path | `ProductDetail` | 400 UUID, 404, 500 | Chi tiết | Backend + PostgreSQL HTTP đã xác minh |
+| TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
+| TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
 | TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar}],promotionCode?}` | `Order` PENDING | 400, 401, 409, 422 | Checkout | Chỉ có adapter frontend |
 | TV5 | POST `/payments` | CUSTOMER | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 409 | Xử lý/kết quả | Chỉ có adapter frontend |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 500 | Đơn của tôi | Chỉ có adapter frontend |

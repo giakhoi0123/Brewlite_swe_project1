@@ -5,7 +5,7 @@
 ## Phạm vi và hiện trạng
 
 - Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
-- Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout, bcrypt, cookie JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã có mã, cần chạy DB để xác minh end-to-end.
+- Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout, bcrypt, cookie JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
 - Orders, Payments, Promotions, Loyalty và Barista Orders **chưa có backend thật**; frontend có mock localStorage và REST adapter để thành viên phụ trách tích hợp. Thanh toán demo không phải giao dịch tiền thật.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
 
@@ -31,15 +31,16 @@ npm --prefix frontend ci
 npm --prefix backend ci
 ```
 
-Giữ `DATABASE_URL` trùng mật khẩu và cổng PostgreSQL trong `.env`. `.env` không được commit. `BARISTA_PASSWORD` là mật khẩu tự đặt, không dùng giá trị mẫu khi chia sẻ môi trường. Khi chạy local, đặt `PORT=3001`, frontend mặc định cổng 3000.
+Giữ `DATABASE_URL` trùng mật khẩu và cổng PostgreSQL trong `.env` (mặc định 5434 để không xung đột dự án BrewLite khác trên 5433). `.env` không được commit. `BARISTA_PASSWORD` là mật khẩu tự đặt, không dùng giá trị mẫu khi chia sẻ môi trường. Khi chạy local, đặt `PORT=3001`, frontend mặc định cổng 3000.
 
 ### Chạy phát triển bằng PostgreSQL trong Docker
 
 ```bash
 docker compose up -d postgres
+set -a; source .env; set +a
 npm --prefix backend run prisma:generate
 npm run db:migrate
-npm --prefix backend run prisma:seed
+npm run db:seed
 npm run dev:backend
 # terminal khác
 npm run dev:frontend
@@ -57,7 +58,7 @@ docker compose up --build
 set -a; source .env; set +a; npm --prefix backend run prisma:seed
 ```
 
-Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5433. Frontend chạy cổng 3000, backend 3001, DB 5433. Dockerfile frontend build mặc định mode mock; khi đổi mode cần build lại image.
+Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Frontend chạy cổng 3000, backend 3001, DB 5434. Dockerfile frontend build mặc định mode mock; khi đổi mode cần build lại image.
 
 ## Chế độ dữ liệu
 
@@ -91,7 +92,7 @@ npm --prefix backend run build
 npm --prefix backend test -- --runInBand
 ```
 
-Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript qua. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Docker daemon không chạy trong phiên xây dựng nên chưa có bằng chứng E2E với PostgreSQL. Kiểm thử tay ưu tiên: đăng ký/login/refresh/logout, giỏ sau refresh, 3 kết quả payment demo, tracking, role Barista và responsive mobile.
+Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript qua. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Compose đã build/chạy đủ ba dịch vụ, HTTP frontend/backend và auth với PostgreSQL đã qua. Chưa có kiểm thử tương tác trình duyệt tự động. Kiểm thử tay ưu tiên: đăng ký/login/refresh/logout, giỏ sau refresh, 3 kết quả payment demo, tracking, role Barista và responsive mobile.
 
 ## Nhóm, branch và PR
 
@@ -99,4 +100,4 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 
 ## Đọc tiếp
 
-Bắt đầu với `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh mock dựa URL Stitch cần mạng; PostgreSQL/Compose chưa chạy E2E tại môi trường hiện tại.
+Bắt đầu với `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline); PostgreSQL/Compose đã chạy HTTP smoke; chưa có kiểm thử tương tác trình duyệt.
