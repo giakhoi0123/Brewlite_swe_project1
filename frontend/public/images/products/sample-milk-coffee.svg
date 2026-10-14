@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-labelledby="title">
+  <title id="title">Minh họa mẫu ly cà phê sữa ba tầng</title>
+  <rect width="800" height="600" fill="#f6f3ed"/>
+  <circle cx="400" cy="275" r="205" fill="#e8dfd5"/>
+  <ellipse cx="400" cy="493" rx="145" ry="24" fill="#2b1810" opacity=".1"/>
+  <path d="M292 166h216l-26 304H318z" fill="#fffdf9" stroke="#817470" stroke-width="8"/>
+  <path d="M300 215h200l-8 86H307z" fill="#4a2c11"/>
+  <path d="M307 301h185l-8 88H314z" fill="#c87d55"/>
+  <path d="M314 389h170l-6 72H320z" fill="#e2bfb2"/>
+  <path d="m452 215 18-120" stroke="#2b1810" stroke-width="12" stroke-linecap="round"/>
+  <path d="M331 184v263" stroke="#fff" stroke-width="12" opacity=".35"/>
+</svg>
