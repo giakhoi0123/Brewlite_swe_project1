@@ -20,6 +20,8 @@ docs/       kế hoạch, hợp đồng, kiến trúc, trạng thái, tích hợ
 
 `frontend/src/app` có route, `components` dùng chung, `stores/cart.ts` giữ giỏ sau refresh, `services` tách interface/mock/API, `types/domain.ts` chứa DTO UI. `backend/src/auth` và `backend/src/products` là module NestJS; `backend/prisma` là nguồn schema và migration.
 
+Xem [cây thư mục đầy đủ và bản đồ chức năng](docs/PROJECT_STRUCTURE.md) để biết mỗi phần của dự án nằm ở đâu.
+
 ## Chuẩn bị
 
 Cần Node.js 24, npm 11, Docker + Docker Compose (hoặc PostgreSQL 15 cài sẵn), Git. Nếu dùng Docker, khởi động Docker Desktop trước. Từ thư mục repo này:
@@ -106,4 +108,4 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 
 ## Đọc tiếp
 
-Bắt đầu với `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). PostgreSQL/Compose và Playwright mock/API mode đã chạy.
+Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). PostgreSQL/Compose và Playwright mock/API mode đã chạy.
