@@ -2,6 +2,8 @@
 
 `UI_COMPLETED` nghĩa là màn hình/adapter có code và build, chưa nghĩa là backend thật đã hoàn tất. Cập nhật cùng `IMPLEMENTATION_PLAN.md` sau mỗi mốc.
 
+Ảnh tham chiếu Stitch được nén thành `screen.webp`; icon ứng dụng được thu nhỏ còn 256 px. Các file này chỉ phục vụ đối chiếu thiết kế và nhận diện ứng dụng, không thay đổi chức năng.
+
 | Feature | Frontend | Backend | Tests | Owner | Ghi chú |
 |---|---|---|---|---|---|
 | Menu, chi tiết | VERIFIED_COMPLETE | Products API VERIFIED_COMPLETE | Playwright API mode + DB HTTP qua | TV1/TV2/TV3 | Mock và API adapter |
