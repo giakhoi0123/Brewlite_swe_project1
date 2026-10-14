@@ -1,5 +1,7 @@
 # Kiểm thử
 
+Sau lượt chỉnh UI theo Stitch: `npm --prefix frontend run build` PASS (13 route), `npm --prefix frontend run lint` PASS, `npm --prefix frontend run test` PASS 3/3. Playwright chụp trang chủ, login, chi tiết sản phẩm và giỏ hàng ở desktop 1440 px/mobile 390 px; thêm món vào giỏ thành công và các màn được kiểm tra không tràn ngang. Chưa chạy lại bộ E2E auth đầy đủ trong lượt này vì backend không khởi động.
+
 Đã chạy trong phiên triển khai:
 - `npm run build` ở frontend: PASS, 13 route tạo thành công.
 - `npx prisma generate && npm run build && npm test -- --runInBand` ở backend: PASS build, 37/37 tests.

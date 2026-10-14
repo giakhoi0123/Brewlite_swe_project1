@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authService } from "@/services/auth";
 import { useAuth } from "@/components/auth-provider";
+import { AuthFeature } from "@/components/auth-feature";
 function Form() {
   const router = useRouter(),
     params = useSearchParams(),
@@ -44,10 +45,17 @@ function Form() {
     }
   };
   return (
-    <main className="container main">
-      <div className="auth-wrap card panel">
+    <main className="container main auth-main">
+      <div className="auth-layout">
+        <AuthFeature />
+        <div className="auth-wrap card panel">
+        <nav className="auth-tabs" aria-label="Tài khoản">
+          <Link href="/login">Đăng nhập</Link>
+          <span className="active">Đăng ký</span>
+        </nav>
         <span className="eyebrow">Gia nhập BrewLite</span>
         <h1 className="section-title">Tạo tài khoản mới</h1>
+        <p className="auth-intro">Tạo tài khoản để đặt món nhanh hơn và theo dõi đơn hàng của bạn.</p>
         <form className="form" onSubmit={submit}>
           <label>
             Họ tên
@@ -55,6 +63,7 @@ function Form() {
               className="field"
               minLength={2}
               required
+              placeholder="Tên của bạn"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
@@ -66,6 +75,7 @@ function Form() {
               className="field"
               type="email"
               required
+              placeholder="ban@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -77,6 +87,7 @@ function Form() {
               className="field"
               type="password"
               required
+              placeholder="Ít nhất 8 ký tự, có chữ hoa và số"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
@@ -88,6 +99,7 @@ function Form() {
               className="field"
               type="password"
               required
+              placeholder="Nhập lại mật khẩu"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
@@ -105,6 +117,7 @@ function Form() {
         <p>
           Đã có tài khoản? <Link href="/login">Đăng nhập ngay</Link>
         </p>
+        </div>
       </div>
     </main>
   );

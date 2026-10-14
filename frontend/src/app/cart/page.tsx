@@ -12,8 +12,9 @@ export default function CartPage() {
     router = useRouter();
   return (
     <main className="container main">
-      <div className="row">
-        <h1 className="section-title">Giỏ hàng của bạn</h1>
+      <p className="breadcrumb"><Link href="/#menu">← Tiếp tục chọn món</Link><span>›</span> Chi tiết giỏ hàng</p>
+      <div className="row cart-heading">
+        <div><h1 className="section-title">Giỏ hàng của bạn</h1><p className="muted">{items.length === 0 ? "Chưa có món nào trong giỏ." : `Hiện có ${items.reduce((n, item) => n + item.quantity, 0)} món được chọn từ thực đơn.`}</p></div>
         {items.length > 0 && (
           <button
             className="btn btn-danger"
@@ -36,37 +37,28 @@ export default function CartPage() {
         />
       ) : (
         <div className="two-col">
-          <div className="card">
+          <div className="cart-list">
             {items.map((i) => (
-              <div className="cart-row" key={i.key}>
+              <div className="cart-row card" key={i.key}>
                 <ProductImage src={i.imageUrl} alt={i.name} />
                 <div className="cart-row-main">
-                  <strong>{i.name}</strong>
-                  <p className="muted" style={{ fontSize: 13 }}>
-                    {i.size} · {i.ice} · {i.sugar}
-                    {i.toppingNames.length > 0 &&
-                      ` · ${i.toppingNames.join(", ")}`}
-                  </p>
-                  <div className="row">
+                  <div className="row cart-item-heading"><strong>{i.name}</strong><strong>{money(lineTotal(i))}</strong></div>
+                  <div className="cart-tags"><span>Size {i.size}</span><span>{i.ice}</span><span>{i.sugar}</span>{i.toppingNames.map((name) => <span key={name}>{name}</span>)}</div>
+                  <div className="row cart-item-bottom">
                     <Quantity
                       value={i.quantity}
                       onChange={(n) => setQuantity(i.key, n)}
                     />
-                    <strong>{money(lineTotal(i))}</strong>
+                    <button className="cart-remove" aria-label={`Xóa ${i.name}`} onClick={() => remove(i.key)}>Xóa món</button>
                   </div>
                 </div>
-                <button
-                  className="btn btn-danger"
-                  aria-label={`Xóa ${i.name}`}
-                  onClick={() => remove(i.key)}
-                >
-                  ×
-                </button>
               </div>
             ))}
           </div>
-          <aside className="card panel">
+          <aside className="card panel cart-summary">
+            <span className="eyebrow">BrewLite Express</span>
             <OrderSummary items={items} />
+            <p className="cart-summary-note">Giá và tồn kho sẽ được kiểm tra lại khi đặt đơn.</p>
             <button
               className="btn btn-primary"
               style={{ width: "100%", marginTop: 20 }}

@@ -4,6 +4,8 @@
 
 Ảnh tham chiếu Stitch được nén thành `screen.webp`; icon ứng dụng được thu nhỏ còn 256 px. Các file này chỉ phục vụ đối chiếu thiết kế và nhận diện ứng dụng, không thay đổi chức năng.
 
+Đã đối chiếu lại `screen.webp` của trang chủ, auth, chi tiết món và giỏ hàng: hero ảnh xếp lớp, danh sách món, bố cục auth hai cột, nhóm tùy chọn và tóm tắt giỏ đã được chỉnh gần thiết kế Stitch hơn. Kiểm tra desktop 1440 px và mobile 390 px không thấy tràn ngang; build/lint và 3 frontend unit tests qua. Backend auth vẫn cần chạy để thử đăng nhập thực tế.
+
 | Feature | Frontend | Backend | Tests | Owner | Ghi chú |
 |---|---|---|---|---|---|
 | Menu, chi tiết | VERIFIED_COMPLETE | Products API VERIFIED_COMPLETE | Playwright API mode + DB HTTP qua | TV1/TV2/TV3 | Mock và API adapter |
