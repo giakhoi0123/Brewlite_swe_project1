@@ -66,6 +66,9 @@ Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Fronte
 
 `NEXT_PUBLIC_DATA_MODE=api` gọi REST cho mọi module; cần TV4/TV5/TV6 hoàn thiện backend theo `docs/API_CONTRACT.md`. Lỗi API không tự fallback sang mock. Nếu thay `NEXT_PUBLIC_*`, khởi động lại hoặc build lại frontend.
 
+
+Để chạy hai bài E2E API mode: `docker compose stop frontend`, chạy `NEXT_PUBLIC_DATA_MODE=api NEXT_PUBLIC_API_URL=http://localhost:3001/api npm --prefix frontend run dev -- --port 3000` ở terminal riêng; sau đó chạy `BREWLITE_RUN_API_E2E=1 npm --prefix frontend run test:e2e -- --grep "API mode"`. Dừng Next dev và chạy `docker compose start frontend` để trả lại demo mode.
+
 ## Auth và Barista
 
 Đăng ký công khai luôn tạo CUSTOMER. Đăng nhập dùng chung; BARISTA được chuyển tới `/barista/dashboard`; CUSTOMER bị chặn khỏi màn đó. Trình duyệt giữ cookie HttpOnly; không lưu JWT ở localStorage. Endpoint mẫu `/api/barista/dashboard` có guard role và trả 401/403 đúng. Staff Orders API thực tế còn là đề xuất.
@@ -90,9 +93,12 @@ npm run test
 npm --prefix frontend run build
 npm --prefix backend run build
 npm --prefix backend test -- --runInBand
+# Khi đã chạy Compose và cài Chromium:
+npm --prefix frontend exec -- playwright install chromium
+npm --prefix frontend run test:e2e -- --grep-invert "API mode"
 ```
 
-Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript qua. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Compose đã build/chạy đủ ba dịch vụ, HTTP frontend/backend và auth với PostgreSQL đã qua. Chưa có kiểm thử tương tác trình duyệt tự động. Kiểm thử tay ưu tiên: đăng ký/login/refresh/logout, giỏ sau refresh, 3 kết quả payment demo, tracking, role Barista và responsive mobile.
+Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript qua. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Compose đã build/chạy đủ ba dịch vụ, HTTP frontend/backend và auth với PostgreSQL đã qua. Playwright Chromium đã qua 3 bài demo và 2 bài API mode trên desktop/mobile.
 
 ## Nhóm, branch và PR
 
@@ -100,4 +106,4 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 
 ## Đọc tiếp
 
-Bắt đầu với `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline); PostgreSQL/Compose đã chạy HTTP smoke; chưa có kiểm thử tương tác trình duyệt.
+Bắt đầu với `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). PostgreSQL/Compose và Playwright mock/API mode đã chạy.
