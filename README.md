@@ -1,6 +1,6 @@
 # BrewLite 1.0
 
-Ứng dụng đặt cà phê Việt và thanh toán không tiền mặt cho bài tập Công nghệ phần mềm nhóm 6 người. Gồm Next.js frontend, NestJS backend, PostgreSQL/Prisma và Docker Compose. Mã nguồn tập trung trong **`BrewLite_swe-project_1`**; `stitch/` là bản thiết kế gốc.
+Ứng dụng đặt cà phê Việt và thanh toán không tiền mặt cho bài tập Công nghệ phần mềm nhóm 6 người. Gồm Next.js frontend, NestJS backend, PostgreSQL/Prisma và Docker Compose. Mã nguồn tập trung trong **`BrewLite_swe-project_1`**; `stitch/` chứa HTML và design tokens gốc cùng ảnh tham chiếu WebP đã nén.
 
 ## Phạm vi và hiện trạng
 
@@ -14,7 +14,7 @@
 ```text
 frontend/   Next.js App Router, TypeScript, Tailwind, Zustand, service adapters
 backend/    NestJS, Prisma migrations/seed, auth/role và Products API
-stitch/     HTML, PNG, DESIGN.md gốc (không sửa)
+stitch/     HTML, DESIGN.md gốc và ảnh tham chiếu screen.webp
 docs/       kế hoạch, hợp đồng, kiến trúc, trạng thái, tích hợp, bàn giao, kiểm thử
 ```
 
@@ -102,7 +102,7 @@ Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript q
 
 ## Nhóm, branch và PR
 
-TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV4 Orders/inventory/state machine; TV5 Payments/idempotency; TV6 Promotions/Loyalty/History/E2E. Chi tiết ở `docs/TEAM_HANDOFF.md`. Repo này được khởi tạo Git độc lập; dùng branch `feature/auth`, `feature/products`, `feature/orders`, `feature/payments`, `feature/loyalty`, `feature/barista` từ nhánh tích hợp do nhóm thống nhất. PR phải nêu thay đổi DTO, test và cập nhật docs. Không có remote/push được cấu hình tự động.
+TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV4 Orders/inventory/state machine; TV5 Payments/idempotency; TV6 Promotions/Loyalty/History/E2E. Chi tiết ở `docs/TEAM_HANDOFF.md`. Nhánh tích hợp hiện tại là `auth-and-base` trên GitHub; các thành viên tạo branch `feature/auth`, `feature/products`, `feature/orders`, `feature/payments`, `feature/loyalty`, `feature/barista` từ nhánh do nhóm thống nhất. PR phải nêu thay đổi DTO, test và cập nhật docs.
 
 ## Đọc tiếp
 
