@@ -47,6 +47,8 @@ Chỉ đổi thành `VERIFIED_COMPLETE` khi toàn bộ tiêu chí của Task đ�
 - [x] Kiểm tra Playwright trên desktop/mobile ở mock mode và API mode.
 
 ## 5. Công việc hiện tại
+Đã hoàn thiện thêm một lượt đối chiếu UI với Stitch cho trang chủ, auth, chi tiết món và giỏ hàng, đặc biệt bố cục mobile. Browser smoke kiểm tra thêm món vào giỏ và không tràn ngang ở 390 px; frontend build/lint và 3 unit tests qua. Các màn Orders/Payment/Profile/Barista vẫn cần một lượt so sánh chi tiết riêng với Stitch khi nhóm tích hợp backend tương ứng.
+
 Đã triển khai Next.js 13 route, auth/Products backend, adapter mock/REST, Dockerfile/Compose, docs và Git. Build và lint hai phía qua; 3 frontend tests + 37 backend tests qua. Compose đã build/chạy 3 container: Next 3000, Nest 3001, PostgreSQL 5434. Migration/seed chạy, 10 Products có trên DB, HTTP smoke auth/role/CSRF/Products qua, bcrypt hash được đối chiếu trong DB. Playwright 3 bài mock + 2 bài API mode qua, gồm desktop/mobile và các nhánh thanh toán. Ảnh Stitch đã được chuyển từ PNG sang WebP và icon thu nhỏ để giảm dung lượng nhánh; HTML và DESIGN.md vẫn là tài liệu thiết kế. Backend Orders/Payments/Promotion/Loyalty/Staff Orders thuộc TV4–TV6 chưa có. Bước kế tiếp: tích hợp Orders/Payments/History/Promotion/Loyalty backend theo owner và mở rộng E2E sang API thật. File chính: `frontend/src/app`, `frontend/src/services`, `frontend/src/stores/cart.ts`, `backend/src/auth`, `backend/src/products`, `backend/prisma`, `docker-compose.yml`, `scripts/smoke_http.py`, `README.md`, `docs/*`.
 
 ## 6. Sở hữu nhóm

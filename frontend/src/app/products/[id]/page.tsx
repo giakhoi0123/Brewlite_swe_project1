@@ -76,24 +76,33 @@ export default function ProductPage({
         <ErrorState message="Không tìm thấy sản phẩm" />
       ) : (
         <>
-          <p>
-            <Link href="/">Thực đơn</Link> / {product.name}
+          <p className="breadcrumb">
+            <Link href="/">Trang chủ</Link> <span>›</span> <Link href="/#menu">Thực đơn BrewLite</Link> <span>›</span> {product.name}
           </p>
           <div className="detail">
-            <div>
-              <ProductImage
-                className="detail-image"
-                src={product.imageUrl}
-                alt={product.name}
-              />
-              <p className="muted">{product.description}</p>
+            <div className="detail-media">
+              <div className="detail-photo">
+                <ProductImage
+                  className="detail-image"
+                  src={product.imageUrl}
+                  alt={product.name}
+                />
+                <span className="detail-photo-tag">BrewLite Signature</span>
+                <div className="detail-photo-caption"><small>Công thức được yêu thích</small><strong>{product.name}</strong></div>
+              </div>
+              <div className="detail-story">
+                <span className="eyebrow">Câu chuyện hương vị</span>
+                <p>{product.description}</p>
+              </div>
             </div>
-            <div className="card panel">
-              <span className="eyebrow">{product.category}</span>
+            <div className="detail-config">
+              <span className="detail-category">{product.category}</span>
               <h1 className="section-title">{product.name}</h1>
               <p className="price">Từ {money(product.price)}</p>
-              <h2>Kích cỡ ly</h2>
-              <div className="options">
+              <p className="detail-description">{product.description}</p>
+              <div className="detail-section">
+              <h2>Kích cỡ ly <small>Chọn 1 kích cỡ</small></h2>
+              <div className="options size-options">
                 {product.sizes.map((s) => (
                   <button
                     key={s.code}
@@ -106,9 +115,11 @@ export default function ProductPage({
                   </button>
                 ))}
               </div>
+              </div>
+              <div className="detail-section taste-section">
               <h2>Tùy chỉnh khẩu vị</h2>
               <p>Mức đá</p>
-              <div className="options">
+              <div className="options taste-options">
                 {["100% đá", "70% đá", "30% đá", "Không đá"].map((x) => (
                   <button
                     key={x}
@@ -120,7 +131,7 @@ export default function ProductPage({
                 ))}
               </div>
               <p>Mức đường</p>
-              <div className="options">
+              <div className="options taste-options">
                 {[
                   "100% chuẩn",
                   "70% ngọt vừa",
@@ -136,8 +147,10 @@ export default function ProductPage({
                   </button>
                 ))}
               </div>
+              </div>
+              <div className="detail-section">
               <h2>Thêm topping đặc sản</h2>
-              <div className="options">
+              <div className="options topping-options">
                 {product.toppings.map((t) => (
                   <label
                     key={t.id}
@@ -159,6 +172,8 @@ export default function ProductPage({
                   </label>
                 ))}
               </div>
+              </div>
+              <div className="detail-summary">
               <div className="row">
                 <span>Số lượng</span>
                 <Quantity value={quantity} onChange={setQuantity} />
@@ -174,6 +189,7 @@ export default function ProductPage({
               <div className="row">
                 <strong>Tổng cộng</strong>
                 <strong className="price">{money(unit * quantity)}</strong>
+              </div>
               </div>
               <button
                 className="btn btn-primary"

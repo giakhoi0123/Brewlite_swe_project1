@@ -14,7 +14,13 @@ export function Header() {
       <header className="header">
         <div className="container header-inner">
           <Link className="brand" href="/">
-            ☕ BrewLite
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 36 36" fill="none">
+                <path d="M8 15h18v8a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8v-8Z" stroke="currentColor" strokeWidth="2" />
+                <path d="M26 17h2a4 4 0 0 1 0 8h-2M7 31h22M14 5c-3 3 2 4-1 7M21 4c-3 3 2 5-1 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </span>
+            <span>BrewLite</span>
           </Link>
           <nav className="nav" aria-label="Điều hướng">
             <Link href="/">Trang chủ</Link>
@@ -25,8 +31,12 @@ export function Header() {
             )}
           </nav>
           <div className="nav-tools">
-            <Link href="/cart" aria-label={`Giỏ hàng ${count} món`}>
-              Giỏ hàng <span className="badge">{count}</span>
+            <Link className="cart-link" href="/cart" aria-label={`Giỏ hàng ${count} món`}>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 8h16l-1.4 12H5.4L4 8ZM9 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+              <span className="cart-label">Giỏ hàng</span>
+              <span className="badge">{count}</span>
             </Link>
             {user ? (
               <>
@@ -60,16 +70,23 @@ export function Footer() {
   return (
     <footer className="footer">
       <div className="container footer-inner">
-        <div>
+        <div className="footer-about">
           <strong className="brand">BrewLite</strong>
-          <p>Cà phê Việt, tiện lợi mỗi ngày.</p>
+          <p>Trải nghiệm cà phê Việt theo cách của bạn, từ chọn món đến đặt hàng chỉ trong vài bước.</p>
         </div>
-        <div>
-          <Link href="/">Thực đơn</Link> · <Link href="/orders">Đơn hàng</Link>{" "}
-          · <Link href="/profile">Thành viên</Link>
+        <div className="footer-links">
+          <strong>Khám phá</strong>
+          <Link href="/#menu">Thực đơn</Link>
+          <Link href="/orders">Đơn hàng của tôi</Link>
+          <Link href="/profile">Thành viên BrewLite</Link>
         </div>
-        <small>© 2026 BrewLite</small>
+        <div className="footer-links">
+          <strong>Hỗ trợ</strong>
+          <Link href="/cart">Giỏ hàng</Link>
+          <Link href="/login">Tài khoản</Link>
+        </div>
       </div>
+      <div className="footer-bottom">© 2026 BrewLite · Cà phê Việt mỗi ngày</div>
     </footer>
   );
 }
