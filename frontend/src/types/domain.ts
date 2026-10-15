@@ -80,7 +80,10 @@ export type Order = {
   status: OrderStatus;
   paymentMethod?: PaymentMethod;
   createdAt: string;
+  completedAt?: string;
   error?: string;
+  customerName?: string;
+  cancelReason?: string;
 };
 export type Payment = {
   id: string;

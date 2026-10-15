@@ -1,9 +1,14 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "./auth-provider";
 import { dataMode } from "@/services";
+export function AppFrame({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (pathname.startsWith("/barista/")) return <>{children}</>;
+  return <><Header />{children}<Footer /></>;
+}
 export function Header() {
   const items = useCart((s) => s.items),
     { user, logout } = useAuth(),

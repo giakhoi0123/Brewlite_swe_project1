@@ -58,5 +58,7 @@ export interface LoyaltyService {
 }
 export interface BaristaOrderService {
   list(): Promise<Order[]>;
+  get(id: string): Promise<Order | null>;
   transition(id: string, status: OrderStatus): Promise<Order>;
+  cancel(id: string, reason: string): Promise<Order>;
 }
