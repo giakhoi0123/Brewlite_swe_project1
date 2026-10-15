@@ -1,81 +1,303 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "@/components/auth-provider";
-import { Empty, ProductImage, Quantity } from "@/components/ui";
-import { OrderSummary } from "@/components/order-summary";
-import { money, lineTotal } from "@/types/domain";
+import { ProductImage, Quantity } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { services } from "@/services";
+import { cartTotal, lineTotal, money } from "@/types/domain";
+import type { CartItem, Product, ProductSize, Promotion } from "@/types/domain";
+const sizeLabel = (s: ProductSize) =>
+  `Size: ${s.code} (${s.extraPrice > 0 ? `+${money(s.extraPrice)}` : "Tiêu chuẩn"})`;
+function SizeControl({
+  item,
+  product,
+  onChange,
+}: {
+  item: CartItem;
+  product?: Product;
+  onChange: (size: ProductSize["code"], unitPrice: number) => void;
+}) {
+  const current = product?.sizes.find((s) => s.code === item.size);
+  if (!product || !current)
+    return <span className="ct-chip">Size: {item.size}</span>;
+  return (
+    <label className="ct-select">
+      <span className="sr-only">Chọn size cho {item.name}</span>
+      <select
+        value={item.size}
+        onChange={(e) => {
+          const next = product.sizes.find((s) => s.code === e.target.value);
+          if (next)
+            onChange(next.code, item.unitPrice - current.extraPrice + next.extraPrice);
+        }}
+      >
+        {product.sizes.map((s) => (
+          <option key={s.code} value={s.code} disabled={!s.available}>
+            {sizeLabel(s)}
+          </option>
+        ))}
+      </select>
+      <Icon name="down" size={16} />
+    </label>
+  );
+}
 export default function CartPage() {
-  const { items, setQuantity, remove, clear } = useCart(),
+  const { items, setQuantity, changeSize, remove, clear, promoCode, setPromoCode } =
+      useCart(),
     { user, loading } = useAuth(),
     router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]),
+    [code, setCode] = useState(""),
+    [promotion, setPromotion] = useState<Promotion | null>(null),
+    [promoError, setPromoError] = useState(""),
+    [promoBusy, setPromoBusy] = useState(false);
+  const count = items.reduce((n, i) => n + i.quantity, 0),
+    subtotal = cartTotal(items),
+    discount = Math.min(promotion?.discount || 0, subtotal);
+  useEffect(() => {
+    services.products
+      .list()
+      .then(setProducts)
+      .catch(() => setProducts([]));
+  }, []);
+  // Mã đã lưu được kiểm tra lại mỗi khi tạm tính thay đổi để ưu đãi luôn khớp giỏ.
+  useEffect(() => {
+    if (!promoCode || !subtotal) {
+      setPromotion(null);
+      return;
+    }
+    let active = true;
+    services.promotions
+      .validate(promoCode, subtotal)
+      .then((p) => active && setPromotion(p))
+      .catch((e) => {
+        if (!active) return;
+        setPromotion(null);
+        setPromoCode("");
+        setPromoError(e instanceof Error ? e.message : "Mã không hợp lệ");
+      });
+    return () => {
+      active = false;
+    };
+  }, [promoCode, subtotal, setPromoCode]);
+  const apply = async () => {
+    setPromoBusy(true);
+    setPromoError("");
+    try {
+      const p = await services.promotions.validate(code, subtotal);
+      setPromotion(p);
+      setPromoCode(p.code);
+      setCode("");
+    } catch (e) {
+      setPromoError(e instanceof Error ? e.message : "Mã không hợp lệ");
+    } finally {
+      setPromoBusy(false);
+    }
+  };
   return (
-    <main className="container main">
-      <p className="breadcrumb"><Link href="/#menu">← Tiếp tục chọn món</Link><span>›</span> Chi tiết giỏ hàng</p>
-      <div className="row cart-heading">
-        <div><h1 className="section-title">Giỏ hàng của bạn</h1><p className="muted">{items.length === 0 ? "Chưa có món nào trong giỏ." : `Hiện có ${items.reduce((n, item) => n + item.quantity, 0)} món được chọn từ thực đơn.`}</p></div>
+    <main className="container ct-page">
+      <nav className="ct-breadcrumb" aria-label="Breadcrumb">
+        <Link href="/">Trang chủ</Link>
+        <Icon name="chevron" size={14} />
+        <Link href="/#menu">Menu</Link>
+        <Icon name="chevron" size={14} />
+        <strong>Giỏ hàng của bạn</strong>
+      </nav>
+      <div className="ct-header">
+        <div>
+          <div className="ct-title-row">
+            <h1>Giỏ hàng của bạn</h1>
+            <span className="ct-count">{count} sản phẩm</span>
+          </div>
+          <p>Cà phê rang mộc thủ công, pha chế ngay khi nhận đơn.</p>
+        </div>
         {items.length > 0 && (
           <button
-            className="btn btn-danger"
+            className="ct-clear"
             onClick={() => {
               if (confirm("Xóa tất cả món trong giỏ?")) clear();
             }}
           >
+            <Icon name="sweep" size={18} />
             Xóa tất cả
           </button>
         )}
       </div>
       {items.length === 0 ? (
-        <Empty
-          message="Hãy chọn thức uống yêu thích từ thực đơn."
-          action={
-            <Link className="btn btn-primary" href="/">
-              Khám phá thực đơn
-            </Link>
-          }
-        />
+        <div className="ct-empty">
+          <span>
+            <Icon name="bag" size={40} />
+          </span>
+          <h2>Giỏ hàng đang trống</h2>
+          <p>Hãy chọn thức uống yêu thích từ thực đơn để bắt đầu.</p>
+          <Link className="ct-primary" href="/#menu">
+            Khám phá thực đơn <Icon name="arrowRight" size={18} />
+          </Link>
+        </div>
       ) : (
-        <div className="two-col">
-          <div className="cart-list">
-            {items.map((i) => (
-              <div className="cart-row card" key={i.key}>
-                <ProductImage src={i.imageUrl} alt={i.name} />
-                <div className="cart-row-main">
-                  <div className="row cart-item-heading"><strong>{i.name}</strong><strong>{money(lineTotal(i))}</strong></div>
-                  <div className="cart-tags"><span>Size {i.size}</span><span>{i.ice}</span><span>{i.sugar}</span>{i.toppingNames.map((name) => <span key={name}>{name}</span>)}</div>
-                  <div className="row cart-item-bottom">
-                    <Quantity
-                      value={i.quantity}
-                      onChange={(n) => setQuantity(i.key, n)}
-                    />
-                    <button className="cart-remove" aria-label={`Xóa ${i.name}`} onClick={() => remove(i.key)}>Xóa món</button>
+        <div className="ct-layout">
+          <section className="ct-list">
+            {items.map((i) => {
+              const product = products.find((p) => p.id === i.productId);
+              return (
+                <article className="cart-row ct-item" key={i.key}>
+                  <Link href={`/products/${i.productId}`} className="ct-thumb">
+                    <ProductImage src={i.imageUrl} alt={i.name} />
+                    {product && <span>{product.category}</span>}
+                  </Link>
+                  <div className="ct-item-main">
+                    <div className="ct-item-head">
+                      <h2>{i.name}</h2>
+                      <button
+                        className="ct-remove"
+                        aria-label={`Xóa ${i.name}`}
+                        onClick={() => remove(i.key)}
+                      >
+                        <Icon name="trash" size={20} />
+                      </button>
+                    </div>
+                    <div className="ct-options">
+                      <SizeControl
+                        item={i}
+                        product={product}
+                        onChange={(size, unit) => changeSize(i.key, size, unit)}
+                      />
+                      <span className="ct-chip">
+                        <Icon name="plusCircle" size={15} />
+                        <span>
+                          Topping:{" "}
+                          {i.toppingNames.length
+                            ? i.toppingNames.join(", ")
+                            : "Không topping"}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="ct-note">
+                      <Icon name="tune" size={14} />
+                      <span>
+                        {i.ice}, {i.sugar}
+                        {i.note ? ` · Ghi chú: ${i.note}` : ""}
+                      </span>
+                    </div>
+                    <div className="ct-item-bottom">
+                      <div>
+                        <small>Đơn giá</small>
+                        <strong>{money(i.unitPrice)}</strong>
+                      </div>
+                      <div className="ct-item-right">
+                        <Quantity
+                          value={i.quantity}
+                          onChange={(n) => setQuantity(i.key, n)}
+                        />
+                        <div className="ct-line-total">
+                          <small>Thành tiền</small>
+                          <strong>{money(lineTotal(i))}</strong>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </article>
+              );
+            })}
+            <div className="ct-promise">
+              <span>
+                <Icon name="truck" size={20} />
+              </span>
+              <div>
+                <strong>Đóng gói giữ nhiệt & niêm phong chống đổ tràn</strong>
+                <p>Ly giấy tráng sáp thực vật thân thiện môi trường, đá riêng theo yêu cầu của bạn.</p>
               </div>
-            ))}
-          </div>
-          <aside className="card panel cart-summary">
-            <span className="eyebrow">BrewLite Express</span>
-            <OrderSummary items={items} />
-            <p className="cart-summary-note">Giá và tồn kho sẽ được kiểm tra lại khi đặt đơn.</p>
+            </div>
+          </section>
+          <aside className="ct-summary">
+            <div className="ct-summary-head">
+              <h2>Tóm tắt đơn hàng</h2>
+              <Icon name="receipt" size={20} />
+            </div>
+            <div className="ct-lines">
+              <div>
+                <span>Tạm tính</span>
+                <strong>{money(subtotal)}</strong>
+              </div>
+              {promotion && discount > 0 && (
+                <div className="ct-discount">
+                  <span>
+                    Ưu đãi <em>{promotion.code}</em>
+                  </span>
+                  <strong>− {money(discount)}</strong>
+                  <button
+                    aria-label="Bỏ mã ưu đãi"
+                    onClick={() => setPromoCode("")}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              <div>
+                <span>
+                  Phí phục vụ
+                  <small>Nhận món tại quầy BrewLite</small>
+                </span>
+                <strong className="ct-free">Miễn phí</strong>
+              </div>
+            </div>
+            <div className="ct-grand">
+              <span>
+                Tổng cộng
+                <small>Giá cuối cùng được xác nhận khi đặt đơn</small>
+              </span>
+              <strong>{money(subtotal - discount)}</strong>
+            </div>
+            <div className="ct-voucher">
+              <label htmlFor="voucher-input">Mã ưu đãi / Voucher</label>
+              <div>
+                <input
+                  id="voucher-input"
+                  value={code}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    setPromoError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && code.trim()) apply();
+                  }}
+                  placeholder="Nhập mã (VD: BREW10)"
+                />
+                <button disabled={promoBusy || !code.trim()} onClick={apply}>
+                  {promoBusy ? "Đang kiểm tra" : "Áp dụng"}
+                </button>
+              </div>
+              {promoError && <p className="error">{promoError}</p>}
+              {promotion && (
+                <p className="success">Đã áp dụng {promotion.code}.</p>
+              )}
+            </div>
             <button
-              className="btn btn-primary"
-              style={{ width: "100%", marginTop: 20 }}
+              className="ct-primary"
               disabled={loading}
               onClick={() =>
                 router.push(user ? "/checkout" : "/login?next=%2Fcheckout")
               }
             >
-              Tiến hành thanh toán
+              Tiến hành đặt hàng <Icon name="arrowRight" size={18} />
             </button>
-            <Link
-              className="btn btn-secondary"
-              style={{ width: "100%", marginTop: 10 }}
-              href="/"
-            >
-              Tiếp tục chọn món
+            <Link className="ct-continue" href="/#menu">
+              <Icon name="arrowLeft" size={16} /> Tiếp tục chọn đồ uống
             </Link>
+            <div className="ct-perks">
+              <span>
+                <Icon name="bolt" size={20} /> Pha ngay khi đặt
+              </span>
+              <span>
+                <Icon name="snow" size={20} /> Giữ trọn vị
+              </span>
+              <span>
+                <Icon name="tag" size={20} /> Tích điểm thành viên
+              </span>
+            </div>
           </aside>
         </div>
       )}

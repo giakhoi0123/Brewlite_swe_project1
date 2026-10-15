@@ -8,8 +8,10 @@
 
 | Feature | Frontend | Backend | Tests | Owner | Ghi chú |
 |---|---|---|---|---|---|
-| Menu, chi tiết | VERIFIED_COMPLETE | Products API VERIFIED_COMPLETE | Playwright API mode + DB HTTP qua | TV1/TV2/TV3 | Mock và API adapter |
-| Giỏ | VERIFIED_COMPLETE | Không yêu cầu riêng | Playwright persist/totals/clear qua | TV1/TV3 | Zustand persist |
+| Menu, chi tiết | UI_COMPLETED (chi tiết làm lại theo Stitch 2026-10-15) | Products API VERIFIED_COMPLETE | Build/lint/unit qua; smoke Edge desktop+mobile mock qua; Playwright e2e cần chạy lại | TV1/TV2/TV3 | Mock và API adapter |
+| Giỏ | UI_COMPLETED (làm lại theo Stitch 2026-10-15) | Không yêu cầu riêng | Build/lint/unit qua; smoke Edge đổi size/voucher/tổng qua; Playwright e2e cần chạy lại | TV1/TV3 | Zustand persist |
+
+Ngày 2026-10-15 (nhánh `feature/cart_productDetail`): trang chi tiết và giỏ hàng được dựng lại theo `product_details/` và `cart/` (Stitch). Chi tiết: thẻ size, topping, mức đá/đường, ghi chú cho Barista (`CartItem.note`), "Mua ngay", mô tả theo nhóm món, gợi ý món có "Thêm nhanh". Giỏ: đổi size ngay trong giỏ (tự gộp nếu trùng cấu hình), mã ưu đãi lưu trong store và được checkout áp dụng sẵn. E2E đã đổi selector sang "Size M" và "Tiến hành đặt hàng" nhưng chưa chạy lại vì máy chưa cài Chromium của Playwright và backend/DB chưa chạy.
 | Auth | UI_COMPLETED | Code đầy đủ | 37 backend tests; PostgreSQL HTTP; Playwright đăng ký/role qua | TV1 | Cookie JWT và role |
 | Checkout | UI_COMPLETED | BACKEND_PENDING | Playwright promo sai/đúng, auth redirect qua | TV1/TV4 | Demo tạo PENDING |
 | Payment | UI_COMPLETED | BACKEND_PENDING | Playwright fail/retry/success/unknown qua | TV1/TV5 | PAID/FAILED/UNKNOWN demo |

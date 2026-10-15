@@ -11,7 +11,7 @@ async function addCoffee(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.getByRole('link',{name:/Tùy chỉnh Cà phê sữa đá Sài Gòn/}).click();
   await expect(page.getByRole('heading',{name:'Cà phê sữa đá Sài Gòn'})).toBeVisible();
-  await page.getByRole('button',{name:/M · Vừa/}).click();
+  await page.getByRole('button',{name:/Size M/}).click();
   await page.getByRole('checkbox',{name:/Kem sữa/}).check();
   await page.getByRole('button',{name:'Tăng số lượng'}).click();
   await expect(page.getByText('126.000 ₫')).toBeVisible();
@@ -20,7 +20,7 @@ async function addCoffee(page: import('@playwright/test').Page) {
   await expect(page.getByLabel(/Giỏ hàng 2 món/)).toBeVisible();
 }
 async function registerFromCheckout(page: import('@playwright/test').Page) {
-  await page.getByRole('button',{name:'Tiến hành thanh toán'}).click();
+  await page.getByRole('button',{name:/Tiến hành đặt hàng/}).click();
   await expect(page).toHaveURL(/\/login\?next=/);
   await page.getByRole('link',{name:'Đăng ký ngay'}).click();
   await page.getByLabel('Họ tên').fill('Khách kiểm thử');
