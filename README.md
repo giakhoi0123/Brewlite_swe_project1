@@ -6,7 +6,7 @@
 
 - Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
 - Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout, bcrypt, cookie JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
-- Orders, Payments, Promotions, Loyalty và Barista Orders **chưa có backend thật**; frontend có mock localStorage và REST adapter để thành viên phụ trách tích hợp. Thanh toán demo không phải giao dịch tiền thật.
+- Orders, Promotions, Loyalty và Barista Orders **chưa có backend thật**. Payment đã có core/controller/schema/migration và test idempotency nhưng chưa bật endpoint vì chờ Orders port; frontend vẫn dùng mock localStorage khi demo. Thanh toán demo không phải giao dịch tiền thật.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
 
 ## Cấu trúc
@@ -102,7 +102,7 @@ npm --prefix frontend exec -- playwright install chromium
 npm --prefix frontend run test:e2e -- --grep-invert "API mode"
 ```
 
-Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript qua. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Compose đã build/chạy đủ ba dịch vụ, HTTP frontend/backend và auth với PostgreSQL đã qua. Playwright Chromium đã qua 3 bài demo và 2 bài API mode trên desktop/mobile.
+Sau khi hợp nhất Cart và Payment, backend có 56 tests đã qua; frontend có 7 unit tests qua và production build thành công. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose trước lượt Payment. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Payment migration/API E2E chưa chạy vì OrdersModule chưa có. Playwright Chromium trước đó đã qua 3 bài demo và 2 bài API mode trên desktop/mobile.
 
 ## Nhóm, branch và PR
 
@@ -110,4 +110,4 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 
 ## Đọc tiếp
 
-Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Payments/Promotions/Loyalty/Staff còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). PostgreSQL/Compose và Playwright mock/API mode đã chạy.
+Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Promotions/Loyalty/Staff còn thiếu; Payment chờ Orders port để kích hoạt và migrate; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). PostgreSQL/Compose và Playwright mock/API mode đã chạy trước lượt Payment.
