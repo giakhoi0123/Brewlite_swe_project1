@@ -307,8 +307,12 @@ export const mockBarista: BaristaOrderService = {
   async list() {
     await pause();
     return orders().filter((o) =>
-      ["PAID", "PREPARING", "READY"].includes(o.status),
+      ["PAID", "PREPARING", "READY", "COMPLETED", "CANCELLED"].includes(o.status),
     );
+  },
+  async get(id) {
+    await pause();
+    return orders().find((o) => o.id === id) || null;
   },
   async transition(id, status) {
     await pause();
@@ -316,7 +320,24 @@ export const mockBarista: BaristaOrderService = {
     if (!order) throw new Error("Không tìm thấy đơn");
     if (!transitions[order.status].includes(status))
       throw new Error("Chuyển trạng thái không hợp lệ");
-    const next = { ...order, status };
+    if (status === "CANCELLED")
+      throw new Error("Cần ghi lý do hủy đơn");
+    const next: Order = {
+      ...order,
+      status,
+      ...(status === "COMPLETED" ? { completedAt: new Date().toISOString() } : {}),
+    };
+    saveOrder(next);
+    return next;
+  },
+  async cancel(id, reason) {
+    await pause();
+    const order = orders().find((o) => o.id === id);
+    if (!order) throw new Error("Không tìm thấy đơn");
+    if (!reason.trim()) throw new Error("Vui lòng ghi lý do hủy đơn");
+    if (!["PENDING", "PAID", "PAYMENT_FAILED"].includes(order.status))
+      throw new Error("Không thể hủy đơn ở trạng thái hiện tại");
+    const next: Order = { ...order, status: "CANCELLED", cancelReason: reason.trim() };
     saveOrder(next);
     return next;
   },

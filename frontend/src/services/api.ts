@@ -167,9 +167,22 @@ export const apiLoyalty: LoyaltyService = {
 };
 export const apiBarista: BaristaOrderService = {
   list: () => request<Order[]>("/staff/orders"),
+  get: async (id) => {
+    try {
+      return await request<Order>(`/staff/orders/${encodeURIComponent(id)}`);
+    } catch (e) {
+      if ((e as { status?: number }).status === 404) return null;
+      throw e;
+    }
+  },
   transition: (id, status) =>
     request<Order>(`/staff/orders/${encodeURIComponent(id)}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
+    }),
+  cancel: (id, reason) =>
+    request<Order>(`/staff/orders/${encodeURIComponent(id)}/cancel`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason }),
     }),
 };

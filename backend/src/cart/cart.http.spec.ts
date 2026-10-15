@@ -43,7 +43,7 @@ function fakePrisma(products: Map<string, ProductDetailRecord>) {
   const client = {
     user: {
       findUnique: async ({ where }: { where: { id: string } }) =>
-        [ALICE, BOB].includes(where.id) ? { id: where.id, email: `${where.id}@test`, fullName: 'Khách', role: Role.CUSTOMER, loyaltyPoints: 0, status: UserStatus.ACTIVE } : null,
+        [ALICE, BOB].includes(where.id) ? { id: where.id, email: `${where.id}@test`, fullName: 'Khách', role: Role.CUSTOMER, loyaltyPoints: 0, sessionVersion: 0, status: UserStatus.ACTIVE } : null,
     },
     product: {
       findUnique: async ({ where }: { where: { id: string } }) => products.get(where.id) ?? null,

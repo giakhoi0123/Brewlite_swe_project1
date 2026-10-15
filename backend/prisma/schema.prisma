@@ -48,6 +48,7 @@ model User {
   phone         String?
   role          Role        @default(CUSTOMER)
   loyaltyPoints Int         @default(0) @map("loyalty_points")
+  sessionVersion Int        @default(0) @map("session_version")
   status        UserStatus  @default(ACTIVE)
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")

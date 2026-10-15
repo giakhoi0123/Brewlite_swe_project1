@@ -1,6 +1,14 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
-Cập nhật mới nhất TV4, 2026-10-15 (`feature/orders-and-inventory`): OrdersModule/InventoryModule, API khách/staff, schema/migration snapshot + history, state machine và optimistic locking đã có code. Prisma generate/validate, build/lint hai phía, 138 backend + 8 frontend tests qua; 7 PostgreSQL tests skipped, migration mới chưa apply do DB localhost:5434 không chạy/Docker CLI không có. T06/10A/10C vẫn IN_PROGRESS. Bắt đầu phiên sau bằng `PROJECT_STATUS.md` và phần TV4 của `TESTING.md`; chạy migration/DB race tests và browser API E2E khi có DB. TV5 tích hợp `transitionInTransaction`; TV6 tích hợp `ORDER_DISCOUNT`. Những đoạn bên dưới mô tả mốc nền tảng trước phần TV4; không diễn giải thành Orders hiện vẫn chưa có code.
+## Cập nhật sau khi nhập origin/main ngày 2026-10-16
+
+Làm việc trên **nhánh hiện có** `feature/auth-and-base`. Không tạo nhánh mới. Nguồn thiết kế vẫn là toàn bộ 9 export `stitch/`; trang hồ sơ và Barista KDS đã được chỉnh theo ảnh, với 5 route Barista. `frontend/src/components/barista-board.tsx` là UI chính, `barista-board.css` là CSS; `frontend/src/app/barista/[view]/page.tsx` dùng cho orders/preparing/ready/history. Customer shell được ẩn trên staff route.
+
+Auth thật có thêm `users.session_version` và migration `20261016000000_session_version`; đăng xuất tăng version để token cũ trả 401, kể cả bản sao cookie. Đây là invalidation ở cấp tài khoản (mọi thiết bị). `/auth/me` vẫn là nguồn khôi phục phiên; response auth có `Cache-Control: no-store`. Cần `prisma migrate deploy` trên DB nhóm trước khi chạy backend build mới. Test trên DB QA `brewlite_auth_test` đã migrate/seed và chạy HTTP smoke; không sửa dữ liệu DB phát triển.
+
+Mock Barista/Customer dùng chung key localStorage `brewlite-demo-orders-v1`; các transition có kiểm tra trạng thái, hủy cần lý do. API adapter dùng `/staff/orders`, `/staff/orders/:id`, `PATCH /status`, `PATCH /cancel` và không fallback khi API mode lỗi. TV4 đã có list/transition; detail riêng, hủy có lý do, danh sách lịch sử terminal và `completedAt` chưa có. PENDING/PAID/PAYMENT_FAILED được hủy trong mock; PREPARING chưa hỗ trợ.
+
+Bằng chứng sau merge: Docker backend build PASS; 18 suites/168 tests PASS trên DB PostgreSQL tạm với đủ 8 migrations, DB tạm đã dọn; frontend build/lint và 13 unit tests PASS. Test HTTP Orders cần thêm `sessionVersion:0` vào fixture để tương thích guard Auth, không đổi nghiệp vụ Orders. TV1 trước merge đã có demo Playwright 4/4 và QA 1440/768/390. TV4 đã thêm OrdersModule/InventoryModule, API khách/staff, snapshot/history, optimistic locking; Staff còn thiếu detail/hủy lý do/history. TV5 tích hợp `transitionInTransaction`; TV6 tích hợp `ORDER_DISCOUNT`. `NEXT_PUBLIC_DATA_MODE` có **mock/hybrid/api**; Auth luôn API thật.
 
 BrewLite 1.0 là bài tập nhóm 6 người, yêu cầu 10 Task trong `docs/IMPLEMENTATION_PLAN.md`. **Chỉ sửa repo `BrewLite_swe-project_1`**. Repo này ban đầu chỉ có 9 export Stitch; đã thêm Next.js frontend và NestJS backend (backend auth/products được lấy làm nền từ dự án BrewLite bên cạnh, sau đó sửa trong repo này). Không sửa `BrewLite_swe_project_2`.
 

@@ -24,11 +24,13 @@ async function registerFromCheckout(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/login\?next=/);
   await page.getByRole('link',{name:'Đăng ký ngay'}).click();
   await page.getByLabel('Họ tên').fill('Khách kiểm thử');
-  await page.getByLabel('Email').fill('e2e-'+randomUUID().slice(0,8)+'@example.test');
+  const email = 'e2e-'+randomUUID().slice(0,8)+'@example.test';
+  await page.getByLabel('Email').fill(email);
   await page.getByLabel('Mật khẩu',{exact:true}).fill(password);
   await page.getByLabel('Xác nhận mật khẩu').fill(password);
   await page.getByRole('button',{name:'Đăng ký',exact:true}).click();
   await expect(page).toHaveURL(/\/checkout$/);
+  return email;
 }
 test('customer failure retry success, loyalty and Barista workflow', async ({page}) => {
   test.slow();
@@ -41,7 +43,7 @@ test('customer failure retry success, loyalty and Barista workflow', async ({pag
   await page.getByRole('button',{name:'Giảm số lượng'}).click();
   await expect(page.getByLabel(/Giỏ hàng 2 món/)).toBeVisible();
   await expect(page.getByText('126.000 ₫').last()).toBeVisible();
-  await registerFromCheckout(page);
+  const customerEmail = await registerFromCheckout(page);
   await page.getByLabel('Mã ưu đãi').fill('KHONGHOPLE');
   await page.getByRole('button',{name:'Áp dụng'}).click();
   await expect(page.getByText('Mã ưu đãi không hợp lệ')).toBeVisible();
@@ -78,9 +80,23 @@ test('customer failure retry success, loyalty and Barista workflow', async ({pag
   page.on('dialog',d=>d.accept());
   await expect(page.getByText(`#${orderId}`)).toBeVisible();
   await page.getByRole('button',{name:'Bắt đầu pha chế'}).click();
-  await page.getByRole('button',{name:'Hoàn tất pha chế'}).click();
-  await page.getByRole('button',{name:'Đã giao khách'}).click();
-  await expect(page.getByText(`#${orderId}`)).toHaveCount(0);
+  await page.getByRole('dialog',{name:'Xác nhận cập nhật đơn'}).getByRole('button',{name:'Xác nhận'}).click();
+  await page.getByRole('button',{name:'Đã pha chế xong'}).click();
+  await page.getByRole('dialog',{name:'Xác nhận cập nhật đơn'}).getByRole('button',{name:'Xác nhận'}).click();
+  await page.getByRole('button',{name:'Xác nhận đã giao'}).click();
+  await page.getByRole('dialog',{name:'Xác nhận cập nhật đơn'}).getByRole('button',{name:'Xác nhận'}).click();
+  await expect(page.locator('.barista-ticket').filter({hasText:`#${orderId}`})).toHaveCount(0);
+  await expect(page.getByText('Đã giao hôm nay').locator('..').getByText('1')).toBeVisible();
+  await page.getByRole('link',{name:/Lịch sử xử lý/}).click();
+  await expect(page.getByText(`#${orderId}`)).toBeVisible();
+  await page.getByRole('button',{name:'Đăng xuất ca trực'}).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByLabel('Email').fill(customerEmail);
+  await page.getByLabel('Mật khẩu').fill(password);
+  await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Đăng xuất',exact:true})).toBeVisible();
+  await page.goto(`/orders/${orderId}`);
+  await expect(page.locator('.status.COMPLETED')).toBeVisible();
 });
 test('cart remove and clear actions', async ({page}) => {
   await addCoffee(page);
@@ -94,6 +110,31 @@ test('cart remove and clear actions', async ({page}) => {
   page.on('dialog',d=>d.accept());
   await page.getByRole('button',{name:'Xóa tất cả'}).click();
   await expect(page.getByLabel(/Giỏ hàng 0 món/)).toBeVisible();
+});
+test('Barista cancellation requires a reason and moves the order to history', async ({page}) => {
+  const id = `BL-${randomUUID().slice(0,8).toUpperCase()}`;
+  await page.goto('/');
+  await page.evaluate((orderId) => {
+    const item = {key:'qa-line',productId:'ca-phe-sua',name:'Cà phê sữa đá',imageUrl:'',size:'M',toppingIds:[],toppingNames:[],unitPrice:45000,quantity:1,ice:'70% đá',sugar:'50% ít ngọt',note:'Ít đường'};
+    const base = {userId:'qa-customer',items:[item],subtotal:45000,discount:0,total:45000,createdAt:new Date().toISOString()};
+    localStorage.setItem('brewlite-demo-orders-v1',JSON.stringify([{...base,id:orderId,status:'PAID'},{...base,id:'BL-UNPAID',status:'PENDING'}]));
+  }, id);
+  const staff = staffCredentials();
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(staff.email);
+  await page.getByLabel('Mật khẩu').fill(staff.password);
+  await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();
+  await expect(page).toHaveURL(/\/barista\/dashboard$/);
+  await expect(page.locator('.barista-ticket').filter({hasText:id})).toBeVisible();
+  await expect(page.locator('.barista-ticket').filter({hasText:'BL-UNPAID'})).toHaveCount(0);
+  await page.locator('.barista-ticket').filter({hasText:id}).getByRole('button',{name:'Báo sự cố'}).click();
+  const dialog = page.getByRole('dialog',{name:'Xác nhận cập nhật đơn'});
+  await expect(dialog.getByRole('button',{name:'Xác nhận'})).toBeDisabled();
+  await dialog.getByRole('textbox',{name:'Lý do hủy đơn'}).fill('Hết nguyên liệu');
+  await dialog.getByRole('button',{name:'Xác nhận'}).click();
+  await expect(page.locator('.barista-ticket').filter({hasText:id})).toHaveCount(0);
+  await page.getByRole('link',{name:/Lịch sử xử lý/}).click();
+  await expect(page.locator('.barista-ticket').filter({hasText:id})).toContainText('Hết nguyên liệu');
 });
 test('mobile search and unknown payment remains pending', async ({page}) => {
   test.slow();

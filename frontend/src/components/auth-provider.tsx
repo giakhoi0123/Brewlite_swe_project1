@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { authService } from "@/services/auth";
+import { ApiError } from "@/services/http";
 import type { User } from "@/types/domain";
 type AuthContextType = {
   user: User | null;
@@ -35,9 +36,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    const expired = () => setUser(null);
+    window.addEventListener("brewlite:session-expired", expired);
+    return () => window.removeEventListener("brewlite:session-expired", expired);
+  }, []);
   const logout = async () => {
-    await authService.logout();
-    setUser(null);
+    try {
+      await authService.logout();
+      setUser(null);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setUser(null);
+        return;
+      }
+      throw error;
+    }
   };
   return (
     <AuthContext.Provider value={{ user, loading, refresh, logout }}>

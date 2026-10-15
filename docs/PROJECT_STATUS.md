@@ -1,8 +1,19 @@
 # Trạng thái dự án
 
-Cập nhật mới nhất TV4 (2026-10-15, sửa checkout HTTP 500): schema hiện dùng `Order.statusHistory` nhưng create order còn gửi `history`, gây Prisma `Unknown argument history`. Đã đồng bộ service/test và dùng `satisfies Prisma.OrderUncheckedCreateInput` để bắt sai tên field khi build. Docker backend đã rebuild và cập nhật container. **146/146 backend tests qua, gồm 8 PostgreSQL tests, không skipped**; test HTTP dùng cookie JWT + Origin thật và PostgreSQL tạo đơn L+topping 45.000đ → 201/PENDING, có history, stock giảm đúng. Các test concurrency/rollback cũng qua. Database kiểm thử riêng tự tạo đã được dọn sau test; dữ liệu ứng dụng không dùng làm fixture. Những ghi chú DB/Docker chưa chạy và 7 skipped phía dưới là lịch sử, đã được thay thế bằng kết quả này. Browser checkout của người dùng còn cần thử lại; chưa xác nhận payment TV5.
+## Ảnh chụp trạng thái sau khi nhập origin/main — 2026-10-16
 
-Cập nhật sửa lỗi Docker TV4 (2026-10-15): phát hiện UTF-8 BOM ở đầu `backend/prisma/schema.prisma` gây Prisma P1012 trong image Linux. Đã loại bỏ BOM, giữ nguyên nội dung schema; Prisma validate/generate và backend build local qua, bước generate/build trong Docker cũng qua. Docker CLI hiện đã có; người dùng báo PostgreSQL healthy. Các blocker Docker/DB ở phần lịch sử bên dưới mô tả phiên trước; chưa dùng thông tin này để xác nhận bộ PostgreSQL tests mới.
+| Phần | UI có mã | Đã so Stitch | Chức năng FE đã test | Backend thật | Test backend/API | Phần còn chờ |
+|---|---|---|---|---|---|---|
+| Menu/chi tiết/giỏ/checkout/payment/order | Có | 9 export đã xem; các trang chính đã chụp QA 1440/768/390 | Demo E2E 4/4 trước merge; unit 13/13 sau merge | Products/Cart/Orders code thật; Payment endpoint chưa nối | Mã tích hợp 168/168 backend tests trên PostgreSQL QA | Payment TV5, Promo TV6, API browser E2E |
+| Hồ sơ/điểm | Có; thẻ thành viên, lịch sử đơn, trạng thái voucher | Hồ sơ đối chiếu Stitch; 3 viewport không tràn | E2E điểm sau PAID; browser QA | Auth thật; Loyalty mock | Auth DB HTTP PASS; Loyalty API chưa có | TV6 |
+| Auth | Có | Login/register đối chiếu Stitch | Đăng ký, đăng nhập, refresh, role, logout trong E2E trước merge | NestJS/PostgreSQL thật, JWT version | 168/168 backend tests sau merge; HTTP smoke Auth DB QA PASS trước merge | Deploy migration trên DB dùng chung |
+| Barista | 5 route, KDS, KPI, chi tiết, xác nhận, hủy, lịch sử | Barista Stitch và QA 3 viewport | Unit + E2E mock workflow/hủy PASS | TV4 đã có list/transition; detail/hủy lý do/lịch sử chưa có | API integration một phần; cần test sau merge | TV4 hoàn thiện hợp đồng Staff |
+
+`UI_COMPLETED` của Barista và các module khách hàng không đồng nghĩa backend nghiệp vụ đã xong. Sau merge đã chạy Docker build, 8 migrations và 168 backend tests trên DB tạm, frontend build/lint/unit 13/13. Bản QA frontend cổng 3006/backend cổng 3005 phục vụ lượt TV1 trước merge, chưa phải bản Orders API tích hợp.
+
+TV4 đã sửa lỗi create order dùng `history` thay vì `statusHistory` bằng `satisfies Prisma.OrderUncheckedCreateInput`. Trên nhánh TV4, **146/146 backend tests qua, gồm 8 PostgreSQL tests**; HTTP cookie JWT + Origin thật tạo đơn PENDING và giữ kho; concurrency/rollback qua. Đây là bằng chứng trước khi nhập Auth mới, không tự suy ra merge đã qua test.
+
+TV4 cũng đã loại UTF-8 BOM ở đầu `backend/prisma/schema.prisma` để Prisma build trên Linux. Các blocker Docker/DB cũ phía dưới là lịch sử.
 
 `UI_COMPLETED` nghĩa là màn hình/adapter có code và build, chưa nghĩa là backend thật đã hoàn tất. Cập nhật cùng `IMPLEMENTATION_PLAN.md` sau mỗi mốc.
 

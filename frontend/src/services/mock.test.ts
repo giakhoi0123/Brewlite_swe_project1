@@ -18,6 +18,23 @@ test('mock order, failure retry, idempotency, paid loyalty and staff lifecycle',
 test('unknown result keeps pending; promotion validates input',async()=>{
  data.clear();const order=await mockOrders.create('customer-2',[item]);assert.equal((await mockPayments.pay(order.id,'WALLET','unknown-key','UNKNOWN')).status,'UNKNOWN');assert.equal(await mockOrders.status(order.id),'PENDING');assert.equal((await mockPromotions.validate('BREW10',126000)).discount,10000);await assert.rejects(()=>mockPromotions.validate('INVALID',126000));
 });
+test('Barista queues exclude unpaid orders, require cancellation reason, and share customer status',async()=>{
+ data.clear();
+ const unpaid=await mockOrders.create('customer-a',[item]);
+ assert.equal(unpaid.status,'PENDING');
+ const paid=await mockOrders.create('customer-b',[item]);
+ await mockPayments.pay(paid.id,'WALLET','barista-paid','PAID');
+ const queue=await mockBarista.list();
+ assert.deepEqual(queue.map(order=>order.id),[paid.id]);
+ assert.ok(await mockBarista.get(paid.id));
+ await assert.rejects(()=>mockBarista.transition(paid.id,'READY'),/không hợp lệ/);
+ await assert.rejects(()=>mockBarista.cancel(paid.id,' '),/lý do/);
+ const cancelled=await mockBarista.cancel(paid.id,'Hết nguyên liệu');
+ assert.equal(cancelled.cancelReason,'Hết nguyên liệu');
+ assert.equal((await mockOrders.mine('customer-b'))[0].status,'CANCELLED');
+ assert.equal((await mockBarista.list())[0].status,'CANCELLED');
+ await assert.rejects(()=>mockBarista.transition(paid.id,'PREPARING'),/không hợp lệ/);
+});
 test('account cart reprices on the server side, merges configs and enforces stock',async()=>{
  data.clear();const line={productId:'ca-phe-sua',size:'M' as const,toppingIds:['cream'],quantity:2,ice:'70% đá',sugar:'50% ít ngọt'};
  let cart=await mockCart.add('u1',line);assert.equal(cart.items[0].unitPrice,63000);assert.equal(cart.subtotal,126000);

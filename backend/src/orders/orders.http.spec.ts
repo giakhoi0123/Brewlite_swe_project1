@@ -36,6 +36,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
               id: where.id,
               status: UserStatus.ACTIVE,
               role: where.id === staff ? Role.BARISTA : Role.CUSTOMER,
+              sessionVersion: 0,
             }
           : null,
     },
@@ -73,7 +74,8 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
       },
     ],
   };
-  const cookie = (id = customer) => `brewlite_session=${jwt.sign({ sub: id })}`;
+  const cookie = (id = customer) =>
+    `brewlite_session=${jwt.sign({ sub: id, sessionVersion: 0 })}`;
   const post = (body: object) =>
     request(app.getHttpServer())
       .post('/api/orders')

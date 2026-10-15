@@ -110,4 +110,3 @@ ALTER TABLE "order_items" ADD CONSTRAINT "order_items_amounts_valid"
            AND "line_total"::bigint = "unit_price"::bigint * "qty" AND "position" >= 0);
 ALTER TABLE "order_item_toppings" ADD CONSTRAINT "order_item_toppings_price_nonnegative" CHECK ("extra_price" >= 0);
 ALTER TABLE "order_status_history" ADD CONSTRAINT "order_status_history_version_positive" CHECK ("version" > 0);
-

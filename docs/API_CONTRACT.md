@@ -2,7 +2,7 @@
 
 Cập nhật kiểm chứng TV4 2026-10-15: Orders đã qua test HTTP + PostgreSQL thật (POST 201/PENDING, size L+topping 45.000đ, JWT cookie/Origin, history và inventory). Quan hệ Prisma nội bộ là `Order.statusHistory`; sửa service từ `history` sang `statusHistory` không thay đổi JSON API và không cần migration mới. Các ghi chú chưa kiểm chứng PostgreSQL ở mốc cũ bên dưới được thay thế bằng kết quả trong `TESTING.md`.
 
-Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie `brewlite_session` HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory đã có backend TV4 ngày 2026-10-15, còn chờ kiểm chứng migration và transaction trên PostgreSQL. Payments vẫn là hợp đồng cho TV5.
+Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie `brewlite_session` HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory và migration Auth mới đã chạy chung trên PostgreSQL kiểm thử riêng sau merge: 168/168 tests. Payments vẫn chờ TV5.
 
 ## Endpoint chính thức
 
@@ -12,7 +12,7 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV2 | GET `/products/:id` | Không | UUID path | `ProductDetail` | 400 UUID, 404, 500 | Chi tiết | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
-| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + HTTP tests với DB giả lập; PostgreSQL chưa chạy |
+| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + PostgreSQL tests sau merge qua; browser API E2E chưa chạy |
 | TV5 | POST `/payments` | CUSTOMER | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 404, 409 | Xử lý/kết quả | Core/controller/schema có; chờ Orders port để bật module |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 
@@ -52,13 +52,15 @@ Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng n
 
 ## Endpoint bổ sung đề xuất, chưa thuộc 7 endpoint chính thức
 - GET `/auth/me`: TV1, JWT bắt buộc, trả `{user}`; 401 khi hết hạn. Đã triển khai.
-- POST `/auth/logout`: TV1, xóa cookie; đã triển khai. JWT đã cấp là stateless đến khi hết hạn, xem `ARCHITECTURE.md`.
+- POST `/auth/logout`: TV1, cần JWT hợp lệ; tăng `users.session_version` rồi xóa cookie. JWT cũ trả 401 ngay sau đó. Đã kiểm tra với PostgreSQL QA.
 - GET `/orders/:id`: TV4, CUSTOMER, trả `Order` cùng cấu trúc POST; 404 nếu không tồn tại hoặc không thuộc người đăng nhập, 400 nếu UUID sai. Đã có backend.
 - GET `/orders/:id/status`: TV4, cùng auth/ownership; trả JSON `{ "status": "PENDING" }`. REST adapter unwrap thành `OrderStatus` theo interface frontend. Đã có backend.
 - POST `/promotions/validate`: TV6, `{code,subtotal}` → `{code,discount}`.
 - GET `/loyalty/me`: TV6, `{points}`.
 - GET `/staff/orders`: TV4, BARISTA, `Order[]` trạng thái PAID/PREPARING/READY, cũ nhất trước. Đã có backend.
 - PATCH `/staff/orders/:id/status`: TV4, BARISTA, `{status:"PREPARING"|"READY"|"COMPLETED"|"CANCELLED"}` → `Order`; 400 payload/UUID sai, 401/403 auth/Origin, 404 không tồn tại, 409 chuyển trạng thái sai hoặc xung đột. Không cho staff đặt PAID/PENDING/PAYMENT_FAILED. Đã có backend.
+- GET `/staff/orders/:id`: TV4, chỉ BARISTA; frontend adapter đã chuẩn bị, backend chưa có.
+- PATCH `/staff/orders/:id/cancel`: TV4, chỉ BARISTA, yêu cầu lý do; frontend adapter đã chuẩn bị, backend chưa có.
 - GET `/barista/dashboard`: TV1, endpoint mẫu kiểm tra guard BARISTA; đã triển khai, không phải Orders API.
 
 ## Kiểu chung
@@ -72,6 +74,18 @@ Xem `frontend/src/types/domain.ts`: `User`, `Role`, `Product`, `ProductSize`, `T
 - Payment retry/idempotency: TV5 xác định thời hạn khóa và semantics của trạng thái UNKNOWN. Payment retention/cleanup và thời hạn coi bản ghi `PROCESSING` là treo vẫn cần nhóm thống nhất; quy tắc replay và `UNKNOWN` đã chốt ở trên.
 - Barista cancellation khi PREPARING: chưa được phép trong UI demo.
 
+## Hợp đồng Staff Orders: phần đã có và phần còn mở rộng
+
+| Endpoint | Input | Output cần có | Kiểm tra server |
+|---|---|---|---|
+| GET `/staff/orders` | Cookie/JWT BARISTA | `Order[]` PAID/PREPARING/READY | Đã có backend; 401 thiếu phiên, 403 CUSTOMER; lịch sử terminal chưa có |
+| GET `/staff/orders/:id` | ID đường dẫn | `Order` hoặc 404 | Chưa có backend |
+| PATCH `/staff/orders/:id/status` | `{status: "PREPARING"|"READY"|"COMPLETED"}` | `Order` mới nhất | Đã có backend; sai bước 409, transaction chống race |
+| PATCH `/staff/orders/:id/cancel` | `{reason: string}` (1–300 ký tự) | `Order` với `status:"CANCELLED",cancelReason` | Chưa có backend; không dùng PATCH status=CANCELLED để bỏ qua lý do |
+
+`Order` trả `id,userId,items,subtotal,discount,total,status,createdAt`; UI có thể dùng thêm `customerName,cancelReason,completedAt`. Backend hiện chưa trả các trường mở rộng này. `completedAt` cần là thời điểm bàn giao nếu KPI “đã giao hôm nay” phải chính xác. Các item cần `quantity,name,size,toppingNames,ice,sugar,note,unitPrice`. Danh sách chờ pha chỉ nhận PAID; mọi endpoint Orders CUSTOMER phải kiểm tra ownership trên server.
+
+Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie `brewlite_session` được ký JWT với `sessionVersion`; phiên cũ 401 sau logout. Migration `20261016000000_session_version` chỉ thêm cột mặc định 0, không xóa dữ liệu.
 ## Orders/Inventory TV4 — contract triển khai 2026-10-15
 
 - `items` bắt buộc có 1–100 dòng; `productId` UUID; `size` S/M/L; `toppingIds` mảng UUID không trùng, tối đa 30; `quantity` số nguyên 1–99; `ice`/`sugar` chuỗi 1–40 ký tự; `note` tùy chọn tối đa 120; `promotionCode` tùy chọn 1–64 ký tự và không chỉ có khoảng trắng. Các field lạ như `price`, `unitPrice`, `total`, `userId`, `discount` bị từ chối 400. Tồn kho là theo Product, không theo size/topping.

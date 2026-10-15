@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Post,
   Req,
   Res,
@@ -23,6 +24,7 @@ const cookieOptions = () => ({
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
   @Post('register')
+  @Header('Cache-Control', 'no-store')
   async register(
     @Body() input: RegisterDto,
     @Res({ passthrough: true }) response: Response,
@@ -35,6 +37,7 @@ export class AuthController {
     return { user: result.user };
   }
   @Post('login')
+  @Header('Cache-Control', 'no-store')
   async login(
     @Body() input: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -47,6 +50,7 @@ export class AuthController {
     return { user: result.user };
   }
   @Get('me')
+  @Header('Cache-Control', 'no-store')
   @UseGuards(JwtAuthGuard)
   me(
     @Req()
@@ -64,7 +68,13 @@ export class AuthController {
     return { user: { id: userId, email, name, loyaltyPoints, role } };
   }
   @Post('logout')
-  logout(@Res({ passthrough: true }) response: Response) {
+  @Header('Cache-Control', 'no-store')
+  @UseGuards(JwtAuthGuard)
+  async logout(
+    @Req() request: Request & { user: { userId: string } },
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.auth.logout(request.user.userId);
     response.clearCookie('brewlite_session', cookieOptions());
     return { message: 'Đã đăng xuất' };
   }
