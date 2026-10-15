@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { allowedFrontendOrigins } from '../configuration';
 /** Cookie-authenticated writes must come from the configured browser origin. */
 export function cookieOriginGuard(
   request: Request,
@@ -6,11 +7,14 @@ export function cookieOriginGuard(
   next: NextFunction,
 ) {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
-    const allowed = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
+    const allowed = allowedFrontendOrigins();
+    const validOrigin = Boolean(
+      request.headers.origin && allowed.includes(request.headers.origin),
+    );
     const hasSession = request.headers.cookie?.includes('brewlite_session=');
     if (
-      (request.headers.origin && request.headers.origin !== allowed) ||
-      (hasSession && request.headers.origin !== allowed)
+      (request.headers.origin && !validOrigin) ||
+      (hasSession && !validOrigin)
     ) {
       response
         .status(403)

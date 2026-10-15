@@ -1,5 +1,7 @@
 # Kiểm thử
 
+Ngày 2026-10-15, sửa CORS cho frontend cổng 3002: `docker compose up -d --build backend` PASS; backend build PASS; `docker compose exec -T backend npm test -- --runInBand` PASS 38/38. Preflight `POST /api/auth/register` từ origin 3000 và 3002 đều trả 204 với `Access-Control-Allow-Origin` tương ứng và credentials; origin 3003 không được phép. POST đăng ký với payload rỗng từ origin 3002 trả HTTP 400 kèm CORS header đúng, xác nhận trình duyệt nhận được lỗi API. Chưa tạo tài khoản thử mới trong lượt kiểm tra này.
+
 Sau lượt chỉnh UI theo Stitch: `npm --prefix frontend run build` PASS (13 route), `npm --prefix frontend run lint` PASS, `npm --prefix frontend run test` PASS 3/3. Playwright chụp trang chủ, login, chi tiết sản phẩm và giỏ hàng ở desktop 1440 px/mobile 390 px; thêm món vào giỏ thành công và các màn được kiểm tra không tràn ngang. Chưa chạy lại bộ E2E auth đầy đủ trong lượt này vì backend không khởi động.
 
 Đã chạy trong phiên triển khai:

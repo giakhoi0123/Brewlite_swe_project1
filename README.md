@@ -35,6 +35,8 @@ npm --prefix backend ci
 
 Giữ `DATABASE_URL` trùng mật khẩu và cổng PostgreSQL trong `.env` (mặc định 5434 để không xung đột dự án BrewLite khác trên 5433). `.env` không được commit. `BARISTA_PASSWORD` là mật khẩu tự đặt, không dùng giá trị mẫu khi chia sẻ môi trường. Khi chạy local, đặt `PORT=3001`, frontend mặc định cổng 3000.
 
+Nếu Next.js chạy ở cổng khác, thêm địa chỉ đó vào `FRONTEND_ORIGIN` trong `.env`, phân tách bằng dấu phẩy (ví dụ `http://localhost:3000,http://localhost:3002`), rồi khởi động lại backend. Với Compose, chạy `docker compose up -d --build backend` để áp dụng thay đổi mã và cấu hình. Nếu thiếu origin, trình duyệt sẽ chặn API đăng ký/đăng nhập và hiện `Failed to fetch`.
+
 ### Chạy phát triển bằng PostgreSQL trong Docker
 
 ```bash
