@@ -2,7 +2,7 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { services, dataMode } from "@/services";
+import { services, demoOrders } from "@/services";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "@/components/auth-provider";
 import type { Order, PaymentMethod } from "@/types/domain";
@@ -188,7 +188,7 @@ export default function PaymentPage({
                 Xem chi tiết đơn
               </Link>
             </div>
-            {dataMode === "mock" && (
+            {demoOrders && (
               <p className="muted" style={{ fontSize: 12 }}>
                 Demo không tự chuyển trạng thái khi kết quả chưa rõ.
               </p>

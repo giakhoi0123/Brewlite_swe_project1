@@ -8,7 +8,7 @@ import { OrderSummary } from "@/components/order-summary";
 import { Empty, Loading, ProductImage } from "@/components/ui";
 import { cartTotal, money } from "@/types/domain";
 import type { PaymentMethod, Promotion } from "@/types/domain";
-import { dataMode, services } from "@/services";
+import { demoOrders, services } from "@/services";
 export default function Checkout() {
   const router = useRouter(),
     items = useCart((s) => s.items),
@@ -162,7 +162,7 @@ export default function Checkout() {
                   Thẻ ngân hàng
                 </button>
               </div>
-              {dataMode === "mock" && (
+              {demoOrders && (
                 <div className="notice">
                   <strong>Kịch bản demo</strong>
                   <select

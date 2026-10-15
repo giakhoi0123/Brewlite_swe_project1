@@ -63,6 +63,12 @@ export function Header() {
           dùng máy chủ thật.
         </div>
       )}
+      {dataMode === "hybrid" && (
+        <div className="demo">
+          Sản phẩm, giỏ hàng và đăng nhập dùng máy chủ thật; đơn hàng và thanh
+          toán đang được mô phỏng.
+        </div>
+      )}
     </>
   );
 }
