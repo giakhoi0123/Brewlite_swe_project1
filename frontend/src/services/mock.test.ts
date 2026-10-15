@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mockBarista, mockLoyalty, mockOrders, mockPayments, mockPromotions } from './mock';
+import { mockBarista, mockCart, mockLoyalty, mockOrders, mockPayments, mockPromotions } from './mock';
 import { cartTotal, itemKey, lineTotal, type CartItem } from '@/types/domain';
 const data = new Map<string,string>();
 Object.defineProperty(globalThis,'window',{value:{},configurable:true});
@@ -17,4 +17,16 @@ test('mock order, failure retry, idempotency, paid loyalty and staff lifecycle',
 });
 test('unknown result keeps pending; promotion validates input',async()=>{
  data.clear();const order=await mockOrders.create('customer-2',[item]);assert.equal((await mockPayments.pay(order.id,'WALLET','unknown-key','UNKNOWN')).status,'UNKNOWN');assert.equal(await mockOrders.status(order.id),'PENDING');assert.equal((await mockPromotions.validate('BREW10',126000)).discount,10000);await assert.rejects(()=>mockPromotions.validate('INVALID',126000));
+});
+test('account cart reprices on the server side, merges configs and enforces stock',async()=>{
+ data.clear();const line={productId:'ca-phe-sua',size:'M' as const,toppingIds:['cream'],quantity:2,ice:'70% đá',sugar:'50% ít ngọt'};
+ let cart=await mockCart.add('u1',line);assert.equal(cart.items[0].unitPrice,63000);assert.equal(cart.subtotal,126000);
+ cart=await mockCart.add('u1',{...line,quantity:1});assert.equal(cart.items.length,1);assert.equal(cart.totalQuantity,3);
+ assert.deepEqual((await mockCart.get('u2')).items,[]);
+ cart=await mockCart.update('u1',cart.items[0].key,{size:'L'});assert.equal(cart.items[0].unitPrice,70000);
+ await assert.rejects(()=>mockCart.update('u1',cart.items[0].key,{quantity:21}),/chỉ còn 20 phần/);
+ await assert.rejects(()=>mockCart.add('u1',{...line,productId:'cold-brew-cam'}),/hết hàng/);
+ const merged=await mockCart.merge('u1',[{...line,size:'L',quantity:1},{...line,productId:'khong-co'}]);
+ assert.equal(merged.items[0].quantity,4);assert.equal(merged.skipped.length,1);
+ assert.equal((await mockCart.clear('u1')).items.length,0);
 });

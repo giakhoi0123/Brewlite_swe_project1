@@ -42,7 +42,23 @@ export type CartItem = {
   quantity: number;
   ice: string;
   sugar: string;
+  note?: string;
+  /** Các size của món, để đổi size ngay trong giỏ. */
+  sizeOptions?: ProductSize[];
+  /** Server báo dòng này không còn hợp lệ (hết hàng, size/topping tạm hết). */
+  issue?: string;
 };
+/** Giỏ hàng lưu theo tài khoản; giá do server tính lại. */
+export type CartView = {
+  items: CartItem[];
+  totalQuantity: number;
+  subtotal: number;
+  valid: boolean;
+};
+export type CartLineInput = Pick<
+  CartItem,
+  "productId" | "size" | "toppingIds" | "quantity" | "ice" | "sugar" | "note"
+>;
 export type OrderStatus =
   | "PENDING"
   | "PAID"
@@ -86,4 +102,6 @@ export const itemKey = (
   toppings: string[],
   ice: string,
   sugar: string,
-) => [id, size, [...toppings].sort().join(","), ice, sugar].join("|");
+  note = "",
+) =>
+  [id, size, [...toppings].sort().join(","), ice, sugar, note.trim()].join("|");

@@ -8,12 +8,14 @@ import { OrderSummary } from "@/components/order-summary";
 import { Empty, Loading, ProductImage } from "@/components/ui";
 import { cartTotal, money } from "@/types/domain";
 import type { PaymentMethod, Promotion } from "@/types/domain";
-import { dataMode, services } from "@/services";
+import { demoOrders, services } from "@/services";
+import { savePaymentIntent } from "@/services/payment-intent";
 export default function Checkout() {
   const router = useRouter(),
     items = useCart((s) => s.items),
+    cartPromoCode = useCart((s) => s.promoCode),
     { user, loading } = useAuth(),
-    [code, setCode] = useState(""),
+    [code, setCode] = useState(cartPromoCode),
     [promotion, setPromotion] = useState<Promotion | null>(null),
     [promoBusy, setPromoBusy] = useState(false),
     [busy, setBusy] = useState(false),
@@ -25,6 +27,14 @@ export default function Checkout() {
   useEffect(() => {
     if (!loading && !user) router.replace("/login?next=%2Fcheckout");
   }, [loading, user, router]);
+  // Mã đã áp dụng ở giỏ hàng được kiểm tra lại và áp dụng sẵn.
+  useEffect(() => {
+    if (!cartPromoCode || !items.length) return;
+    services.promotions
+      .validate(cartPromoCode, cartTotal(items))
+      .then(setPromotion)
+      .catch(() => setPromotion(null));
+  }, [cartPromoCode, items]);
   const apply = async () => {
     setPromoBusy(true);
     setError("");
@@ -47,10 +57,11 @@ export default function Checkout() {
         items,
         promotion || undefined,
       );
-      sessionStorage.setItem(
-        `brewlite-payment-${order.id}`,
-        JSON.stringify({ method, key: crypto.randomUUID(), outcome }),
-      );
+      savePaymentIntent(order.id, {
+        method,
+        key: crypto.randomUUID(),
+        ...(demoOrders ? { outcome } : {}),
+      });
       router.push(`/payment/${order.id}/processing`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể tạo đơn");
@@ -142,18 +153,20 @@ export default function Checkout() {
               <div className="options">
                 <button
                   className={`option ${method === "WALLET" ? "selected" : ""}`}
+                  aria-pressed={method === "WALLET"}
                   onClick={() => setMethod("WALLET")}
                 >
                   Ví điện tử
                 </button>
                 <button
                   className={`option ${method === "CARD" ? "selected" : ""}`}
+                  aria-pressed={method === "CARD"}
                   onClick={() => setMethod("CARD")}
                 >
                   Thẻ ngân hàng
                 </button>
               </div>
-              {dataMode === "mock" && (
+              {demoOrders && (
                 <div className="notice">
                   <strong>Kịch bản demo</strong>
                   <select

@@ -2,17 +2,17 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { services, dataMode } from "@/services";
+import { services, demoOrders } from "@/services";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "@/components/auth-provider";
 import type { Order, PaymentMethod } from "@/types/domain";
 import { money } from "@/types/domain";
 import { ErrorState, Loading, StatusBadge } from "@/components/ui";
-type Intent = {
-  method: PaymentMethod;
-  key: string;
-  outcome?: "PAID" | "PAYMENT_FAILED" | "UNKNOWN";
-};
+import {
+  readPaymentIntent,
+  removePaymentIntent,
+  savePaymentIntent,
+} from "@/services/payment-intent";
 export default function PaymentPage({
   params,
 }: {
@@ -24,6 +24,8 @@ export default function PaymentPage({
     clear = useCart((s) => s.clear),
     [order, setOrder] = useState<Order | null>(null),
     [loading, setLoading] = useState(true),
+    [verifyBusy, setVerifyBusy] = useState(false),
+    [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null),
     [error, setError] = useState("");
   const started = useRef(false);
   const load = useCallback(async () => {
@@ -37,17 +39,27 @@ export default function PaymentPage({
     }
   }, [id]);
   useEffect(() => {
-    if (!authLoading && !user) router.replace(`/login?next=${encodeURIComponent(`/payment/${id}/${stage}`)}`);
+    if (!authLoading && !user)
+      router.replace(
+        `/login?next=${encodeURIComponent(`/payment/${id}/${stage}`)}`,
+      );
     else if (user) void load();
   }, [authLoading, user, load, router, id, stage]);
   useEffect(() => {
-    if (stage !== "processing" || !order || !user || order.userId !== user.id || started.current) return;
-    const raw = sessionStorage.getItem(`brewlite-payment-${id}`);
-    if (!raw) {
+    if (
+      stage !== "processing" ||
+      !order ||
+      !user ||
+      order.userId !== user.id ||
+      started.current
+    )
+      return;
+    const intent = readPaymentIntent(id);
+    if (!intent) {
       router.replace(`/payment/${id}/unknown`);
       return;
     }
-    const intent = JSON.parse(raw) as Intent;
+    setPaymentMethod(intent.method);
     started.current = true;
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -59,8 +71,8 @@ export default function PaymentPage({
       .then(async (p) => {
         clearTimeout(timer);
         if (timedOut) return;
-        sessionStorage.removeItem(`brewlite-payment-${id}`);
         if (p.status === "PAID") {
+          removePaymentIntent(id);
           clear();
           router.replace(`/payment/${id}/success`);
         } else
@@ -79,21 +91,43 @@ export default function PaymentPage({
     return () => clearTimeout(timer);
   }, [stage, id, order, user, router, clear]);
   const verify = async () => {
-    const current = await services.orders.get(id);
-    setOrder(current);
-    if (current && ["PAID", "PREPARING", "READY", "COMPLETED"].includes(current.status)) {
-      clear();
-      router.replace(`/payment/${id}/success`);
-    } else if (current?.status === "PAYMENT_FAILED") router.replace(`/payment/${id}/failure`);
+    if (verifyBusy) return;
+    setVerifyBusy(true);
+    setError("");
+    try {
+      const current = await services.orders.get(id);
+      setOrder(current);
+      if (
+        current &&
+        ["PAID", "PREPARING", "READY", "COMPLETED"].includes(current.status)
+      ) {
+        removePaymentIntent(id);
+        clear();
+        router.replace(`/payment/${id}/success`);
+      } else if (current?.status === "PAYMENT_FAILED")
+        router.replace(`/payment/${id}/failure`);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Không kiểm tra được trạng thái đơn",
+      );
+    } finally {
+      setVerifyBusy(false);
+    }
   };
   const retry = () => {
     if (!order) return;
     started.current = false;
-    const method = order.paymentMethod || "WALLET";
-    sessionStorage.setItem(
-      `brewlite-payment-${id}`,
-      JSON.stringify({ method, key: crypto.randomUUID(), outcome: "PAID" }),
-    );
+    const method =
+      readPaymentIntent(id)?.method ||
+      paymentMethod ||
+      order.paymentMethod ||
+      "WALLET";
+    setPaymentMethod(method);
+    savePaymentIntent(id, {
+      method,
+      key: crypto.randomUUID(),
+      ...(demoOrders ? { outcome: "PAID" as const } : {}),
+    });
     router.push(`/payment/${id}/processing`);
   };
   if (loading || authLoading)
@@ -125,6 +159,8 @@ export default function PaymentPage({
             <div className="spinner" />
             <h1>Đang xử lý thanh toán...</h1>
             <p>Vui lòng chờ kết quả từ cổng thanh toán.</p>
+            <p className="muted">Mã đơn #{order.id}</p>
+            <strong>{money(order.total)}</strong>
           </>
         ) : stage === "success" &&
           ["PAID", "PREPARING", "READY", "COMPLETED"].includes(order.status) ? (
@@ -151,7 +187,11 @@ export default function PaymentPage({
             </div>
             <p>
               Phương thức:{" "}
-              {order.paymentMethod === "CARD" ? "Thẻ ngân hàng" : "Ví điện tử"}
+              {(order.paymentMethod || paymentMethod) === "CARD"
+                ? "Thẻ ngân hàng"
+                : (order.paymentMethod || paymentMethod) === "WALLET"
+                  ? "Ví điện tử"
+                  : "Chưa xác định"}
             </p>
             <Link className="btn btn-primary" href="/orders">
               Xem đơn hàng
@@ -181,14 +221,18 @@ export default function PaymentPage({
             <p>Mã đơn #{order.id}</p>
             <StatusBadge status={order.status} />
             <div style={{ marginTop: 22 }}>
-            <button className="btn btn-secondary" onClick={verify}>
-                Kiểm tra trạng thái đơn
+              <button
+                className="btn btn-secondary"
+                disabled={verifyBusy}
+                onClick={verify}
+              >
+                {verifyBusy ? "Đang kiểm tra..." : "Kiểm tra trạng thái đơn"}
               </button>{" "}
               <Link className="btn btn-outline" href={`/orders/${id}`}>
                 Xem chi tiết đơn
               </Link>
             </div>
-            {dataMode === "mock" && (
+            {demoOrders && (
               <p className="muted" style={{ fontSize: 12 }}>
                 Demo không tự chuyển trạng thái khi kết quả chưa rõ.
               </p>
