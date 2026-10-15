@@ -6,7 +6,7 @@
 
 - Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
 - Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout, bcrypt, cookie JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
-- Orders/Inventory và Staff Orders đã có backend TV4 trên nhánh `feature/orders-and-inventory`; migration và kiểm thử PostgreSQL còn chờ DB local chạy. Payments, Promotions, Loyalty **chưa có backend thật**. Frontend có mock localStorage và REST adapter; thanh toán demo không phải giao dịch tiền thật.
+- Orders/Inventory và Staff Orders đã có backend TV4 trên nhánh `feature/orders-and-inventory`; migration và kiểm thử PostgreSQL còn chờ DB local chạy. Payment đã có core/controller/schema/migration và test idempotency nhưng chưa bật endpoint vì chờ Orders port. Promotions, Loyalty **chưa có backend thật**. Frontend có mock localStorage và REST adapter; thanh toán demo không phải giao dịch tiền thật.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
 
 ## Cấu trúc
@@ -34,6 +34,8 @@ npm --prefix backend ci
 ```
 
 Giữ `DATABASE_URL` trùng mật khẩu và cổng PostgreSQL trong `.env` (mặc định 5434 để không xung đột dự án BrewLite khác trên 5433). `.env` không được commit. `BARISTA_PASSWORD` là mật khẩu tự đặt, không dùng giá trị mẫu khi chia sẻ môi trường. Khi chạy local, đặt `PORT=3001`, frontend mặc định cổng 3000.
+
+Nếu Next.js chạy ở cổng khác, thêm địa chỉ đó vào `FRONTEND_ORIGIN` trong `.env`, phân tách bằng dấu phẩy (ví dụ `http://localhost:3000,http://localhost:3002`), rồi khởi động lại backend. Với Compose, chạy `docker compose up -d --build backend` để áp dụng thay đổi mã và cấu hình. Nếu thiếu origin, trình duyệt sẽ chặn API đăng ký/đăng nhập và hiện `Failed to fetch`.
 
 ### Chạy phát triển bằng PostgreSQL trong Docker
 
@@ -65,6 +67,8 @@ Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Fronte
 ## Chế độ dữ liệu
 
 `NEXT_PUBLIC_DATA_MODE=mock` (mặc định) cho sản phẩm/đơn/thanh toán/ưu đãi/điểm/Barista. Có thể đặt trong `frontend/.env.local` khi phát triển local. Mock lưu đơn và payment trong localStorage, trả lỗi rõ ràng, có lựa chọn kết quả PAID/FAILED/UNKNOWN ở checkout. Auth **luôn** gọi NestJS/PostgreSQL, nên vẫn cần backend+DB khi demo đầy đủ. Dùng mã demo `BREW10` để thử ưu đãi; quy tắc này không phải chính sách thật.
+
+`NEXT_PUBLIC_DATA_MODE=hybrid` (khuyên dùng khi phát triển local): sản phẩm và giỏ hàng gọi backend thật, nên thêm/sửa/xóa giỏ của người đã đăng nhập được lưu vào PostgreSQL (bảng `carts`, `cart_items`); đơn hàng/thanh toán/ưu đãi/điểm/Barista vẫn mô phỏng để demo trọn luồng khi backend Orders chưa có. Đặt trong `frontend/.env.local` cùng `NEXT_PUBLIC_API_URL=http://localhost:3001/api`, cần backend + DB đã chạy `npm run db:migrate`. Khách chưa đăng nhập giữ giỏ trong trình duyệt và được gộp lên server khi đăng nhập.
 
 `NEXT_PUBLIC_DATA_MODE=api` gọi REST cho mọi module; Orders/Inventory đã có code TV4, cần migrate DB và tiếp tục tích hợp TV5/TV6 theo `docs/API_CONTRACT.md`. Lỗi API không tự fallback sang mock. Nếu thay `NEXT_PUBLIC_*`, khởi động lại hoặc build lại frontend. Tạo đơn PENDING chưa đồng nghĩa thanh toán thành công: `/payments` vẫn chờ TV5; backend hiện từ chối mã ưu đãi với 422 cho đến khi TV6 tích hợp provider.
 
@@ -100,7 +104,7 @@ npm --prefix frontend exec -- playwright install chromium
 npm --prefix frontend run test:e2e -- --grep-invert "API mode"
 ```
 
-Backend có 37 tests đã qua; frontend có 3 tests mock qua, build TypeScript qua. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Compose đã build/chạy đủ ba dịch vụ, HTTP frontend/backend và auth với PostgreSQL đã qua. Playwright Chromium đã qua 3 bài demo và 2 bài API mode trên desktop/mobile.
+Sau khi hợp nhất Cart và Payment, backend có 56 tests đã qua; frontend có 7 unit tests qua và production build thành công. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose trước lượt Payment. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Payment migration/API E2E chưa chạy vì OrdersModule chưa có. Playwright Chromium trước đó đã qua 3 bài demo và 2 bài API mode trên desktop/mobile.
 
 ## Nhóm, branch và PR
 
@@ -110,4 +114,4 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 
 ## Đọc tiếp
 
-Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: Orders/Inventory còn chờ DB verification; backend Payments/Promotions/Loyalty còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). Bằng chứng PostgreSQL/Compose và Playwright cũ không áp dụng cho migration Orders mới.
+Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: Orders/Inventory còn chờ DB verification; Payment chờ Orders port để kích hoạt và migrate; backend Promotions/Loyalty còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). Bằng chứng PostgreSQL/Compose và Playwright cũ không áp dụng cho migration Orders mới.

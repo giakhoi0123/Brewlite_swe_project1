@@ -7,4 +7,14 @@
 5. Kiểm tra cùng một CartItem với S/M/L và topping; backend trả tổng đúng. Tạo đơn PENDING; payment thành công PAID, lỗi PAYMENT_FAILED, timeout UNKNOWN; thử cùng idempotency key không tạo giao dịch kép.
 6. Xác nhận `/orders/me` chỉ trả đơn của user hiện tại; `/orders/:id` cũng phải kiểm tra sở hữu. Tạo dữ liệu PAID và đăng nhập Barista để kiểm tra PAID → PREPARING → READY → COMPLETED.
 
-Backend auth và Products hiện có test ở `backend/src/auth` và `backend/src/products`. Frontend adapter API cho Orders/Payments/Promotion/Loyalty/Staff là đề xuất chưa có server; không bật API mode cho demo đầy đủ trước khi những module đó có thật.
+Backend auth, Products và Payment core hiện có test. Frontend adapter API cho Orders/Promotion/Loyalty/Staff vẫn chưa có server; không bật API mode cho demo đầy đủ trước khi những module đó có thật.
+
+## Nối PaymentsModule với OrdersModule
+
+TV4 cần cung cấp một adapter thực hiện `PaymentOrderPort` tại `backend/src/payments/payment.types.ts`. Adapter phải tìm đơn theo cả `orderId` và `userId`, trả tổng tiền tin cậy, và áp dụng `PAID/PAYMENT_FAILED/UNKNOWN` theo state machine một cách idempotent. Sau đó đăng ký module theo dạng:
+
+`PaymentsModule.register({ imports: [OrdersModule], orderProvider: { provide: PAYMENT_ORDER_PORT, useExisting: OrdersService } })`.
+
+Nếu `OrdersService` không trực tiếp khớp interface, dùng `useClass: OrdersPaymentAdapter` trong provider trên. Sau khi bảng `orders` có trong Prisma, thêm khóa ngoại `payments.order_id → orders.id`, import dynamic module vào AppModule, chạy migrate và Payment API E2E. Không thêm fallback mock vào API mode.
+
+`UNKNOWN` không được tự chuyển Order sang PAID. Replay cùng user/key/order/method phải trả Payment đã lưu và không gọi gateway lần hai; key dùng lại với payload khác trả 409.

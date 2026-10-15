@@ -8,7 +8,8 @@ import { OrderSummary } from "@/components/order-summary";
 import { Empty, Loading, ProductImage } from "@/components/ui";
 import { cartTotal, money } from "@/types/domain";
 import type { PaymentMethod, Promotion } from "@/types/domain";
-import { dataMode, services } from "@/services";
+import { demoOrders, services } from "@/services";
+import { savePaymentIntent } from "@/services/payment-intent";
 export default function Checkout() {
   const router = useRouter(),
     items = useCart((s) => s.items),
@@ -58,16 +59,11 @@ export default function Checkout() {
         items,
         promotion || undefined,
       );
-      try {
-        sessionStorage.setItem(
-          `brewlite-payment-${order.id}`,
-          JSON.stringify({ method, key: crypto.randomUUID(), outcome }),
-        );
-      } catch {
-        // The order already exists. A storage error must not invite another POST.
-        router.push(`/orders/${encodeURIComponent(order.id)}`);
-        return;
-      }
+      savePaymentIntent(order.id, {
+        method,
+        key: crypto.randomUUID(),
+        ...(demoOrders ? { outcome } : {}),
+      });
       router.push(`/payment/${encodeURIComponent(order.id)}/processing`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể tạo đơn");
@@ -160,18 +156,20 @@ export default function Checkout() {
               <div className="options">
                 <button
                   className={`option ${method === "WALLET" ? "selected" : ""}`}
+                  aria-pressed={method === "WALLET"}
                   onClick={() => setMethod("WALLET")}
                 >
                   Ví điện tử
                 </button>
                 <button
                   className={`option ${method === "CARD" ? "selected" : ""}`}
+                  aria-pressed={method === "CARD"}
                   onClick={() => setMethod("CARD")}
                 >
                   Thẻ ngân hàng
                 </button>
               </div>
-              {dataMode === "mock" && (
+              {demoOrders && (
                 <div className="notice">
                   <strong>Kịch bản demo</strong>
                   <select

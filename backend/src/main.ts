@@ -4,6 +4,7 @@ import { config } from 'dotenv';
 import { resolve } from 'node:path';
 import { AppModule } from './app.module';
 import { cookieOriginGuard } from './auth/csrf.middleware';
+import { allowedFrontendOrigins } from './configuration';
 
 config({ path: resolve(process.cwd(), '../.env') });
 
@@ -12,7 +13,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.use(cookieOriginGuard);
   app.enableCors({
-    origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000',
+    origin: allowedFrontendOrigins(),
     credentials: true,
   });
   app.useGlobalPipes(

@@ -99,7 +99,7 @@ test('mobile search and unknown payment remains pending', async ({page}) => {
   test.slow();
   await page.setViewportSize({width:375,height:812});
   await page.goto('/');
-  await expect(page.getByText('Tạm hết')).toBeVisible();
+  await expect(page.getByText('Tạm hết',{exact:true})).toBeVisible();
   await page.getByLabel('Tìm thức uống').fill('khong-co-mon-nay');
   await expect(page.getByText('Không tìm thấy thức uống phù hợp.')).toBeVisible();
   await page.getByRole('button',{name:'Xem tất cả đồ uống'}).click();
