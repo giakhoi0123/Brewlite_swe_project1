@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/stores/cart";
@@ -23,6 +23,7 @@ export default function Checkout() {
       "PAID",
     ),
     [error, setError] = useState("");
+  const submitting = useRef(false);
   useEffect(() => {
     if (!loading && !user) router.replace("/login?next=%2Fcheckout");
   }, [loading, user, router]);
@@ -47,7 +48,8 @@ export default function Checkout() {
     }
   };
   const submit = async () => {
-    if (!user || !items.length || busy) return;
+    if (!user || !items.length || submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError("");
     try {
@@ -56,13 +58,20 @@ export default function Checkout() {
         items,
         promotion || undefined,
       );
-      sessionStorage.setItem(
-        `brewlite-payment-${order.id}`,
-        JSON.stringify({ method, key: crypto.randomUUID(), outcome }),
-      );
-      router.push(`/payment/${order.id}/processing`);
+      try {
+        sessionStorage.setItem(
+          `brewlite-payment-${order.id}`,
+          JSON.stringify({ method, key: crypto.randomUUID(), outcome }),
+        );
+      } catch {
+        // The order already exists. A storage error must not invite another POST.
+        router.push(`/orders/${encodeURIComponent(order.id)}`);
+        return;
+      }
+      router.push(`/payment/${encodeURIComponent(order.id)}/processing`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể tạo đơn");
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -199,7 +208,7 @@ export default function Checkout() {
                 : `Xác nhận thanh toán ${money(Math.max(0, cartTotal(items) - (promotion?.discount || 0)))}`}
             </button>
             <p className="muted" style={{ fontSize: 12 }}>
-              Số tiền cuối cùng sẽ do máy chủ xác nhận khi tích hợp API thật.
+              Số tiền cuối cùng được xác nhận khi tạo đơn hàng.
             </p>
           </aside>
         </div>

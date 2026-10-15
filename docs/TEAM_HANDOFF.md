@@ -9,3 +9,5 @@
 | TV6 Promotions/Loyalty/History | `app/profile`, `app/orders`, `services/contracts.ts` | Validate promotion, tích điểm sau PAID, history query | Mã sai bị từ chối; chỉ cộng điểm một lần; trả điểm 0 hợp lệ |
 
 TV1 duy trì auth, shell/UI chung, Docker/docs. Mỗi PR cập nhật `docs/PROJECT_STATUS.md`, test liên quan và hợp đồng nếu thay đổi. Request/response dự kiến chi tiết trong `docs/API_CONTRACT.md`.
+
+TV4 đã bổ sung Orders/Inventory trên `feature/orders-and-inventory` ngày 2026-10-15; chưa VERIFIED_COMPLETE vì DB local không chạy. TV5 import OrdersModule, dùng `OrdersService.transitionInTransaction(tx, id, status)` cùng transaction payment/idempotency; retry failed phải reserve lại về PENDING; UNKNOWN giữ nguyên trạng thái/kho. TV6 thay provider `ORDER_DISCOUNT`, dùng tx cho ưu đãi/điểm; hiện mọi mã ưu đãi backend bị từ chối 422. Chi tiết snapshot, release, CAS version, staff API và giới hạn tại `API_CONTRACT.md`. TV2 cần tăng Product.version mỗi lần ghi tồn kho. Không sửa trực tiếp Order.status từ module tích hợp.

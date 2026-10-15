@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
 import configuration from './configuration';
 import { BaristaController } from './barista/barista.controller';
+import { OrdersModule } from './orders/orders.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { BaristaController } from './barista/barista.controller';
     PrismaModule,
     AuthModule,
     ProductsModule,
+    InventoryModule,
+    OrdersModule,
   ],
   controllers: [AppController, BaristaController],
   providers: [AppService],

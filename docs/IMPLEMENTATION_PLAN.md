@@ -30,11 +30,11 @@ Chỉ đổi thành `VERIFIED_COMPLETE` khi toàn bộ tiêu chí của Task đ�
 | T03 | Menu | TV1+TV2 | VERIFIED_COMPLETE | T02 | frontend/src/app/page.tsx | API, loading, empty | Playwright API mode: 10 món, loading/empty/error/retry; DB thật | Không |
 | T04 | Tùy chỉnh | TV1+TV3 | VERIFIED_COMPLETE | T02 | frontend/src/app/products | Size, topping, giá | Playwright API mode: S/M/L, topping, giá động, thêm giỏ | Chính sách giá lâu dài cần TV3 xác nhận |
 | T05 | Giỏ | TV1+TV3 | VERIFIED_COMPLETE | T04 | frontend/src/stores | Thêm/sửa/xóa/tổng/badge | Playwright: cấu hình riêng, tăng/giảm/xóa/clear, tổng, badge, refresh | Không |
-| T06 | Orders API | TV4 | BACKEND_PENDING | Auth, products | backend/src/orders | POST /orders PENDING | Chưa chạy | Backend thật |
+| T06 | Orders API | TV4 | IN_PROGRESS | Auth, products | backend/src/orders, backend/src/inventory | POST /orders PENDING | Backend build + unit/HTTP tests qua (DB giả lập) | Apply migration, PostgreSQL transaction + browser API E2E |
 | T07 | Auth | TV1 | IN_PROGRESS | DB | backend/src/auth, frontend/src/app/login, frontend/src/app/register | Đăng ký/nhập/JWT/guard | 37 backend tests; HTTP DB cookie/role/hash/CSRF; Playwright đăng ký/role qua | Orders guard khi TV4 làm backend |
 | T08 | Payment | TV1+TV5 | BACKEND_PENDING | T06 | frontend/src/services, frontend/src/app/payment | Wallet/Card, PAID/FAILED | Unit + Playwright Wallet/Card, fail/retry/success/unknown qua | TV5 làm backend payment/idempotency |
 | T09 | Xác nhận/lịch sử/Docker | TV1+TV6 | BACKEND_PENDING | T06,T08 | frontend/src/app/orders, compose | GET /orders/me, demo E2E | Playwright history/timeline + Compose 3 dịch vụ qua | Orders history backend thật |
-| T10 | Logic nâng cao | TV4+TV5+TV6 | BACKEND_PENDING | T06,T08 | docs/API_CONTRACT.md | State machine, idempotency, stock, loyalty | Mock state/idempotency/points tests qua | Toàn bộ 4 hạng mục backend |
+| T10 | Logic nâng cao | TV4+TV5+TV6 | IN_PROGRESS | T06,T08 | backend/src/orders, backend/src/inventory, docs/API_CONTRACT.md | State machine, idempotency, stock, loyalty | 10A: đủ 49 cặp transition; 10C: unit race test qua | PostgreSQL race/rollback chưa chạy; 10B TV5, 10D TV6 |
 
 ## 4. Checklist
 - [x] Kiểm kê thiết kế Stitch và dự án đích.
@@ -47,6 +47,10 @@ Chỉ đổi thành `VERIFIED_COMPLETE` khi toàn bộ tiêu chí của Task đ�
 - [x] Kiểm tra Playwright trên desktop/mobile ở mock mode và API mode.
 
 ## 5. Công việc hiện tại
+Mốc mới nhất TV4 ngày 2026-10-15: sửa lỗi checkout 500 do lệch tên relation `history`/`statusHistory`. Build/lint qua; chạy toàn bộ Jest trong Docker trên PostgreSQL tạm riêng: **146 tests pass, 0 skipped**, gồm 8 bài DB/HTTP thật. Đã kiểm chứng migration, rollback, race tồn kho, retry và POST 201/PENDING giá 45.000đ qua cookie auth. Đã cập nhật backend local; chờ xác nhận browser và các module của TV5/TV6, không nâng toàn bộ T10 lên VERIFIED_COMPLETE.
+Sửa lỗi build Docker tiếp theo ngày 2026-10-15: bỏ UTF-8 BOM đầu schema gây P1012; validate/generate/build local và bước build Docker qua. Không thay đổi API/schema nghiệp vụ. T06/10A/10C vẫn chờ bộ kiểm thử PostgreSQL thật.
+Ngày 2026-10-15, nhánh `feature/orders-and-inventory`: TV4 đã thêm schema/migration Orders, OrderItem/Topping snapshot, OrderStatusHistory; OrdersModule, InventoryModule, optimistic locking Product/Order; API khách và staff; hook discount và transition dùng chung transaction cho TV5/TV6. Checkout/REST adapter đã nối theo contract và thêm test. **T06, 10A, 10C vẫn IN_PROGRESS, không VERIFIED_COMPLETE**: máy hiện không có Docker CLI, PostgreSQL `localhost:5434/brewlite` không kết nối được. Bộ PostgreSQL tests được opt-in riêng để không nhầm test giả lập với bằng chứng DB thật. Chi tiết bằng chứng/lệnh chạy tại `docs/TESTING.md`; không triển khai thay Payments/Promotions/Loyalty của owner khác. Đoạn bên dưới là lịch sử mốc nền tảng trước phần TV4.
+
 Cấu trúc thư mục hiện hành và vị trí từng chức năng đã được ghi trong `docs/PROJECT_STRUCTURE.md` để nhóm và giảng viên tra cứu từ README.
 
 Đã hoàn thiện thêm một lượt đối chiếu UI với Stitch cho trang chủ, auth, chi tiết món và giỏ hàng, đặc biệt bố cục mobile. Browser smoke kiểm tra thêm món vào giỏ và không tràn ngang ở 390 px; frontend build/lint và 3 unit tests qua. Các màn Orders/Payment/Profile/Barista vẫn cần một lượt so sánh chi tiết riêng với Stitch khi nhóm tích hợp backend tương ứng.

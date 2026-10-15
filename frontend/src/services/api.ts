@@ -69,7 +69,8 @@ export const apiOrders: OrderService = {
   mine: () => request<Order[]>("/orders/me"),
   get: (id) => request<Order>(`/orders/${encodeURIComponent(id)}`),
   status: (id) =>
-    request<OrderStatus>(`/orders/${encodeURIComponent(id)}/status`),
+    request<{ status: OrderStatus }>(`/orders/${encodeURIComponent(id)}/status`)
+      .then((result) => result.status),
 };
 export const apiPayments: PaymentService = {
   pay: (orderId, method, idempotencyKey) =>
