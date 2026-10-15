@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { Header, Footer } from "@/components/shell";
+import { CartSync } from "@/components/cart-sync";
 export const metadata: Metadata = {
   title: "BrewLite | Cà phê Việt",
   description: "Đặt cà phê nhanh, thanh toán tiện lợi",
@@ -29,6 +30,7 @@ export default function RootLayout({
       </head>
       <body>
         <AuthProvider>
+          <CartSync />
           <Header />
           {children}
           <Footer />

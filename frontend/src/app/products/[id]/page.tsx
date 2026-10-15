@@ -56,7 +56,8 @@ export default function ProductPage({
 }) {
   const { id } = use(params),
     router = useRouter(),
-    add = useCart((s) => s.add);
+    add = useCart((s) => s.add),
+    cartError = useCart((s) => s.error);
   const [product, setProduct] = useState<Product | null>(null),
     [related, setRelated] = useState<Product[]>([]),
     [loading, setLoading] = useState(true),
@@ -68,6 +69,7 @@ export default function ProductPage({
     [sugar, setSugar] = useState(SUGAR[0]),
     [note, setNote] = useState(""),
     [liked, setLiked] = useState(false),
+    [adding, setAdding] = useState(false),
     [quickAdded, setQuickAdded] = useState("");
   const load = useCallback(() => {
     setLoading(true);
@@ -83,6 +85,7 @@ export default function ProductPage({
   }, [id]);
   useEffect(() => {
     load();
+    useCart.getState().dismissError();
   }, [load]);
   useEffect(() => {
     services.products
@@ -104,9 +107,10 @@ export default function ProductPage({
     (!chosenSize?.available || chosenToppings.some((t) => !t.available));
   const blocked = !product || invalid || product.stock < quantity;
   const story = stories[product?.category || ""] || stories.default;
-  const submit = (next: "/cart" | "/checkout") => {
-    if (!product || blocked) return;
-    add({
+  const submit = async (next: "/cart" | "/checkout") => {
+    if (!product || blocked || adding) return;
+    setAdding(true);
+    const ok = await add({
       key: itemKey(product.id, size, selected, ice, sugar, note),
       productId: product.id,
       name: product.name,
@@ -119,10 +123,12 @@ export default function ProductPage({
       ice,
       sugar,
       note: note.trim() || undefined,
+      sizeOptions: product.sizes,
     });
-    router.push(next);
+    setAdding(false);
+    if (ok) router.push(next);
   };
-  const quickAdd = (p: Product) => {
+  const quickAdd = async (p: Product) => {
     const s = p.sizes.find((x) => x.isDefault) || p.sizes[0];
     if (!s || p.stock < 1) return;
     const item: CartItem = {
@@ -137,9 +143,9 @@ export default function ProductPage({
       quantity: 1,
       ice: ICE[0],
       sugar: SUGAR[0],
+      sizeOptions: p.sizes.length ? p.sizes : undefined,
     };
-    add(item);
-    setQuickAdded(p.id);
+    if (await add(item)) setQuickAdded(p.id);
   };
   if (loading)
     return (
@@ -327,10 +333,15 @@ export default function ProductPage({
               <p className="error">Chỉ còn {product.stock} phần.</p>
             )}
             {invalid && <p className="error">Tùy chọn không hợp lệ.</p>}
+            {cartError && (
+              <p className="error" role="alert">
+                {cartError}
+              </p>
+            )}
             <div className="pd-actions">
               <button
                 className="pd-btn pd-btn-dark"
-                disabled={blocked}
+                disabled={blocked || adding}
                 onClick={() => submit("/cart")}
               >
                 <Icon name="bag" size={18} />
@@ -338,7 +349,7 @@ export default function ProductPage({
               </button>
               <button
                 className="pd-btn pd-btn-caramel"
-                disabled={blocked}
+                disabled={blocked || adding}
                 onClick={() => submit("/checkout")}
               >
                 <Icon name="bolt" size={18} />

@@ -64,6 +64,8 @@ Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Fronte
 
 `NEXT_PUBLIC_DATA_MODE=mock` (mặc định) cho sản phẩm/đơn/thanh toán/ưu đãi/điểm/Barista. Có thể đặt trong `frontend/.env.local` khi phát triển local. Mock lưu đơn và payment trong localStorage, trả lỗi rõ ràng, có lựa chọn kết quả PAID/FAILED/UNKNOWN ở checkout. Auth **luôn** gọi NestJS/PostgreSQL, nên vẫn cần backend+DB khi demo đầy đủ. Dùng mã demo `BREW10` để thử ưu đãi; quy tắc này không phải chính sách thật.
 
+`NEXT_PUBLIC_DATA_MODE=hybrid` (khuyên dùng khi phát triển local): sản phẩm và giỏ hàng gọi backend thật, nên thêm/sửa/xóa giỏ của người đã đăng nhập được lưu vào PostgreSQL (bảng `carts`, `cart_items`); đơn hàng/thanh toán/ưu đãi/điểm/Barista vẫn mô phỏng để demo trọn luồng khi backend Orders chưa có. Đặt trong `frontend/.env.local` cùng `NEXT_PUBLIC_API_URL=http://localhost:3001/api`, cần backend + DB đã chạy `npm run db:migrate`. Khách chưa đăng nhập giữ giỏ trong trình duyệt và được gộp lên server khi đăng nhập.
+
 `NEXT_PUBLIC_DATA_MODE=api` gọi REST cho mọi module; cần TV4/TV5/TV6 hoàn thiện backend theo `docs/API_CONTRACT.md`. Lỗi API không tự fallback sang mock. Nếu thay `NEXT_PUBLIC_*`, khởi động lại hoặc build lại frontend.
 
 
