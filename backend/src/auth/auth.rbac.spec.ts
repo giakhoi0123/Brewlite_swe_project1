@@ -16,6 +16,7 @@ type TestUser = {
   loyaltyPoints: number;
   role: Role;
   status: UserStatus;
+  sessionVersion: number;
 };
 
 let app: INestApplication;
@@ -33,6 +34,7 @@ beforeAll(async () => {
       loyaltyPoints: 0,
       role: Role.BARISTA,
       status: UserStatus.ACTIVE,
+      sessionVersion: 0,
     },
   ];
   const prisma = {
@@ -59,11 +61,18 @@ beforeAll(async () => {
             ...data,
             loyaltyPoints: 0,
             status: UserStatus.ACTIVE,
+            sessionVersion: 0,
           };
           users.push(user);
           return user;
         },
       ),
+      update: jest.fn(async ({ where }: { where: { id: string } }) => {
+        const user = users.find((item) => item.id === where.id);
+        if (!user) throw new Error('User not found');
+        user.sessionVersion += 1;
+        return user;
+      }),
     },
     $connect: jest.fn(),
     $disconnect: jest.fn(),
@@ -104,11 +113,13 @@ describe('RBAC authentication', () => {
       .post('/api/auth/register')
       .send({
         name: 'Customer',
-        email: 'customer@example.com',
+        email: 'Customer@Example.COM',
         password: 'Password123',
       })
       .expect(201);
     expect(response.body.user.role).toBe(Role.CUSTOMER);
+    expect(response.body.user.email).toBe('customer@example.com');
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(response.body.user.passwordHash).toBeUndefined();
     expect(
       users.find((user) => user.email === 'customer@example.com')?.role,
@@ -124,7 +135,7 @@ describe('RBAC authentication', () => {
       .post('/api/auth/register')
       .send({
         name: 'Customer',
-        email: 'customer@example.com',
+        email: 'CUSTOMER@example.com',
         password: 'Password123',
       })
       .expect(409);
@@ -144,6 +155,7 @@ describe('RBAC authentication', () => {
         .send({ email, password: 'Password123' })
         .expect(201);
       expect(login.body.user.role).toBe(role);
+      expect(login.headers['cache-control']).toBe('no-store');
       expect(login.body.accessToken).toBeUndefined();
       expect(login.headers['set-cookie'][0]).toContain('HttpOnly');
       const me = await request(app.getHttpServer())
@@ -151,6 +163,7 @@ describe('RBAC authentication', () => {
         .set('Cookie', login.headers['set-cookie'])
         .expect(200);
       expect(me.body.user.role).toBe(role);
+      expect(me.headers['cache-control']).toBe('no-store');
       const loggedOut = await request(app.getHttpServer())
         .post('/api/auth/logout')
         .set('Cookie', login.headers['set-cookie'])
@@ -158,6 +171,10 @@ describe('RBAC authentication', () => {
       expect(loggedOut.headers['set-cookie'][0]).toContain(
         'Expires=Thu, 01 Jan 1970',
       );
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', login.headers['set-cookie'])
+        .expect(401);
     }
     await request(app.getHttpServer())
       .post('/api/auth/login')
@@ -185,15 +202,52 @@ describe('RBAC authentication', () => {
     const forgedRole = await jwt.signAsync({
       sub: customer.id,
       role: Role.BARISTA,
+      sessionVersion: customer.sessionVersion,
     });
     await request(app.getHttpServer())
       .get('/api/barista/dashboard')
       .set('Authorization', `Bearer ${forgedRole}`)
       .expect(403);
-    const staffToken = await jwt.signAsync({ sub: users[0].id });
+    const staffToken = await jwt.signAsync({
+      sub: users[0].id,
+      sessionVersion: users[0].sessionVersion,
+    });
     await request(app.getHttpServer())
       .get('/api/barista/dashboard')
       .set('Authorization', `Bearer ${staffToken}`)
       .expect(200);
+  });
+
+  it('rejects malformed registration and login payloads without leaking secrets', async () => {
+    for (const body of [
+      {},
+      { name: 'A', email: 'invalid', password: 'Password123' },
+      { name: 'Valid Name', email: 'person@example.com', password: 'weak' },
+      { name: 'Valid Name', email: 'person@example.com', password: 'Password123', role: 'BARISTA' },
+    ]) {
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/register').send(body).expect(400);
+      expect(JSON.stringify(response.body)).not.toContain('passwordHash');
+    }
+    await request(app.getHttpServer()).post('/api/auth/login').send({}).expect(400);
+    await request(app.getHttpServer()).post('/api/auth/login')
+      .send({ email: "' OR 1=1 --", password: 'Password123' }).expect(400);
+    await request(app.getHttpServer()).post('/api/auth/login')
+      .send({ email: 'nobody@example.com', password: 'Password123' }).expect(401);
+  });
+
+  it('rejects tampered and incorrectly signed JWTs', async () => {
+    const valid = await jwt.signAsync({
+      sub: users[0].id,
+      sessionVersion: users[0].sessionVersion,
+    });
+    await request(app.getHttpServer()).get('/api/auth/me')
+      .set('Authorization', `Bearer ${valid.slice(0, -2)}xx`).expect(401);
+    const wrongSignature = await jwt.signAsync(
+      { sub: users[0].id, sessionVersion: users[0].sessionVersion },
+      { secret: 'another-test-secret-long-enough' },
+    );
+    await request(app.getHttpServer()).get('/api/auth/me')
+      .set('Authorization', `Bearer ${wrongSignature}`).expect(401);
   });
 });

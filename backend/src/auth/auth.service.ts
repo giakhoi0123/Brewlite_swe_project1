@@ -39,6 +39,7 @@ export class AuthService {
           fullName: true,
           loyaltyPoints: true,
           role: true,
+          sessionVersion: true,
         },
       });
     } catch (error) {
@@ -51,7 +52,7 @@ export class AuthService {
     }
     return {
       user: this.publicUser(user),
-      accessToken: await this.signToken(user.id),
+      accessToken: await this.signToken(user.id, user.sessionVersion),
     };
   }
 
@@ -67,7 +68,7 @@ export class AuthService {
     }
     return {
       user: this.publicUser(user),
-      accessToken: await this.signToken(user.id),
+      accessToken: await this.signToken(user.id, user.sessionVersion),
     };
   }
 
@@ -87,7 +88,14 @@ export class AuthService {
     };
   }
 
-  private signToken(sub: string) {
-    return this.jwt.signAsync({ sub });
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { sessionVersion: { increment: 1 } },
+    });
+  }
+
+  private signToken(sub: string, sessionVersion: number) {
+    return this.jwt.signAsync({ sub, sessionVersion });
   }
 }

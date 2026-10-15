@@ -15,6 +15,8 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   const body = await response.json().catch(() => null);
+  if (response.status === 401 && typeof window !== "undefined" && path !== "/auth/login")
+    window.dispatchEvent(new Event("brewlite:session-expired"));
   if (!response.ok)
     throw new ApiError(
       response.status,

@@ -49,11 +49,19 @@ status, registered = call(customer, '/auth/register', 'POST', {'name': 'Test Cus
 assert status == 201 and registered['user']['role'] == 'CUSTOMER'
 assert 'accessToken' not in registered and 'passwordHash' not in registered['user']
 assert len(list(cookies)) == 1 and list(cookies)[0].has_nonstandard_attr('HttpOnly')
+old_cookie = list(cookies)[0].value
 assert call(customer, '/auth/me')[0] == 200
 assert call(customer, '/barista/dashboard')[0] == 403
 assert call(customer, '/auth/register', 'POST', {'name': 'Test', 'email': email, 'password': password})[0] == 409
 assert call(customer, '/auth/logout', 'POST')[0] == 201
 assert call(customer, '/auth/me')[0] == 401
+# A copied JWT must also fail after logout, even if a client ignores Set-Cookie deletion.
+stale_request = urllib.request.Request(BASE + '/auth/me', headers={'Cookie': f'brewlite_session={old_cookie}'})
+try:
+    urllib.request.urlopen(stale_request, timeout=5)
+    raise AssertionError('Old session was accepted after logout')
+except urllib.error.HTTPError as error:
+    assert error.code == 401
 assert call(customer, '/auth/login', 'POST', {'email': email, 'password': 'WrongPassword123'})[0] == 401
 assert call(customer, '/auth/login', 'POST', {'email': email, 'password': password})[0] == 201
 assert call(customer, '/auth/logout', 'POST', origin='https://other.example')[0] == 403
