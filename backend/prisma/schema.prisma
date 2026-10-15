@@ -18,11 +18,23 @@ enum UserStatus {
   BANNED
 }
 
+enum PaymentMethod {
+  WALLET
+  CARD
+}
+
+enum PaymentStatus {
+  PROCESSING
+  PAID
+  PAYMENT_FAILED
+  UNKNOWN
+}
+
 model User {
-  id            String      @id @default(uuid()) @db.Uuid
-  email         String      @unique
-  passwordHash  String      @map("password_hash")
-  fullName      String      @map("full_name")
+  id            String     @id @default(uuid()) @db.Uuid
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  fullName      String     @map("full_name")
   phone         String?
   role          Role        @default(CUSTOMER)
   loyaltyPoints Int         @default(0) @map("loyalty_points")
@@ -30,18 +42,19 @@ model User {
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
   cart          Cart?
+  payments      Payment[]
 
   @@map("users")
 }
 
 model Product {
-  id          String @id @default(uuid()) @db.Uuid
+  id          String           @id @default(uuid()) @db.Uuid
   name        String
   // Nonnegative price/stock are enforced by CHECK constraints in the SQL migration.
   price       Int
-  imageUrl    String @map("image_url")
-  stock       Int    @default(0)
-  description String @default("")
+  imageUrl    String           @map("image_url")
+  stock       Int              @default(0)
+  description String           @default("")
   sizes       ProductSize[]
   toppings    ProductTopping[]
   cartItems   CartItem[]
@@ -122,4 +135,21 @@ model CartItem {
   @@unique([cartId, productId, configKey])
   @@index([productId])
   @@map("cart_items")
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  orderId        String        @map("order_id") @db.Uuid
+  amount         Int
+  method         PaymentMethod
+  status         PaymentStatus @default(PROCESSING)
+  idempotencyKey String        @map("idempotency_key") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, idempotencyKey])
+  @@index([orderId])
+  @@map("payments")
 }

@@ -9,6 +9,7 @@ import { Empty, Loading, ProductImage } from "@/components/ui";
 import { cartTotal, money } from "@/types/domain";
 import type { PaymentMethod, Promotion } from "@/types/domain";
 import { demoOrders, services } from "@/services";
+import { savePaymentIntent } from "@/services/payment-intent";
 export default function Checkout() {
   const router = useRouter(),
     items = useCart((s) => s.items),
@@ -56,10 +57,11 @@ export default function Checkout() {
         items,
         promotion || undefined,
       );
-      sessionStorage.setItem(
-        `brewlite-payment-${order.id}`,
-        JSON.stringify({ method, key: crypto.randomUUID(), outcome }),
-      );
+      savePaymentIntent(order.id, {
+        method,
+        key: crypto.randomUUID(),
+        ...(demoOrders ? { outcome } : {}),
+      });
       router.push(`/payment/${order.id}/processing`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể tạo đơn");
@@ -151,12 +153,14 @@ export default function Checkout() {
               <div className="options">
                 <button
                   className={`option ${method === "WALLET" ? "selected" : ""}`}
+                  aria-pressed={method === "WALLET"}
                   onClick={() => setMethod("WALLET")}
                 >
                   Ví điện tử
                 </button>
                 <button
                   className={`option ${method === "CARD" ? "selected" : ""}`}
+                  aria-pressed={method === "CARD"}
                   onClick={() => setMethod("CARD")}
                 >
                   Thẻ ngân hàng
