@@ -13,9 +13,9 @@ test('API mode menu and customization consume PostgreSQL Products API', async ({
   const product = await response.json() as {price:number;sizes:{code:string;extraPrice:number}[];toppings:{id:string;name:string;extraPrice:number;available:boolean}[]};
   await first.getByRole('link',{name:/Tùy chỉnh/}).click();
   await expect(page.getByRole('heading',{name:name||''})).toBeVisible();
-  for (const code of ['S','M','L']) await expect(page.getByRole('button',{name:new RegExp(`^${code} ·`)})).toBeVisible();
+  for (const code of ['S','M','L']) await expect(page.getByRole('button',{name:new RegExp(`Size ${code}`)})).toBeVisible();
   for (const code of ['S','L','M']) {
-    await page.getByRole('button',{name:new RegExp(`^${code} ·`)}).click();
+    await page.getByRole('button',{name:new RegExp(`Size ${code}`)}).click();
     const sizePrice=product.price+(product.sizes.find(s=>s.code===code)?.extraPrice||0);
     await expect(page.getByText(new Intl.NumberFormat('vi-VN').format(sizePrice)+' ₫').last()).toBeVisible();
   }

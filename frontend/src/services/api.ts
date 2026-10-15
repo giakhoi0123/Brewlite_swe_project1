@@ -61,6 +61,7 @@ export const apiOrders: OrderService = {
           quantity: i.quantity,
           ice: i.ice,
           sugar: i.sugar,
+          note: i.note,
         })),
         promotionCode: promotion?.code,
       }),

@@ -42,6 +42,7 @@ export type CartItem = {
   quantity: number;
   ice: string;
   sugar: string;
+  note?: string;
 };
 export type OrderStatus =
   | "PENDING"
@@ -86,4 +87,6 @@ export const itemKey = (
   toppings: string[],
   ice: string,
   sugar: string,
-) => [id, size, [...toppings].sort().join(","), ice, sugar].join("|");
+  note = "",
+) =>
+  [id, size, [...toppings].sort().join(","), ice, sugar, note.trim()].join("|");
