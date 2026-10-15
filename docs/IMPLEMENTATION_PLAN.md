@@ -49,6 +49,8 @@ Chỉ đổi thành `VERIFIED_COMPLETE` khi toàn bộ tiêu chí của Task đ�
 ## 5. Công việc hiện tại
 Cấu trúc thư mục hiện hành và vị trí từng chức năng đã được ghi trong `docs/PROJECT_STRUCTURE.md` để nhóm và giảng viên tra cứu từ README.
 
+Đã xử lý CORS cho trường hợp frontend chạy thêm tại `localhost:3002`: backend đọc danh sách `FRONTEND_ORIGIN` phân tách bằng dấu phẩy cho cả CORS và cookie origin guard. Cấu hình Compose lấy giá trị từ `.env`; cần build lại backend sau khi cập nhật mã. Kiểm tra trong `docs/TESTING.md`.
+
 Đã hoàn thiện thêm một lượt đối chiếu UI với Stitch cho trang chủ, auth, chi tiết món và giỏ hàng, đặc biệt bố cục mobile. Browser smoke kiểm tra thêm món vào giỏ và không tràn ngang ở 390 px. Payment frontend đã có intent được kiểm tra, retry giữ đúng phương thức, xử lý UNKNOWN và lỗi xác minh; ở lượt Payment, frontend build/lint và 6 unit tests qua. Các màn Orders/Profile/Barista và phần tinh chỉnh hình ảnh Payment vẫn cần so sánh chi tiết khi tích hợp backend tương ứng.
 
 Đã triển khai Next.js 13 route, auth/Products/Cart backend, adapter mock/REST, Dockerfile/Compose, docs và Git. Payment backend hiện có core service/controller/DTO, mock gateway, Prisma Payment schema/migration, idempotency claim và test HTTP/service; sau khi hợp nhất Cart + Payment, toàn bộ backend 56 tests và build qua, frontend 7 tests và production build qua. Compose/DB Payment chưa chạy migration trong lượt này. OrdersModule vẫn chưa có, nên `PaymentsModule` chưa đăng ký vào AppModule và endpoint thật chưa thể chạy end-to-end. Bước kế tiếp: TV4 cung cấp `PAYMENT_ORDER_PORT`, sau đó bật module, migrate PostgreSQL và chạy Payment API E2E. Các backend Promotion/Loyalty/Staff Orders vẫn còn thiếu.

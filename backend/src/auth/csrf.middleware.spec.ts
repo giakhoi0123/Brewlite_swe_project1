@@ -31,4 +31,23 @@ describe('cookie origin guard', () => {
     expect(run('GET', 'brewlite_session=abc').next).toHaveBeenCalled();
     expect(run('POST').next).toHaveBeenCalled();
   });
+  it('accepts each configured frontend origin and rejects others', () => {
+    const previous = process.env.FRONTEND_ORIGIN;
+    process.env.FRONTEND_ORIGIN =
+      'http://localhost:3000, http://localhost:3002';
+    try {
+      expect(
+        run('POST', 'brewlite_session=abc', 'http://localhost:3002').next,
+      ).toHaveBeenCalled();
+      expect(
+        run('POST', 'brewlite_session=abc', 'http://localhost:3003').status,
+      ).toHaveBeenCalledWith(403);
+      expect(run('POST', 'brewlite_session=abc').status).toHaveBeenCalledWith(
+        403,
+      );
+    } finally {
+      if (previous === undefined) delete process.env.FRONTEND_ORIGIN;
+      else process.env.FRONTEND_ORIGIN = previous;
+    }
+  });
 });
