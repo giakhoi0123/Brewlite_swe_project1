@@ -6,7 +6,7 @@
 
 - Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
 - Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout, bcrypt, cookie JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
-- Orders, Promotions, Loyalty và Barista Orders **chưa có backend thật**. Payment đã có core/controller/schema/migration và test idempotency nhưng chưa bật endpoint vì chờ Orders port; frontend vẫn dùng mock localStorage khi demo. Thanh toán demo không phải giao dịch tiền thật.
+- Orders/Inventory và Staff Orders đã có backend TV4 trên nhánh `feature/orders-and-inventory`; migration và kiểm thử PostgreSQL còn chờ DB local chạy. Payment đã có core/controller/schema/migration và test idempotency nhưng chưa bật endpoint vì chờ Orders port. Promotions, Loyalty **chưa có backend thật**. Frontend có mock localStorage và REST adapter; thanh toán demo không phải giao dịch tiền thật.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
 
 ## Cấu trúc
@@ -70,14 +70,14 @@ Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Fronte
 
 `NEXT_PUBLIC_DATA_MODE=hybrid` (khuyên dùng khi phát triển local): sản phẩm và giỏ hàng gọi backend thật, nên thêm/sửa/xóa giỏ của người đã đăng nhập được lưu vào PostgreSQL (bảng `carts`, `cart_items`); đơn hàng/thanh toán/ưu đãi/điểm/Barista vẫn mô phỏng để demo trọn luồng khi backend Orders chưa có. Đặt trong `frontend/.env.local` cùng `NEXT_PUBLIC_API_URL=http://localhost:3001/api`, cần backend + DB đã chạy `npm run db:migrate`. Khách chưa đăng nhập giữ giỏ trong trình duyệt và được gộp lên server khi đăng nhập.
 
-`NEXT_PUBLIC_DATA_MODE=api` gọi REST cho mọi module; cần TV4/TV5/TV6 hoàn thiện backend theo `docs/API_CONTRACT.md`. Lỗi API không tự fallback sang mock. Nếu thay `NEXT_PUBLIC_*`, khởi động lại hoặc build lại frontend.
+`NEXT_PUBLIC_DATA_MODE=api` gọi REST cho mọi module; Orders/Inventory đã có code TV4, cần migrate DB và tiếp tục tích hợp TV5/TV6 theo `docs/API_CONTRACT.md`. Lỗi API không tự fallback sang mock. Nếu thay `NEXT_PUBLIC_*`, khởi động lại hoặc build lại frontend. Tạo đơn PENDING chưa đồng nghĩa thanh toán thành công: `/payments` vẫn chờ TV5; backend hiện từ chối mã ưu đãi với 422 cho đến khi TV6 tích hợp provider.
 
 
 Để chạy hai bài E2E API mode: `docker compose stop frontend`, chạy `NEXT_PUBLIC_DATA_MODE=api NEXT_PUBLIC_API_URL=http://localhost:3001/api npm --prefix frontend run dev -- --port 3000` ở terminal riêng; sau đó chạy `BREWLITE_RUN_API_E2E=1 npm --prefix frontend run test:e2e -- --grep "API mode"`. Dừng Next dev và chạy `docker compose start frontend` để trả lại demo mode.
 
 ## Auth và Barista
 
-Đăng ký công khai luôn tạo CUSTOMER. Đăng nhập dùng chung; BARISTA được chuyển tới `/barista/dashboard`; CUSTOMER bị chặn khỏi màn đó. Trình duyệt giữ cookie HttpOnly; không lưu JWT ở localStorage. Endpoint mẫu `/api/barista/dashboard` có guard role và trả 401/403 đúng. Staff Orders API thực tế còn là đề xuất.
+Đăng ký công khai luôn tạo CUSTOMER. Đăng nhập dùng chung; BARISTA được chuyển tới `/barista/dashboard`; CUSTOMER bị chặn khỏi màn đó. Trình duyệt giữ cookie HttpOnly; không lưu JWT ở localStorage. Endpoint mẫu `/api/barista/dashboard` có guard role và trả 401/403 đúng. Staff Orders API (`/api/staff/orders`) đã có code TV4, dùng cùng OrdersService/state machine và chờ xác minh DB thật.
 
 Để tạo tài khoản Barista cục bộ, đặt `BARISTA_EMAIL` và `BARISTA_PASSWORD` trong `.env`, rồi nạp `.env` vào shell và chạy:
 
@@ -108,8 +108,10 @@ Sau khi hợp nhất Cart và Payment, backend có 56 tests đã qua; frontend c
 
 ## Nhóm, branch và PR
 
+Cập nhật TV4 2026-10-15: Prisma generate/validate, build/lint hai phía, 138 backend tests và 8 frontend tests qua. Bảy PostgreSQL tests chưa chạy: máy không có Docker CLI và DB `localhost:5434/brewlite` từ chối kết nối. Migration Orders được tạo offline, chưa apply; chưa VERIFIED_COMPLETE. Xem `docs/TESTING.md` để chạy lại trên DB kiểm thử riêng. Các số liệu Compose/E2E ở phần trên là bằng chứng của mốc nền tảng trước đó, không xác nhận Orders mới.
+
 TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV4 Orders/inventory/state machine; TV5 Payments/idempotency; TV6 Promotions/Loyalty/History/E2E. Chi tiết ở `docs/TEAM_HANDOFF.md`. Nhánh `feature/auth-and-base` chứa nền tảng dự án và phần auth; các thành viên tạo branch `feature/products`, `feature/orders`, `feature/payments`, `feature/loyalty`, `feature/barista` từ nhánh tích hợp do nhóm thống nhất. PR phải nêu thay đổi DTO, test và cập nhật docs.
 
 ## Đọc tiếp
 
-Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: backend Orders/Promotions/Loyalty/Staff còn thiếu; Payment chờ Orders port để kích hoạt và migrate; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). PostgreSQL/Compose và Playwright mock/API mode đã chạy trước lượt Payment.
+Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: Orders/Inventory còn chờ DB verification; Payment chờ Orders port để kích hoạt và migrate; backend Promotions/Loyalty còn thiếu; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). Bằng chứng PostgreSQL/Compose và Playwright cũ không áp dụng cho migration Orders mới.
