@@ -50,11 +50,11 @@ Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng n
 
 ## Endpoint bổ sung đề xuất, chưa thuộc 7 endpoint chính thức
 - GET `/auth/me`: TV1, JWT bắt buộc, trả `{user}`; 401 khi hết hạn. Đã triển khai.
-- POST `/auth/logout`: TV1, xóa cookie; đã triển khai. JWT đã cấp là stateless đến khi hết hạn, xem `ARCHITECTURE.md`.
+- POST `/auth/logout`: TV1, cần JWT hợp lệ; tăng `users.session_version` rồi xóa cookie. JWT cũ trả 401 ngay sau đó. Đã kiểm tra với PostgreSQL QA.
 - GET `/orders/:id`, GET `/orders/:id/status`: TV4, xác minh và theo dõi.
 - POST `/promotions/validate`: TV6, `{code,subtotal}` → `{code,discount}`.
 - GET `/loyalty/me`: TV6, `{points}`.
-- GET `/staff/orders`, PATCH `/staff/orders/:id/status`: TV4, chỉ BARISTA.
+- GET `/staff/orders`, GET `/staff/orders/:id`, PATCH `/staff/orders/:id/status`, PATCH `/staff/orders/:id/cancel`: TV4, chỉ BARISTA; chưa có backend.
 - GET `/barista/dashboard`: TV1, endpoint mẫu kiểm tra guard BARISTA; đã triển khai, không phải Orders API.
 
 ## Kiểu chung
@@ -67,3 +67,16 @@ Xem `frontend/src/types/domain.ts`: `User`, `Role`, `Product`, `ProductSize`, `T
 - Reservation/release tồn kho và race condition: TV4 xác định trong transaction.
 - Payment retention/cleanup và thời hạn coi bản ghi `PROCESSING` là treo vẫn cần nhóm thống nhất; quy tắc replay và `UNKNOWN` đã chốt ở trên.
 - Barista cancellation khi PREPARING: chưa được phép trong UI demo.
+
+## Hợp đồng Staff Orders cho TV4 (frontend đã nối adapter, server còn chờ)
+
+| Endpoint | Input | Output cần có | Kiểm tra server |
+|---|---|---|---|
+| GET `/staff/orders` | Cookie/JWT BARISTA | `Order[]` gồm PAID/PREPARING/READY và COMPLETED/CANCELLED lịch sử | 401 thiếu phiên, 403 CUSTOMER |
+| GET `/staff/orders/:id` | ID đường dẫn | `Order` hoặc 404 | 401/403, không lộ dữ liệu ngoài quyền |
+| PATCH `/staff/orders/:id/status` | `{status: "PREPARING"|"READY"|"COMPLETED"}` | `Order` mới nhất | Chỉ PAID→PREPARING→READY→COMPLETED; sai bước 409; transaction chống race |
+| PATCH `/staff/orders/:id/cancel` | `{reason: string}` (1–300 ký tự) | `Order` với `status:"CANCELLED",cancelReason` | Chỉ PENDING/PAID/PAYMENT_FAILED đến khi nhóm chốt mở rộng; lý do bắt buộc; không tuyên bố refund |
+
+`Order` trả `id,userId,items,subtotal,discount,total,status,createdAt`, có thể thêm `customerName,cancelReason,completedAt`. `completedAt` phải là thời điểm xác nhận bàn giao nếu KPI “đã giao hôm nay” cần chính xác; không dùng `createdAt` để suy ra. Các item cần `quantity,name,size,toppingNames,ice,sugar,note,unitPrice`. Danh sách chờ pha chỉ nhận PAID; các trạng thái chưa thanh toán không được đưa vào hàng đợi. Mọi endpoint Orders của CUSTOMER phải suy user từ phiên và kiểm tra ownership trên server.
+
+Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie `brewlite_session` được ký JWT với `sessionVersion`; phiên cũ 401 sau logout. Migration `20261016000000_session_version` chỉ thêm cột mặc định 0, không xóa dữ liệu.

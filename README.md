@@ -5,9 +5,10 @@
 ## Phạm vi và hiện trạng
 
 - Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
-- Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout, bcrypt, cookie JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
+- Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout vô hiệu JWT cũ bằng `users.session_version`, bcrypt, cookie HttpOnly JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
 - Orders, Promotions, Loyalty và Barista Orders **chưa có backend thật**. Payment đã có core/controller/schema/migration và test idempotency nhưng chưa bật endpoint vì chờ Orders port; frontend vẫn dùng mock localStorage khi demo. Thanh toán demo không phải giao dịch tiền thật.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
+- Barista KDS theo Stitch có 5 màn: `/barista/dashboard`, `/barista/orders`, `/barista/preparing`, `/barista/ready`, `/barista/history`; dùng mock chung với lịch sử khách hàng cho đến khi TV4 làm Staff Orders API. Hồ sơ thành viên hiển thị dữ liệu thực hiện có; chưa phát hành voucher hoặc chính sách đổi điểm.
 
 ## Cấu trúc
 
@@ -77,7 +78,7 @@ Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Fronte
 
 ## Auth và Barista
 
-Đăng ký công khai luôn tạo CUSTOMER. Đăng nhập dùng chung; BARISTA được chuyển tới `/barista/dashboard`; CUSTOMER bị chặn khỏi màn đó. Trình duyệt giữ cookie HttpOnly; không lưu JWT ở localStorage. Endpoint mẫu `/api/barista/dashboard` có guard role và trả 401/403 đúng. Staff Orders API thực tế còn là đề xuất.
+Đăng ký công khai luôn tạo CUSTOMER. Đăng nhập dùng chung; BARISTA được chuyển tới `/barista/dashboard`; CUSTOMER bị chặn khỏi màn đó. Trình duyệt giữ cookie HttpOnly, SameSite=Lax, Secure ở production; không lưu JWT ở localStorage. Logout tăng `session_version` trong PostgreSQL rồi xóa cookie, làm hết hiệu lực **mọi** phiên của tài khoản. Migration cộng cột `20261016000000_session_version` phải được áp dụng bằng `npm run db:migrate` trước khi khởi động backend mới. Endpoint mẫu `/api/barista/dashboard` có guard role và trả 401/403 đúng. Staff Orders API thực tế còn là đề xuất.
 
 Để tạo tài khoản Barista cục bộ, đặt `BARISTA_EMAIL` và `BARISTA_PASSWORD` trong `.env`, rồi nạp `.env` vào shell và chạy:
 
@@ -104,7 +105,7 @@ npm --prefix frontend exec -- playwright install chromium
 npm --prefix frontend run test:e2e -- --grep-invert "API mode"
 ```
 
-Sau khi hợp nhất Cart và Payment, backend có 56 tests đã qua; frontend có 7 unit tests qua và production build thành công. `python3 scripts/smoke_http.py` đã qua với PostgreSQL và Compose trước lượt Payment. Chi tiết lệnh đã/chưa chạy trong `docs/TESTING.md`. Payment migration/API E2E chưa chạy vì OrdersModule chưa có. Playwright Chromium trước đó đã qua 3 bài demo và 2 bài API mode trên desktop/mobile.
+Lượt TV1 2026-10-16: backend Jest 59/59 (13 suites) trên image mới; frontend unit 8/8, lint/build PASS; Playwright demo 4/4 với Auth thật trên PostgreSQL QA riêng; `BREWLITE_SMOKE_API=http://localhost:3005/api python3 scripts/smoke_http.py` PASS, gồm cookie cũ 401 sau logout. Trình duyệt QA ở 1440/768/390 cho Barista và các trang khách chính; ảnh QA không commit. Chi tiết bằng chứng và phần chưa chạy trong `docs/TESTING.md`. Payment/Staff Orders API E2E còn chờ TV4/TV5.
 
 ## Nhóm, branch và PR
 

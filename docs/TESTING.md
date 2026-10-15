@@ -1,5 +1,27 @@
 # Kiểm thử
 
+## Lượt TV1 2026-10-16 — kết quả hiện hành
+
+Môi trường: Docker Compose PostgreSQL; database QA riêng `brewlite_auth_test` đã áp dụng đủ 7 migration và seed Barista/products; NestJS QA cổng 3005, Next production QA cổng 3006, `NEXT_PUBLIC_DATA_MODE=mock`, Auth luôn gọi DB thật. Không xóa hoặc reset database phát triển.
+
+| Nhóm / ca | Mong đợi | Kết quả thực tế | Trạng thái | Mã liên quan |
+|---|---|---|---|---|
+| Đăng ký: hợp lệ, email chuẩn hóa/trùng, thiếu/sai email/mật khẩu, role lạ | 201 CUSTOMER hoặc 400/409; hash không lộ | Jest Auth + HTTP DB đúng mã; role BARISTA từ public bị từ chối | PASS | `backend/src/auth/auth.rbac.spec.ts`, `auth.service.ts` |
+| Đăng nhập: đúng/sai/không tồn tại, JWT identity, payload sai | Đúng tạo cookie; sai 400/401 | Jest PASS; E2E login và redirect PASS | PASS | `auth.rbac.spec.ts`, `frontend/e2e/flow.spec.ts` |
+| JWT: thiếu, hết hạn, sửa payload, sai chữ ký, role giả | 401/403; role lấy từ DB | Jest PASS | PASS | `auth.rbac.spec.ts`, `jwt.strategy.ts` |
+| Phiên: refresh, logout, dùng lại cookie cũ | Khôi phục phiên hợp lệ; token cũ 401 sau logout | Jest PASS; smoke HTTP DB thật PASS; E2E logout/role PASS | PASS | `auth.rbac.spec.ts`, `scripts/smoke_http.py`, `auth-provider.tsx` |
+| CSRF/CORS/cookie và phản hồi riêng tư | Chỉ origin cấu hình, cookie HttpOnly/Lax/Secure theo môi trường, response auth no-store | CSRF Jest PASS; CORS HTTP đã kiểm tra ở lượt trước; Jest Auth xác nhận no-store trên register/login/me | PASS | `csrf.middleware.spec.ts`, `auth.controller.ts`, `auth.rbac.spec.ts` |
+| Staff seed | Tạo BARISTA, hash, idempotent | Seed chạy trong DB QA; test source seed trước đây có | PASS cho chạy seed; test idempotency tự động chưa bổ sung | `backend/prisma/seed.ts` |
+| Backend toàn bộ | Không lỗi | `docker compose run --rm --no-deps --entrypoint npm backend test -- --runInBand`: 13 suites, 59/59 | PASS | `backend/src/**/*.spec.ts` |
+| Frontend unit | Mock cart/order/payment/Barista đúng trạng thái | `npm --prefix frontend test`: 8/8 | PASS | `frontend/src/services/*.test.ts` |
+| Frontend E2E demo | Đặt hàng, retry, loyalty, staff, hủy, mobile | `BREWLITE_E2E_BASE_URL=http://localhost:3006 npm --prefix frontend run test:e2e -- --grep-invert 'API mode'`: 4/4 | PASS | `frontend/e2e/flow.spec.ts` |
+| Barista KPI sau bàn giao | COMPLETED ghi thời gian thực và KPI hôm nay tăng | E2E luồng customer→Barista chạy lại sau thay đổi: 1/1 PASS, thẻ “Đã giao hôm nay” hiển thị 1 | PASS | `frontend/e2e/flow.spec.ts`, `frontend/src/services/mock.ts` |
+| Staff real API, Orders ownership, Payment real, Loyalty real | Backend cấp endpoint và xác nhận guard/ownership | TV4–TV6 chưa cung cấp; không có phép thử thật | SKIPPED — BACKEND_PENDING | `docs/API_CONTRACT.md` |
+
+Build/lint: Docker backend image build PASS (gồm Prisma generate và Nest build); frontend `npm run build` PASS (TypeScript, 13 static route + dynamic route), `npm run lint` PASS không cảnh báo. `npm --prefix frontend test` 8/8 PASS. Responsive browser QA: Barista dashboard/orders/preparing/ready/history tại 1440/768/390 không tràn; home, detail, login, register, orders, order detail, profile, cart, checkout và payment failure tại 1440/768/390 không tràn sau sửa header 768. Ảnh QA lưu tạm trong `/tmp/brewlite-*.png` (không commit). Đã nhìn và so ảnh Barista, profile, cart với Stitch. E2E hành vi các màn này PASS.
+
+Giới hạn bảo mật cần theo dõi: chưa có rate limit login; logout vô hiệu hóa **mọi** JWT phiên của user, không quản lý từng thiết bị; test order ownership thực chờ Orders API. Các kết quả cũ bên dưới là lịch sử, không phải test count hiện hành.
+
 Sau khi hợp nhất `origin/main` vào `feature/auth-and-base` để giải quyết PR #8: `docker compose build backend` PASS (gồm Prisma Client generate và Nest build); `docker compose run --rm --no-deps --entrypoint npm backend test -- --runInBand` PASS 13 suites, 57/57 tests. Không chạy migration hay Payment API E2E trong lượt này.
 
 Ngày 2026-10-15, sửa CORS cho frontend cổng 3002: `docker compose up -d --build backend` PASS; backend build PASS; `docker compose exec -T backend npm test -- --runInBand` PASS 38/38. Preflight `POST /api/auth/register` từ origin 3000 và 3002 đều trả 204 với `Access-Control-Allow-Origin` tương ứng và credentials; origin 3003 không được phép. POST đăng ký với payload rỗng từ origin 3002 trả HTTP 400 kèm CORS header đúng, xác nhận trình duyệt nhận được lỗi API. Chưa tạo tài khoản thử mới trong lượt kiểm tra này.

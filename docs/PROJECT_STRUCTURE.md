@@ -22,7 +22,9 @@ BrewLite_swe-project_1/
 │   │   │   ├── login/page.tsx             # /login : đăng nhập
 │   │   │   ├── register/page.tsx          # /register : đăng ký
 │   │   │   ├── profile/page.tsx           # /profile : hồ sơ và điểm thưởng
-│   │   │   ├── barista/dashboard/page.tsx # /barista/dashboard : màn Barista
+│   │   │   ├── barista/dashboard/page.tsx # /barista/dashboard : KDS tổng quan
+│   │   │   ├── barista/[view]/page.tsx     # /barista/orders, preparing, ready, history
+│   │   │   ├── profile/profile.css        # Thẻ thành viên và lịch sử theo Stitch
 │   │   │   └── forbidden/page.tsx         # /forbidden : thông báo không đủ quyền
 │   │   ├── components/                    # Thành phần giao diện dùng chung
 │   │   │   ├── shell.tsx                  # Header, Footer, thông báo demo
@@ -108,7 +110,7 @@ BrewLite_swe-project_1/
 | Giỏ hàng | `frontend/src/app/cart/page.tsx` | `frontend/src/stores/cart.ts` và `frontend/src/types/domain.ts` |
 | Đăng ký/đăng nhập/phân quyền | `frontend/src/app/login/`, `register/`, `components/auth-provider.tsx` | **Backend thật** ở `backend/src/auth/`, PostgreSQL qua Prisma |
 | Checkout, thanh toán, đơn hàng, điểm thưởng | `frontend/src/app/checkout/`, `payment/`, `orders/`, `profile/` | Mock localStorage ở `frontend/src/services/mock.ts`; REST adapter đã chuẩn bị, backend nghiệp vụ chưa hoàn thiện |
-| Barista | `frontend/src/app/barista/dashboard/` | Giao diện demo; `backend/src/barista/` hiện chỉ có endpoint mẫu kiểm tra role |
+| Barista | `frontend/src/components/barista-board.tsx`, `barista-board.css`, `frontend/src/app/barista/` | KDS 5 view dùng adapter mock/API; `backend/src/barista/` hiện chỉ có endpoint mẫu kiểm tra role, Staff Orders API chờ TV4 |
 | Cơ sở dữ liệu | Không áp dụng | `backend/prisma/schema.prisma`, `migrations/`, các file `seed*.ts` |
 | Triển khai và kiểm thử | Không áp dụng | `docker-compose.yml`, hai `Dockerfile`, `frontend/e2e/`, `backend/test/`, `scripts/smoke_http.py` |
 

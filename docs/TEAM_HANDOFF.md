@@ -1,5 +1,17 @@
 # Bàn giao nhóm
 
+## Cập nhật workstream TV1 — 2026-10-16
+
+| Người nhận | Việc cần nối tiếp | Contract và phép kiểm tra |
+|---|---|---|
+| Tri (TV2) | Giữ API Products, ảnh, size/topping/stock đồng bộ với frontend | GET `/products`, `/products/:id`; thử tên dài, hết hàng, 404 |
+| Đông (TV3) | Giữ Cart API, đồng bộ giá/tồn kho với đơn của TV4 | Bảng `carts/cart_items`; cùng cấu hình gộp, khác cấu hình tách; giỏ không mất khi đăng nhập |
+| Điệp (TV4) | Làm Orders/Inventory và **4 Staff Orders API** cho KDS đã có; xác nhận state machine, `completedAt`, reason | `docs/API_CONTRACT.md`; 401/403; không nhận PENDING vào queue; ownership; race transition; PAID→PREPARING→READY→COMPLETED |
+| Kiệt (TV5) | Nối `PAYMENT_ORDER_PORT` với TV4, bật module và migration; xác nhận UNKNOWN, idempotency, hoàn tiền khi hủy nếu sau này có | Không tự PAID khi gateway chưa chắc; replay key không charge lại |
+| Duy (TV6) | Orders history, promotion, loyalty API và E2E thật | `/orders/me`, `/promotions/validate`, `/loyalty/me`; điểm chỉ cộng một lần sau PAID; voucher cá nhân hiện **chưa có API**, UI chỉ báo đang chờ |
+
+TV1 đã hoàn thành UI hồ sơ/KDS, Auth session invalidation và adapter. Backend QA PostgreSQL đã migrate/test riêng; **DB nhóm cần áp dụng migration session_version** trước khi chạy mã Auth mới. Staff Orders, Orders, Payment endpoint, Promotion/Loyalty chưa có E2E thật. Nhánh hiện hành vẫn `feature/auth-and-base`. Mỗi PR của module backend cần cập nhật API_CONTRACT, TESTING, PROJECT_STATUS và thử trên API mode. Bảng cũ dưới đây là lịch sử bàn giao trước lượt này.
+
 | Thành viên | File frontend sẵn có | Backend cần làm | Phụ thuộc và cách xác minh |
 |---|---|---|---|
 | TV2 Products | `services/api.ts`, trang menu/chi tiết | Rà soát và mở rộng GET `/products`, `/products/:id`, ảnh/stock/size/topping đã có trong Prisma | Migrate + seed, GET JSON đã qua; thử UI API mode, hết hàng và 404 |

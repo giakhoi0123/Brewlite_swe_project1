@@ -1,5 +1,16 @@
 # Trạng thái dự án
 
+## Ảnh chụp trạng thái mới nhất — 2026-10-16, TV1
+
+| Phần | UI có mã | Đã so Stitch | Chức năng FE đã test | Backend thật | Test backend/API | Phần còn chờ |
+|---|---|---|---|---|---|---|
+| Menu/chi tiết/giỏ/checkout/payment/order | Có | 9 export đã xem; các trang chính đã chụp QA 1440/768/390 | Demo E2E 4/4; unit 8/8 | Products/Cart thật; Orders/Payment endpoint chưa nối | Products/Cart đã kiểm tra trước; chưa test Orders API | TV4–TV6 |
+| Hồ sơ/điểm | Có; thẻ thành viên, lịch sử đơn, trạng thái voucher | Hồ sơ đối chiếu Stitch; 3 viewport không tràn | E2E điểm sau PAID; browser QA | Auth thật; Loyalty mock | Auth DB HTTP PASS; Loyalty API chưa có | TV6 |
+| Auth | Có | Login/register đối chiếu Stitch | Đăng ký, đăng nhập, refresh, role, logout trong E2E | NestJS/PostgreSQL thật, JWT version | Jest backend 59/59, HTTP smoke DB QA PASS | Deploy migration trên DB dùng chung |
+| Barista | 5 route, KDS, KPI, chi tiết, xác nhận, hủy, lịch sử | Barista Stitch và QA 3 viewport | Unit + E2E workflow/hủy PASS | Chỉ adapter mock; Staff Orders API chưa có | API integration SKIPPED | TV4 |
+
+`UI_COMPLETED` của Barista và các module khách hàng không đồng nghĩa backend nghiệp vụ đã xong. Auth là phần TV1 đã kiểm chứng với DB QA riêng. Bản QA frontend chạy cổng 3006, backend cổng 3005; không đụng DB phát triển đang dùng. Nội dung dưới đây ghi lịch sử các lượt trước, không thay thế bảng trạng thái mới nhất.
+
 `UI_COMPLETED` nghĩa là màn hình/adapter có code và build, chưa nghĩa là backend thật đã hoàn tất. Cập nhật cùng `IMPLEMENTATION_PLAN.md` sau mỗi mốc.
 
 Ngày 2026-10-15: khắc phục lỗi `Failed to fetch` khi đăng ký từ frontend cổng 3002. Backend cho phép danh sách origin cấu hình trong `.env` ở cả CORS và bảo vệ cookie; origin ngoài danh sách vẫn bị từ chối. Cần build lại backend Compose để áp dụng mã mới.
