@@ -18,6 +18,16 @@ enum UserStatus {
   BANNED
 }
 
+enum OrderStatus {
+  PENDING
+  PAID
+  PREPARING
+  READY
+  COMPLETED
+  PAYMENT_FAILED
+  CANCELLED
+}
+
 enum PaymentMethod {
   WALLET
   CARD
@@ -42,6 +52,7 @@ model User {
   status        UserStatus  @default(ACTIVE)
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
+  orders        Order[]
   cart          Cart?
   payments      Payment[]
 
@@ -51,13 +62,14 @@ model User {
 model Product {
   id          String           @id @default(uuid()) @db.Uuid
   name        String
-  // Nonnegative price/stock are enforced by CHECK constraints in the SQL migration.
   price       Int
   imageUrl    String           @map("image_url")
   stock       Int              @default(0)
+  version     Int              @default(1)
   description String           @default("")
   sizes       ProductSize[]
   toppings    ProductTopping[]
+  orderItems  OrderItem[]
   cartItems   CartItem[]
 
   @@map("products")
@@ -84,9 +96,10 @@ model ProductSize {
 }
 
 model Topping {
-  id       String           @id @default(uuid()) @db.Uuid
-  name     String
-  products ProductTopping[]
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String
+  products          ProductTopping[]
+  orderItemToppings OrderItemTopping[]
 
   @@map("toppings")
 }
@@ -102,6 +115,78 @@ model ProductTopping {
   @@id([productId, toppingId])
   @@index([toppingId])
   @@map("product_toppings")
+}
+
+model Order {
+  id             String               @id @default(uuid()) @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  status         OrderStatus          @default(PENDING)
+  version        Int                  @default(1)
+  subtotal       Int
+  discountAmount Int                  @default(0) @map("discount_amount")
+  total          Int
+  promotionCode  String?              @map("promotion_code")
+  inventoryHeld  Boolean              @default(true) @map("inventory_held")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items          OrderItem[]
+  statusHistory  OrderStatusHistory[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String             @id @default(uuid()) @db.Uuid
+  orderId   String             @map("order_id") @db.Uuid
+  productId String             @map("product_id") @db.Uuid
+  position  Int
+  name      String
+  imageUrl  String             @map("image_url")
+  size      ProductSizeCode
+  basePrice Int                @map("base_price")
+  sizePrice Int                @map("size_price")
+  unitPrice Int                @map("unit_price")
+  qty       Int
+  lineTotal Int                @map("line_total")
+  ice       String
+  sugar     String
+  note      String?
+  order     Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  toppings  OrderItemTopping[]
+
+  @@unique([orderId, position])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model OrderItemTopping {
+  orderItemId String    @map("order_item_id") @db.Uuid
+  toppingId   String    @map("topping_id") @db.Uuid
+  name        String
+  extraPrice  Int       @map("extra_price")
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  topping     Topping   @relation(fields: [toppingId], references: [id], onDelete: Restrict)
+
+  @@id([orderItemId, toppingId])
+  @@index([toppingId])
+  @@map("order_item_toppings")
+}
+
+model OrderStatusHistory {
+  id         String       @id @default(uuid()) @db.Uuid
+  orderId    String       @map("order_id") @db.Uuid
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus  @map("to_status")
+  version    Int
+  createdAt  DateTime     @default(now()) @map("created_at")
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, version])
+  @@map("order_status_history")
 }
 
 // Giỏ hàng lưu theo tài khoản; giá không lưu mà luôn tính lại từ Product khi đọc.

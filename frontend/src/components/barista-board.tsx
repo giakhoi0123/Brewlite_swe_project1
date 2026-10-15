@@ -157,7 +157,7 @@ export function BaristaBoard({ view }: { view: BaristaView }) {
       <div className="barista-ticket-actions">
         {next && <button className="btn btn-primary" disabled={busy} onClick={() => openAction(order, next)}>{label}</button>}
         <button className="btn btn-outline" onClick={() => setDetail(order)}>Chi tiết</button>
-        {canCancel(order.status) && <button className="btn btn-danger" disabled={busy} onClick={() => openAction(order, "CANCELLED")}>Báo sự cố</button>}
+        {dataMode !== "api" && canCancel(order.status) && <button className="btn btn-danger" disabled={busy} onClick={() => openAction(order, "CANCELLED")}>Báo sự cố</button>}
       </div>
     </article>
   );
@@ -193,12 +193,12 @@ export function BaristaBoard({ view }: { view: BaristaView }) {
           <div><small>Đơn mới chờ pha</small><strong>{counts.PAID}</strong></div>
           <div><small>Đang pha chế</small><strong>{counts.PREPARING}</strong></div>
           <div><small>Chờ giao tại quầy</small><strong>{counts.READY}</strong></div>
-          <div><small>Đã giao hôm nay</small><strong>{counts.COMPLETED}</strong></div>
+          <div><small>Đã giao hôm nay</small><strong>{dataMode === "api" ? "—" : counts.COMPLETED}</strong></div>
         </section>
         {loading ? <Loading label="Đang tải đơn hàng..." /> : view === "history" ? (
           <section className="barista-history">
             <div className="barista-section-heading"><div><span className="eyebrow">Lịch sử xử lý</span><h2>Đơn đã hoàn tất và đã hủy</h2></div><label>Tìm đơn<input className="field" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Mã đơn, khách, món..." /></label></div>
-            {history.length ? <div className="barista-history-grid">{history.map((order) => ticket(order))}</div> : <div className="barista-empty">Không có đơn phù hợp trong lịch sử.</div>}
+            {dataMode === "api" ? <div className="barista-empty">Lịch sử xử lý đang chờ API Staff Orders của TV4.</div> : history.length ? <div className="barista-history-grid">{history.map((order) => ticket(order))}</div> : <div className="barista-empty">Không có đơn phù hợp trong lịch sử.</div>}
           </section>
         ) : (
           <section className={`barista-board ${view !== "dashboard" ? "barista-board-focused" : ""}`} aria-label="Hàng đợi pha chế">
@@ -211,7 +211,7 @@ export function BaristaBoard({ view }: { view: BaristaView }) {
             })}
           </section>
         )}
-        {dataMode !== "api" && <p className="barista-demo-note">Đơn demo được chia sẻ với trang Đơn hàng của tôi trên cùng trình duyệt. API Staff do TV4 tích hợp sau.</p>}
+        <p className="barista-demo-note">{dataMode === "api" ? "Staff API hiện hỗ trợ hàng đợi và chuyển trạng thái; hủy có lý do, lịch sử và KPI hoàn tất còn chờ TV4." : "Đơn demo được chia sẻ với trang Đơn hàng của tôi trên cùng trình duyệt."}</p>
       </main>
       {detail && <div className="barista-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetail(null); }}>
         <section className="barista-modal" role="dialog" aria-modal="true" aria-label={`Chi tiết đơn ${detail.id}`}>
@@ -222,7 +222,7 @@ export function BaristaBoard({ view }: { view: BaristaView }) {
           {detail.cancelReason && <p className="barista-note">Lý do hủy: {detail.cancelReason}</p>}
           <div className="barista-ticket-total"><span>Tổng đơn</span><strong>{money(detail.total)}</strong></div>
           <p className="barista-meta">Tiến trình: {statusLabel[detail.status]}</p>
-          <div className="barista-ticket-actions">{columns.filter((column) => column.status === detail.status).map((column) => <button className="btn btn-primary" key={column.status} onClick={() => openAction(detail, column.next)}>{column.action}</button>)}{canCancel(detail.status) && <button className="btn btn-danger" onClick={() => openAction(detail, "CANCELLED")}>Hủy đơn sự cố</button>}</div>
+          <div className="barista-ticket-actions">{columns.filter((column) => column.status === detail.status).map((column) => <button className="btn btn-primary" key={column.status} onClick={() => openAction(detail, column.next)}>{column.action}</button>)}{dataMode !== "api" && canCancel(detail.status) && <button className="btn btn-danger" onClick={() => openAction(detail, "CANCELLED")}>Hủy đơn sự cố</button>}</div>
         </section>
       </div>}
       {action && <div className="barista-overlay" role="presentation">

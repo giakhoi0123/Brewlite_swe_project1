@@ -1,3 +1,83 @@
+# Kiểm chứng tích hợp `origin/main` vào `feature/auth-and-base` — 2026-10-16
+
+Sau fetch/merge main có Orders/Inventory, backend build lần đầu PASS nhưng full PostgreSQL suite có **24 lỗi HTTP Orders**: fixture user của TV4 thiếu `sessionVersion` nên JwtStrategy TV1 trả 401. Đã thêm version 0 vào fixture và JWT test. Chạy lại bằng `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs`: **18 suites, 168/168 tests PASS**, không skipped. Script tạo database `brewlite_orders_test_<uuid>` riêng, áp dụng đủ 8 migrations (gồm Orders và Auth session_version), rồi xóa đúng database tạm. Không thay đổi DB ứng dụng. Backend Docker build PASS; frontend build/lint PASS; `npm --prefix frontend test`: 13/13 PASS. Browser Orders/Staff API E2E chưa chạy; Playwright demo 4/4 là bằng chứng **trước merge** và dùng mock nghiệp vụ.
+
+Staff API sau merge chỉ có GET list và PATCH status. Frontend API mode chưa bật nút hủy có lý do, hiển thị rõ lịch sử/KPI hoàn tất còn chờ; mock mode vẫn có đầy đủ luồng. TV4 cần GET detail, PATCH cancel có reason, trả terminal history và `completedAt`. Payment/Promotion/Loyalty API còn chờ TV5/TV6.
+
+---
+
+# Kiểm chứng TV4 — 2026-10-15
+
+## Kết quả mới nhất: sửa checkout HTTP 500
+
+Log runtime chỉ ra `PrismaClientValidationError: Unknown argument history`: schema dùng `statusHistory` nhưng create order gửi `history`. Service đã đồng bộ tên và kiểm tra tĩnh input bằng `satisfies Prisma.OrderUncheckedCreateInput`. Không thay schema SQL, không cần migration mới.
+
+Đã chạy `docker compose build backend` và `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs`: **14 suites, 146 tests PASS, 0 skipped**. Có 8 test PostgreSQL thật: 7 kịch bản concurrency/rollback trước đó và regression HTTP dùng Nest/JWT/Origin/Prisma thật, POST đơn L+topping 45.000đ nhận 201/PENDING, lưu một statusHistory, trừ stock và GET status thành công. Build local và lint backend cũng qua.
+
+Script tạo database `brewlite_orders_test_<uuid>` riêng trên PostgreSQL Compose, apply đủ 5 migrations, chạy tests rồi chỉ xóa database vừa tạo. Database tạm đã được dọn sau lần chạy thành công; không dùng dữ liệu ứng dụng làm fixture. Script cần tài khoản DB local có quyền CREATE DATABASE. Có thể tái chạy bằng hai lệnh Docker ở trên khi PostgreSQL đang chạy.
+
+Đã cập nhật container local bằng `docker compose up -d --no-deps backend`. Browser checkout cần người dùng thử lại; Payment chưa thuộc phần backend TV4. Các kết quả skipped/DB chưa chạy dưới đây là lịch sử trước khi sửa lỗi.
+
+## Lịch sử kiểm chứng trước khi PostgreSQL sẵn sàng
+
+Phạm vi T06, 10A, 10C trên `feature/orders-and-inventory`. Không đánh dấu VERIFIED_COMPLETE vì PostgreSQL/backend/browser thật chưa chạy trong phiên này. Các phần kiểm thử trước mốc này bên dưới giữ nguyên làm lịch sử.
+
+| Kiểm tra | Kết quả phiên TV4 |
+|---|---|
+| `npm --prefix backend run prisma:generate` | PASS Prisma Client 6.19.3 |
+| Prisma validate (nạp `.env` bằng Node) | PASS |
+| Backend build/lint | PASS |
+| Backend Jest | 138 passed, 7 skipped (PostgreSQL) |
+| Frontend build/lint | PASS |
+| Frontend tests | 8 passed: 5 REST adapter + 3 mock hiện có |
+| PostgreSQL connection | `localhost:5434/brewlite`: ECONNREFUSED; không có Docker CLI |
+| Prisma migrate status | Exit 1, schema engine error; chưa apply migration |
+| PostgreSQL concurrency/rollback suite | SKIPPED, chưa đặt `ORDERS_TEST_DATABASE_URL` |
+| Browser checkout → Orders DB thật | Chưa chạy do backend/DB chưa sẵn sàng |
+| Typecheck toàn bộ backend tests (`tsc --noEmit -p tsconfig.test.json`) | Còn lỗi fixture Products có sẵn: products.http.spec.ts thiếu stock/description; test/fixtures/product-detail.ts thiếu stock. Không đổi phần owner TV2. Các lỗi này không chặn build ứng dụng/Jest. |
+
+`orders.http.spec.ts` chạy routing/ValidationPipe/JWT/RolesGuard/Origin middleware/OrdersService thật với Prisma test double, **không phải bằng chứng DB**. Kiểm tra POST PENDING, giá backend, payload rỗng/sai/field chèn thêm, thiếu auth, role sai, Origin sai, ownership, JSON status và 409 khi inventory CAS thua. `order-state-machine.spec.ts` kiểm tra toàn bộ 49 cặp trạng thái. Inventory unit test giả lập hai request dùng cùng version tranh sản phẩm cuối; service test kiểm tra snapshot, aggregate qty, bounds tiền, release, retry, CAS và history. REST adapter tests xác nhận credentials include, chỉ gửi cấu hình món, không gửi owner/giá/discount, lỗi 400/409/network không fallback, và các URL staff/history/status.
+
+Lệnh PowerShell từ repo (script Jest đã sửa để chạy cả Windows/POSIX):
+
+```powershell
+npm.cmd --prefix backend test -- --runInBand
+npm.cmd --prefix backend run build
+npm.cmd --prefix backend run lint
+npm.cmd --prefix frontend test
+npm.cmd --prefix frontend run build
+npm.cmd --prefix frontend run lint
+```
+
+Frontend `npm ci` cần truy cập npm registry; test tsx trên máy này cần chạy ngoài sandbox vì `uv_os_get_passwd` lỗi trong sandbox. Build/lint đã chạy trong sandbox. Cảnh báo Next nhiều lockfile có từ `package-lock.json` root chưa được track trước phiên; file đó được giữ nguyên.
+
+Migration `backend/prisma/migrations/20261015000100_orders_inventory/migration.sql` được tạo offline bằng Prisma migrate diff từ schema HEAD sang schema mới, bổ sung CHECK giá/qty/version. Khi DB của repo sẵn sàng, kiểm tra đúng host/database rồi chạy (không dùng DB repo khác):
+
+```powershell
+Set-Location backend
+node --env-file=../.env node_modules/prisma/build/index.js validate
+node --env-file=../.env node_modules/prisma/build/index.js migrate deploy
+npm.cmd run prisma:generate
+Set-Location ..
+```
+
+Bộ DB test cần **database kiểm thử riêng đã tạo**, không tự fallback về DATABASE_URL; không dùng database demo/chung cho test này. Từ repo:
+
+```powershell
+$env:ORDERS_TEST_DATABASE_URL = 'postgresql://USER:PASSWORD@localhost:5434/brewlite_orders_test?schema=public'
+$env:DATABASE_URL = $env:ORDERS_TEST_DATABASE_URL
+npm.cmd --prefix backend run prisma:migrate
+npm.cmd --prefix backend test -- --runInBand orders.postgres.spec.ts
+Remove-Item Env:ORDERS_TEST_DATABASE_URL
+Remove-Item Env:DATABASE_URL
+```
+
+Thay URL mẫu bằng DB kiểm thử có thật. Suite tạo UUID riêng và chỉ dọn fixtures theo các ID đó, không reset/truncate/seed DB. Bảy kịch bản: 8 request tranh 1 tồn kho; rollback decrement món đầu khi món sau hết hàng; rollback khi ghi Order lỗi FK; hủy đồng thời chỉ release một lần; failed/retry hết kho và vòng đời đến COMPLETED; rollback state/history/kho khi transaction payment thất bại; snapshot không đổi khi catalog đổi. Chỉ đánh dấu DB PASS sau khi suite thật sự chạy (không skipped).
+
+Kiểm tra browser khi backend đã migrate: bật `NEXT_PUBLIC_DATA_MODE=api`, restart frontend; đăng nhập CUSTOMER, chọn size+topping, checkout; xác minh POST 201 PENDING và GET `/orders/me`, `/orders/:id`, `/orders/:id/status`. Thử hết kho để nhận lỗi 409 và giữ giỏ. Dùng BARISTA kiểm tra GET/PATCH staff; PAID để thử luồng staff phải đến từ tích hợp payment TV5 hoặc fixture kiểm thử, không thêm endpoint tự đánh dấu PAID. Payments/Promotions/Loyalty chưa có backend nên không dùng kết quả payment demo làm bằng chứng T08/10B/10D.
+
+---
+
 # Kiểm thử
 
 ## Lượt TV1 2026-10-16 — kết quả hiện hành

@@ -4,7 +4,7 @@
 
 Trước khi chạy backend mới trên DB nhóm, áp dụng migration `20261016000000_session_version` bằng `npm run db:migrate` sau khi đã xác nhận `DATABASE_URL`. Không dùng `prisma db push` để thay thế migration này. Token JWT cũ vẫn được nhận khi version DB bằng 0; sau logout lần đầu, chúng hết hiệu lực. Frontend nghe sự kiện 401 và xóa user khỏi auth context.
 
-Barista UI hiện dùng `BaristaOrderService` trong `frontend/src/services/contracts.ts`. Mock và API adapter ở `services/mock.ts`, `services/api.ts`; API mode không tự dùng mock nếu Staff Orders trả 404/500. TV4 cần thực hiện đúng 4 endpoint trong `API_CONTRACT.md` và trả `completedAt` khi COMPLETED. Hủy PREPARING đang bị khóa theo state machine hiện tại; nếu muốn mở, thống nhất với TV4/TV5 về tồn kho và hoàn tiền trước. Cần thêm test quyền 401/403, ownership và race transition với backend thật sau khi TV4 tích hợp.
+Barista UI dùng `BaristaOrderService` trong `frontend/src/services/contracts.ts`. Mock và API adapter ở `services/mock.ts`, `services/api.ts`; API mode không tự dùng mock nếu Staff Orders trả 404/500. TV4 đã có GET list và PATCH status; còn GET detail, PATCH cancel có lý do, terminal history và `completedAt`. Vì vậy UI API mode chỉ bật queue/transition, ghi rõ phần chờ và ẩn nút hủy. Hủy PREPARING đang khóa theo state machine hiện tại; nếu muốn mở, thống nhất với TV4/TV5 về tồn kho và hoàn tiền. Cần browser API E2E cho luồng staff khi payment có nguồn PAID.
 
 1. Đọc `frontend/src/types/domain.ts`, `frontend/src/services/contracts.ts` và `docs/API_CONTRACT.md`.
 2. Xây endpoint trong NestJS theo owner. Không sửa component để gắn fetch trực tiếp; sửa adapter `frontend/src/services/api.ts` khi response khác hợp đồng. Backend tự xác nhận giá, số lượng, role và ownership.
@@ -13,7 +13,7 @@ Barista UI hiện dùng `BaristaOrderService` trong `frontend/src/services/contr
 5. Kiểm tra cùng một CartItem với S/M/L và topping; backend trả tổng đúng. Tạo đơn PENDING; payment thành công PAID, lỗi PAYMENT_FAILED, timeout UNKNOWN; thử cùng idempotency key không tạo giao dịch kép.
 6. Xác nhận `/orders/me` chỉ trả đơn của user hiện tại; `/orders/:id` cũng phải kiểm tra sở hữu. Tạo dữ liệu PAID và đăng nhập Barista để kiểm tra PAID → PREPARING → READY → COMPLETED.
 
-Backend auth, Products và Payment core hiện có test. Frontend adapter API cho Orders/Promotion/Loyalty/Staff vẫn chưa có server; không bật API mode cho demo đầy đủ trước khi những module đó có thật.
+Backend Auth, Products, Cart, Orders/Inventory và Payment core hiện có test. Orders/Staff cơ bản đã có server và đã chạy PostgreSQL tests sau merge; Promotion/Loyalty và Payment endpoint còn thiếu, Staff detail/hủy/history chưa có. API mode không thể demo luồng thanh toán đầy đủ trước khi TV5/TV6 nối module.
 
 ## Nối PaymentsModule với OrdersModule
 
