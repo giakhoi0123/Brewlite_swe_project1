@@ -1,5 +1,20 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Hoàn thiện backend Barista TV4 — 2026-10-16
+
+Trên `feature/orders-and-inventory`, sau khi cập nhật `main` a80e712:
+
+- [x] GET `/staff/orders/:id` có guard BARISTA, validate UUID, 404 và chi tiết món snapshot.
+- [x] PATCH `/staff/orders/:id/cancel` bắt buộc lý do 1–300 ký tự sau trim; chặn bypass qua PATCH status.
+- [x] Migration `20261016000100_staff_order_details`: cancelReason/completedAt; backfill thời điểm hoàn tất từ history thật.
+- [x] GET staff list trả PAID/PREPARING/READY/COMPLETED/CANCELLED cho queue và lịch sử, giữ thứ tự createdAt/id tăng dần.
+- [x] Kiểm thử HTTP guards/DTO, customer visibility, cancellation/release một lần, race cancel/cancel và cancel/prepare, rollback, terminal states, completedAt và migration dữ liệu cũ.
+- [x] Prisma generate, backend build local/Docker, lint; full Jest PostgreSQL **19 suites/191 tests PASS**, 0 skipped (22 bài PostgreSQL).
+- [ ] TV1 bật UI API mode cho history/KPI/hủy và chạy browser E2E; migration DB dùng chung khi triển khai.
+- [ ] TV5/TV6 nối Payments/Promotion/Loyalty như bàn giao cũ; hủy PAID chưa thực hiện hoàn tiền.
+
+Typecheck toàn bộ backend tests còn 3 lỗi fixture Products có sẵn (stock/description); build production và Jest PASS. Không nâng toàn bộ T06/T10 hoặc luồng Barista frontend lên VERIFIED_COMPLETE. Các bảng TV1 bên dưới giữ làm lịch sử trước phần mở rộng này.
+
 ## Kiểm kê workstream TV1 ngày 2026-10-16
 
 Đã đối chiếu mã nguồn với cả 9 `stitch/*/code.html`, 9 `screen.webp` và `DESIGN.md`. Nhánh hiện tại là `feature/auth-and-base`, cây làm việc sạch trước lượt sửa.

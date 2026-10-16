@@ -127,6 +127,8 @@ model Order {
   total          Int
   promotionCode  String?              @map("promotion_code")
   inventoryHeld  Boolean              @default(true) @map("inventory_held")
+  cancelReason   String?              @map("cancel_reason") @db.VarChar(300)
+  completedAt    DateTime?            @map("completed_at")
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
   user           User                 @relation(fields: [userId], references: [id], onDelete: Restrict)

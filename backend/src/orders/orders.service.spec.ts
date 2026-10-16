@@ -37,6 +37,7 @@ describe('Orders service', () => {
   const stockUpdate = jest.fn(async (_args: unknown) => ({ count: 1 }));
   const createOrder = jest.fn(async ({ data }: { data: any }) => ({
     id: 'order',
+    user: { fullName: 'Orders test' },
     ...data,
     createdAt: new Date('2026-10-15T00:00:00Z'),
     items: data.items.create.map((i: any, index: number) => ({
@@ -203,6 +204,7 @@ describe('Orders service', () => {
         tx as unknown as Prisma.TransactionClient,
         'order',
         to,
+        to === 'CANCELLED' ? 'Hết nguyên liệu' : undefined,
       );
       expect(updateOrder).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -216,6 +218,7 @@ describe('Orders service', () => {
           fromStatus: 'PENDING',
           toStatus: to,
           version: 4,
+          createdAt: expect.any(Date),
         },
       });
     },
@@ -227,6 +230,7 @@ describe('Orders service', () => {
       tx as unknown as Prisma.TransactionClient,
       'order',
       'CANCELLED',
+      'Khách yêu cầu hủy',
     );
     expect(restore).not.toHaveBeenCalled();
   });
@@ -250,6 +254,7 @@ describe('Orders service', () => {
         tx as unknown as Prisma.TransactionClient,
         'order',
         'CANCELLED',
+        'Hết nguyên liệu',
       ),
     ).rejects.toThrow(ConflictException);
     expect(restore).not.toHaveBeenCalled();

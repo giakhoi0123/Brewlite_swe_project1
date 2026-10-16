@@ -1,5 +1,13 @@
 # Trạng thái dự án
 
+## Backend Barista TV4 — 2026-10-16 (mốc mới nhất)
+
+Đã bổ sung GET staff detail, PATCH cancel bắt buộc reason 1–300 ký tự sau trim, `cancelReason`/`completedAt`, tên khách và danh sách staff gồm cả COMPLETED/CANCELLED. Hủy chỉ từ PENDING/PAID/PAYMENT_FAILED; API status không nhận CANCELLED. Reason, trạng thái, hoàn kho và history cùng transaction/CAS; COMPLETED ghi thời điểm bàn giao. Migration mới chỉ thêm cột và backfill completedAt từ lịch sử thật của đơn cũ.
+
+Kiểm chứng: Prisma generate, backend build local/Docker và lint PASS; **19 suites, 191 tests PASS, 0 skipped**, gồm **22 PostgreSQL tests** (14 Staff mới + 8 Orders). Đã apply đủ 9 migrations trên database tạm riêng và dọn đúng DB đó; DB ứng dụng chưa được migrate trong lượt này. Chi tiết tại TESTING.md. Typecheck toàn bộ test vẫn có 3 lỗi fixture Products đã tồn tại; không có lỗi ở file TV4 mới.
+
+Phần backend yêu cầu đã kiểm chứng. Chưa đánh dấu toàn bộ Barista/T06/T10 VERIFIED_COMPLETE: TV1 còn bật history/KPI/nút hủy trong API mode và chạy browser E2E; Payments/hoàn tiền thuộc TV5, Promotions/Loyalty thuộc TV6. Các bảng phía dưới là trạng thái ở các mốc trước.
+
 ## Ảnh chụp trạng thái sau khi nhập origin/main — 2026-10-16
 
 | Phần | UI có mã | Đã so Stitch | Chức năng FE đã test | Backend thật | Test backend/API | Phần còn chờ |

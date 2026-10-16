@@ -1,5 +1,11 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## Cập nhật TV4 backend Barista — 2026-10-16 (mới nhất)
+
+Nhánh làm việc lượt này là `feature/orders-and-inventory`, nền main a80e712. Backend Staff đã có detail/cancel reason và list gồm terminal history; Order có cancelReason/completedAt qua migration `20261016000100_staff_order_details`. API status không nhận CANCELLED; chỉ API cancel nhận reason bắt buộc. customerName là fullName hiện tại, dữ liệu món vẫn là snapshot. Chỉ PENDING/PAID/PAYMENT_FAILED được hủy; hoàn kho/history/reason cùng transaction. completedAt ghi đúng lần READY→COMPLETED.
+
+Build local/Docker, lint, 191/191 tests (22 PostgreSQL) PASS trên DB tạm với 9 migrations, đã dọn; DB ứng dụng chưa migrate trong lượt này. Typecheck toàn bộ tests còn 3 lỗi fixture Products có sẵn. TV1 cần bật các nhánh API mode ẩn history/KPI/hủy trong barista-board.tsx rồi chạy browser E2E. Payments/hoàn tiền/Promotion/Loyalty chưa được triển khai thêm. Những ghi chú Staff còn thiếu dưới đây là lịch sử trước mốc này; theo API_CONTRACT và TEAM_HANDOFF mới nhất.
+
 ## Cập nhật sau khi nhập origin/main ngày 2026-10-16
 
 Làm việc trên **nhánh hiện có** `feature/auth-and-base`. Không tạo nhánh mới. Nguồn thiết kế vẫn là toàn bộ 9 export `stitch/`; trang hồ sơ và Barista KDS đã được chỉnh theo ảnh, với 5 route Barista. `frontend/src/components/barista-board.tsx` là UI chính, `barista-board.css` là CSS; `frontend/src/app/barista/[view]/page.tsx` dùng cho orders/preparing/ready/history. Customer shell được ẩn trên staff route.

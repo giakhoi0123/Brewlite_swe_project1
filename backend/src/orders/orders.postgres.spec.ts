@@ -119,8 +119,8 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
   it('releases once under concurrent cancellation and writes only one transition', async () => {
     const order = await service.create(userId, dto());
     const results = await Promise.allSettled([
-      service.staffTransition(order.id, 'CANCELLED'),
-      service.staffTransition(order.id, 'CANCELLED'),
+      service.staffCancel(order.id, 'Hết nguyên liệu'),
+      service.staffCancel(order.id, 'Khách yêu cầu'),
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(
@@ -150,7 +150,7 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
       inventoryHeld: false,
       version: 2,
     });
-    await service.staffTransition(competing.id, 'CANCELLED');
+    await service.staffCancel(competing.id, 'Khách yêu cầu');
     await db.$transaction((tx) =>
       service.transitionInTransaction(tx, order.id, 'PENDING'),
     );
@@ -207,33 +207,62 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
   it('POST /orders persists a 45000 VND L+topping order and initial statusHistory using real PostgreSQL', async () => {
     await db.product.update({
       where: { id: productIds[0] },
-      data: { price: 30000, sizes: { create: { code: 'L', name: 'Large', extraPrice: 9000 } } },
+      data: {
+        price: 30000,
+        sizes: { create: { code: 'L', name: 'Large', extraPrice: 9000 } },
+      },
     });
     process.env.JWT_SECRET = 'orders-postgres-http-test-only';
     process.env.FRONTEND_ORIGIN = 'http://localhost:3000';
     const module = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(PrismaService).useValue(db).compile();
+      .overrideProvider(PrismaService)
+      .useValue(db)
+      .compile();
     const app = module.createNestApplication({ logger: false });
     app.setGlobalPrefix('api');
     app.use(cookieOriginGuard);
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
     try {
       const cookie = `brewlite_session=${module.get(JwtService).sign({ sub: userId })}`;
       const payload = dto();
       payload.items[0].size = 'L';
-      const response = await request(app.getHttpServer()).post('/api/orders')
-        .set('Cookie', cookie).set('Origin', 'http://localhost:3000')
-        .send(payload).expect(201);
-      expect(response.body).toMatchObject({ userId, status: 'PENDING', subtotal: 45000, total: 45000 });
+      const response = await request(app.getHttpServer())
+        .post('/api/orders')
+        .set('Cookie', cookie)
+        .set('Origin', 'http://localhost:3000')
+        .send(payload)
+        .expect(201);
+      expect(response.body).toMatchObject({
+        userId,
+        status: 'PENDING',
+        subtotal: 45000,
+        total: 45000,
+      });
       const persisted = await db.order.findUniqueOrThrow({
-        where: { id: response.body.id }, include: { statusHistory: true },
+        where: { id: response.body.id },
+        include: { statusHistory: true },
       });
       expect(persisted.statusHistory).toHaveLength(1);
-      expect(persisted.statusHistory[0]).toMatchObject({ fromStatus: null, toStatus: 'PENDING', version: 1 });
-      expect((await db.product.findUniqueOrThrow({ where: { id: productIds[0] } })).stock).toBe(0);
-      await request(app.getHttpServer()).get(`/api/orders/${response.body.id}/status`)
-        .set('Cookie', cookie).expect(200, { status: 'PENDING' });
+      expect(persisted.statusHistory[0]).toMatchObject({
+        fromStatus: null,
+        toStatus: 'PENDING',
+        version: 1,
+      });
+      expect(
+        (await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
+          .stock,
+      ).toBe(0);
+      await request(app.getHttpServer())
+        .get(`/api/orders/${response.body.id}/status`)
+        .set('Cookie', cookie)
+        .expect(200, { status: 'PENDING' });
     } finally {
       await app.close();
     }

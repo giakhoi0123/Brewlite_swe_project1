@@ -1,4 +1,25 @@
-# Kiểm chứng tích hợp `origin/main` vào `feature/auth-and-base` — 2026-10-16
+# Kiểm chứng backend Barista TV4 — 2026-10-16 (mới nhất)
+
+Nền `main` a80e712 trên nhánh `feature/orders-and-inventory`. Đã chạy:
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `npm.cmd --prefix backend run prisma:generate` | PASS |
+| `npm.cmd --prefix backend run build` | PASS |
+| `npm.cmd --prefix backend run lint` | PASS |
+| `docker compose build backend` | PASS, Prisma generate + Nest build trên Linux |
+| `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs` | **19 suites / 191 tests PASS, 0 skipped**; đủ 9 migrations |
+| `cd backend` rồi `node node_modules/typescript/bin/tsc --project tsconfig.test.json --noEmit --incremental false` | 3 lỗi có sẵn: `products.http.spec.ts` hai fixture thiếu stock/description; `test/fixtures/product-detail.ts` thiếu stock. Không có lỗi typecheck TV4 mới |
+
+22 bài PostgreSQL gồm 8 Orders và 14 Staff mới trong `src/orders/staff-orders.postgres.spec.ts`. Staff tests dùng Nest/JWT/Origin/DTO/Prisma thật, kiểm tra detail và quyền khách, không lộ thông tin tài khoản, hủy PENDING/PAID/PAYMENT_FAILED có lý do, reason không hợp lệ, chặn bypass status, immutable terminal, PREPARING/READY không được hủy, completedAt đúng lúc bàn giao, list active + terminal và lọc unpaid. Kiểm chứng race cancel/cancel và cancel/prepare, rollback reason/state/stock/history, khách đọc cùng dữ liệu sau Barista cập nhật. Migration backfill được chạy trên bảng tạm chứa dữ liệu cũ để kiểm chứng chỉ lấy thời điểm từ sự kiện COMPLETED, không tạo reason hoặc timestamp giả.
+
+Script tạo DB `brewlite_orders_test_<uuid>` riêng, apply migrations rồi chạy toàn bộ Jest; đã xóa đúng DB tạm sau thành công. Không thay đổi dữ liệu DB ứng dụng. Trên máy này đã khởi động Docker Desktop và service postgres để chạy test; build image chưa triển khai backend mới vào DB ứng dụng. Cần chạy migrate deploy khi triển khai backend.
+
+Giới hạn: chưa chạy browser E2E cho Staff API; UI TV1 hiện vẫn ẩn history/KPI/nút hủy trong API mode, cần TV1 bật các nhánh đó. Không kiểm chứng giao dịch hoàn tiền; Payment endpoint/port vẫn cần TV5. Không dùng kết quả 191 tests để đánh dấu toàn bộ dự án VERIFIED_COMPLETE.
+
+---
+
+# Kiểm chứng tích hợp `origin/main` vào `feature/auth-and-base` — 2026-10-16 (mốc trước)
 
 Sau fetch/merge main có Orders/Inventory, backend build lần đầu PASS nhưng full PostgreSQL suite có **24 lỗi HTTP Orders**: fixture user của TV4 thiếu `sessionVersion` nên JwtStrategy TV1 trả 401. Đã thêm version 0 vào fixture và JWT test. Chạy lại bằng `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs`: **18 suites, 168/168 tests PASS**, không skipped. Script tạo database `brewlite_orders_test_<uuid>` riêng, áp dụng đủ 8 migrations (gồm Orders và Auth session_version), rồi xóa đúng database tạm. Không thay đổi DB ứng dụng. Backend Docker build PASS; frontend build/lint PASS; `npm --prefix frontend test`: 13/13 PASS. Browser Orders/Staff API E2E chưa chạy; Playwright demo 4/4 là bằng chứng **trước merge** và dùng mock nghiệp vụ.
 

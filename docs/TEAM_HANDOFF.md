@@ -1,5 +1,14 @@
 # Bàn giao nhóm
 
+## Bàn giao backend Barista TV4 — 2026-10-16
+
+- Staff detail và cancel đã có theo API_CONTRACT; status chỉ nhận PREPARING/READY/COMPLETED. Cancel dùng `{reason}` (trim, 1–300 ký tự), từ PENDING/PAID/PAYMENT_FAILED; sai bước/lặp/race trả 409, không hoàn kho lần hai.
+- GET `/staff/orders` giữ mảng Order, bổ sung COMPLETED/CANCELLED bên cạnh hàng đang xử lý. Có `customerName`, `cancelReason?`, `completedAt?`; adapter hiện tại của TV1 dùng được. Danh sách chưa phân trang, phù hợp quy mô demo.
+- TV1: bật các nhánh API mode đang khóa history/KPI/nút hủy trong `frontend/src/components/barista-board.tsx`; có thể gọi `services.barista.get(id)` để tải chi tiết mới nhất. Lượt TV4 này chỉ sửa backend/docs, chưa thay UI và chưa chạy browser E2E.
+- Khi triển khai, chạy migration mới `20261016000100_staff_order_details` trước backend. `docker compose up -d --build backend` dùng CMD hiện có để migrate deploy. Cột mới nullable; completedAt cũ chỉ backfill nếu có sự kiện COMPLETED thật; lý do hủy cũ giữ trống.
+- TV5/TV6: `transitionInTransaction(tx,id,status)` vẫn dùng cho thanh toán; riêng CANCELLED bắt buộc tham số thứ tư `reason`. Không ghi trực tiếp Order.status. Hủy PAID không tự hoàn tiền.
+- Bằng chứng: backend build local/Docker + lint PASS; full Jest **191/191**, gồm 22 PostgreSQL tests, 9 migrations trên DB tạm đã dọn. Typecheck toàn bộ tests còn lỗi Products có sẵn; xem TESTING.md.
+
 ## Cập nhật workstream TV1 — 2026-10-16
 
 | Người nhận | Việc cần nối tiếp | Contract và phép kiểm tra |

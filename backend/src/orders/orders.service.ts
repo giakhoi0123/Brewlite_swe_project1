@@ -129,7 +129,9 @@ export class OrdersService {
           status: OrderStatus.PENDING,
           inventoryHeld: true,
           items: { create: items },
-          statusHistory: { create: { toStatus: OrderStatus.PENDING, version: 1 } },
+          statusHistory: {
+            create: { toStatus: OrderStatus.PENDING, version: 1 },
+          },
         } satisfies Prisma.OrderUncheckedCreateInput,
         include: orderInclude,
       });
@@ -159,20 +161,44 @@ export class OrdersService {
   async staffList() {
     return (
       await this.prisma.order.findMany({
-        where: { status: { in: ['PAID', 'PREPARING', 'READY'] } },
+        where: {
+          status: {
+            in: ['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'],
+          },
+        },
         include: orderInclude,
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       })
     ).map(orderResponse);
   }
 
+  async staffGet(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: orderInclude,
+    });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    return orderResponse(order);
+  }
+
+  async staffCancel(id: string, reason: string) {
+    return this.transaction(async (tx) =>
+      orderResponse(
+        await this.transitionInTransaction(
+          tx,
+          id,
+          OrderStatus.CANCELLED,
+          reason,
+        ),
+      ),
+    );
+  }
+
   async staffTransition(id: string, to: OrderStatus) {
-    if (
-      !(
-        ['PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] as OrderStatus[]
-      ).includes(to)
-    ) {
-      throw new BadRequestException('Barista không được xác nhận thanh toán');
+    if (!(['PREPARING', 'READY', 'COMPLETED'] as OrderStatus[]).includes(to)) {
+      throw new BadRequestException(
+        'Chỉ cho phép PREPARING, READY hoặc COMPLETED; hủy đơn phải dùng API cancel kèm lý do',
+      );
     }
     return this.transaction(async (tx) =>
       orderResponse(await this.transitionInTransaction(tx, id, to)),
@@ -182,12 +208,21 @@ export class OrdersService {
   /** Internal TV5/TV6 integration only. Caller MUST propagate errors to roll back its transaction.
    * Verify ownership in PaymentsModule; persist payment/idempotency/loyalty in the same tx.
    * UNKNOWN must not call this method. Retry PAYMENT_FAILED -> PENDING before gateway attempt.
+   * CANCELLED requires a reason as the fourth argument, including internal callers.
    */
   async transitionInTransaction(
     tx: Prisma.TransactionClient,
     id: string,
     to: OrderStatus,
+    reason?: string,
   ) {
+    const cancelReason = typeof reason === 'string' ? reason.trim() : '';
+    if (
+      to === OrderStatus.CANCELLED &&
+      (!cancelReason || Array.from(cancelReason).length > 300)
+    ) {
+      throw new BadRequestException('Lý do hủy phải có từ 1 đến 300 ký tự');
+    }
     const order = await tx.order.findUnique({
       where: { id },
       include: orderInclude,
@@ -198,6 +233,7 @@ export class OrdersService {
       to === OrderStatus.CANCELLED || to === OrderStatus.PAYMENT_FAILED;
     const reserve =
       order.status === OrderStatus.PAYMENT_FAILED && to === OrderStatus.PENDING;
+    const transitionedAt = new Date();
     // Version also prevents ABA races across PAYMENT_FAILED -> PENDING retry cycles.
     const changed = await tx.order.updateMany({
       where: { id, status: order.status, version: order.version },
@@ -205,6 +241,10 @@ export class OrdersService {
         status: to,
         version: { increment: 1 },
         inventoryHeld: release ? false : reserve ? true : order.inventoryHeld,
+        ...(to === OrderStatus.CANCELLED ? { cancelReason } : {}),
+        ...(to === OrderStatus.COMPLETED
+          ? { completedAt: transitionedAt }
+          : {}),
       },
     });
     if (changed.count !== 1)
@@ -218,6 +258,7 @@ export class OrdersService {
         fromStatus: order.status,
         toStatus: to,
         version: order.version + 1,
+        createdAt: transitionedAt,
       },
     });
     return tx.order.findUniqueOrThrow({ where: { id }, include: orderInclude });
