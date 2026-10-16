@@ -39,7 +39,7 @@ migrations/
     └─ migration.sql
   └─ 20261016000000_session_version/
     └─ migration.sql
-      
+
 All migrations have been successfully applied.
 (node:42936) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)

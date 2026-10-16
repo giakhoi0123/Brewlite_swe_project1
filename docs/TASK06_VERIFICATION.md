@@ -2,6 +2,8 @@
 
 Ngày: 2026-10-16. Nhánh: `codex/task-06-orders`.
 
+PR nghiệm thu: [#13 — Task 06](https://github.com/giakhoi0123/Brewlite_swe_project1/pull/13), mở vào `main`, chờ review nhóm.
+
 ## Phạm vi và trạng thái
 
 Task 06 yêu cầu NestJS `POST /orders` nhận giỏ hợp lệ, validate bằng class-validator, lưu Order/OrderItems ở trạng thái **PENDING** và trả mã đơn. Guard phải lấy chủ đơn từ phiên xác thực; giá phải được tính lại từ catalog server. Task 06 kết thúc tại PENDING, chưa xác nhận thanh toán.
@@ -17,7 +19,8 @@ Task 06 yêu cầu NestJS `POST /orders` nhận giỏ hợp lệ, validate bằn
 | `1ae95e0` | Đồng bộ test Orders với PromotionDiscount của main mới; sửa fixture Products theo contract stock/description thực tế. Không đổi nghiệp vụ Product/Promotion |
 | `0873e35` | Chuẩn hóa UUID sản phẩm/topping về chữ thường; chặn topping trùng khác hoa/thường; kiểm tra đá/đường theo danh sách Cart hiện có; bổ sung HTTP regression |
 | `535660e` | Thêm 23 ca PostgreSQL cho tạo đơn, 4 browser E2E API, script `test:postgres` và tùy chọn browser channel |
-| Commit tài liệu tiếp theo | Cập nhật contract/trạng thái/kế hoạch và lưu bằng chứng test, ảnh ứng dụng thật |
+| `7166587` | Cập nhật contract/trạng thái/kế hoạch và lưu bằng chứng test, ảnh ứng dụng thật |
+| Commit bàn giao PR | Ghi liên kết PR #13 và chuẩn hóa khoảng trắng log kiểm chứng |
 
 Orders/Inventory core có sẵn của TV4 được tái sử dụng. Không thay luồng state machine, stock transaction, Payment port hoặc chính sách ưu đãi của thành viên khác; không thêm migration nghiệp vụ mới.
 
