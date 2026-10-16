@@ -17,6 +17,8 @@ describe('Products HTTP contract', () => {
     name: 'Bạc xỉu',
     price: 29000,
     imageUrl: '/images/products/sample-milk-coffee.svg',
+    stock: 40,
+    description: 'Cà phê và sữa, phục vụ lạnh.',
   };
 
   beforeAll(async () => {
@@ -49,7 +51,7 @@ describe('Products HTTP contract', () => {
       .expect(200);
 
     expect(response.body).toEqual([product]);
-    expect(Object.keys(response.body[0]).sort()).toEqual(['id', 'imageUrl', 'name', 'price']);
+    expect(Object.keys(response.body[0]).sort()).toEqual(['description', 'id', 'imageUrl', 'name', 'price', 'stock']);
     expect(Number.isInteger(response.body[0].price)).toBe(true);
   });
 

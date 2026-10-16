@@ -25,7 +25,7 @@ describe('Product detail HTTP', () => {
     const record = productDetailFixture();
     findUnique.mockResolvedValue(record);
     const response = await request(app.getHttpServer()).get(`/api/products/${record.id}`).expect(200).expect('Content-Type', /json/);
-    expect(Object.keys(response.body).sort()).toEqual(['defaultSizeId', 'description', 'id', 'imageUrl', 'name', 'price', 'sizes', 'toppings']);
+    expect(Object.keys(response.body).sort()).toEqual(['defaultSizeId', 'description', 'id', 'imageUrl', 'name', 'price', 'sizes', 'stock', 'toppings']);
     expect(response.body.price).toBe(29000);
     expect(response.body.sizes).toHaveLength(3);
     expect(response.body.defaultSizeId).toBe(record.sizes[1].id);
@@ -35,7 +35,7 @@ describe('Product detail HTTP', () => {
       expect(Number.isInteger(size.extraPrice) && size.extraPrice >= 0).toBe(true);
     }
     expect(response.body.toppings).toEqual(record.toppings.map(({ topping, ...option }) => ({ ...topping, ...option })));
-    expect(response.body).not.toHaveProperty('stock');
+    expect(response.body.stock).toBe(record.stock);
   });
 
   it.each(['not-a-uuid', '123', '31a650c7-8597-4a01-a8e2-00000000000z'])('rejects malformed id before querying: %s', async (id) => {
