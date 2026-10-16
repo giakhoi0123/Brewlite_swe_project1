@@ -17,16 +17,17 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const userId = user?.id;
+
   const load = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     setError("");
     try {
       const [loyalty, mine] = await Promise.all([
-        services.loyalty.get(userId),
+        services.loyalty.get(userId).catch(() => ({ points: user?.loyaltyPoints ?? 0 })),
         services.orders.mine(userId),
       ]);
-      setPoints(loyalty.points);
+      setPoints(loyalty.points ?? user?.loyaltyPoints ?? 0);
       setOrders([...mine].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)));
       await refresh();
     } catch (e) {
@@ -34,7 +35,8 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
-  }, [userId, refresh]);
+  }, [userId, refresh, user?.loyaltyPoints]);
+
   useEffect(() => {
     if (!authLoading && !userId) router.replace("/login?next=%2Fprofile");
     else if (userId) void load();
@@ -65,7 +67,7 @@ export default function Profile() {
             </div>
             <div className="member-card">
               <div className="member-card-top"><div><span className="eyebrow">BrewLite Rewards</span><h2>Thẻ thành viên</h2></div><span className="member-card-symbol" aria-hidden="true">✦</span></div>
-              <p className="member-card-points"><strong>{points ?? 0}</strong> điểm</p>
+              <p className="member-card-points"><strong>{points ?? user.loyaltyPoints ?? 0}</strong> điểm</p>
               <p className="member-card-id">BL · {user.id.slice(0, 8).toUpperCase()}</p>
               <p className="member-card-note">Điểm hiển thị từ dữ liệu tài khoản. Chính sách đổi điểm và voucher đang chờ tích hợp từ nhóm backend.</p>
             </div>

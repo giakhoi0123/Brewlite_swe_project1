@@ -5,14 +5,14 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { OrdersController } from './orders.controller';
 import { StaffOrdersController } from './staff-orders.controller';
 import { OrdersService } from './orders.service';
-import { NoPromotionDiscount, ORDER_DISCOUNT } from './order-discount';
+import { PromotionDiscount, ORDER_DISCOUNT } from './order-discount';
 
 @Module({
   imports: [AuthModule, PrismaModule, InventoryModule],
   controllers: [OrdersController, StaffOrdersController],
   providers: [
     OrdersService,
-    { provide: ORDER_DISCOUNT, useClass: NoPromotionDiscount },
+    { provide: ORDER_DISCOUNT, useClass: PromotionDiscount },
   ],
   exports: [OrdersService],
 })
