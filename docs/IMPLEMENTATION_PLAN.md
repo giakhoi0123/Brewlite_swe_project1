@@ -1,5 +1,9 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Kết quả Task 06 — 2026-10-16
+
+Nhánh `codex/task-06-orders` tạo sau khi cập nhật `origin/main:c2d6922`. Phần triển khai và kiểm chứng kỹ thuật Task 06 đã xong, **READY_FOR_REVIEW** để nhóm review PR theo DoD. Backend 201/201 trên PostgreSQL thật, 0 skipped; browser API 4/4 ở 1440/768/390; build/lint/typecheck liên quan PASS. Chi tiết/commit/bằng chứng tại [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md). Không nâng Task 08/09/10 từ kết quả tạo PENDING. Các bảng workstream cũ bên dưới là lịch sử.
+
 ## Kiểm kê workstream TV1 ngày 2026-10-16
 
 Đã đối chiếu mã nguồn với cả 9 `stitch/*/code.html`, 9 `screen.webp` và `DESIGN.md`. Nhánh hiện tại là `feature/auth-and-base`, cây làm việc sạch trước lượt sửa.
@@ -72,7 +76,7 @@ Chỉ đổi thành `VERIFIED_COMPLETE` khi toàn bộ tiêu chí của Task đ�
 | T03 | Menu | TV1+TV2 | VERIFIED_COMPLETE | T02 | frontend/src/app/page.tsx | API, loading, empty | Playwright API mode: 10 món, loading/empty/error/retry; DB thật | Không |
 | T04 | Tùy chỉnh | TV1+TV3 | VERIFIED_COMPLETE | T02 | frontend/src/app/products | Size, topping, giá | Playwright API mode: S/M/L, topping, giá động, thêm giỏ | Chính sách giá lâu dài cần TV3 xác nhận |
 | T05 | Giỏ | TV1+TV3 | VERIFIED_COMPLETE | T04 | frontend/src/stores, frontend/src/components/cart-sync.tsx, backend/src/cart | Thêm/sửa/xóa/tổng/badge; giỏ lưu theo tài khoản | Playwright: cấu hình riêng, tăng/giảm/xóa/clear, tổng, badge, refresh; 11 backend cart tests; HTTP PostgreSQL 12/12; luồng API mode khách→đăng ký→gộp→sửa→reload→đăng xuất/nhập 8/8 | TV4 nối `POST /orders` với `cart-pricing.ts` và xóa giỏ server khi đơn PAID |
-| T06 | Orders API | TV4 | IN_PROGRESS | Auth, products | backend/src/orders, backend/src/inventory | POST /orders PENDING | Sau merge: 18 suites/168 tests PASS trên PostgreSQL tạm gồm Orders HTTP, concurrency/rollback | Payment/Promotion và E2E trình duyệt API mode |
+| T06 | Orders API | TV4 | READY_FOR_REVIEW (kỹ thuật đã kiểm chứng) | Auth, products | backend/src/orders, backend/src/inventory, frontend/e2e/orders-api.spec.ts | POST /orders validate, giá server, lưu PENDING và trả mã đơn | PostgreSQL 15: 19 suites/201 tests, 0 skipped; browser API 4/4 tại 1440/768/390; build/lint/typecheck liên quan PASS | Review PR nhóm; Task 08/09/10 theo dõi riêng |
 | T07 | Auth | TV1 | VERIFIED_COMPLETE (module Auth TV1) | DB | backend/src/auth, frontend/src/app/login, frontend/src/app/register | Đăng ký/nhập/JWT/guard/logout | Sau merge: 168/168 backend tests; HTTP QA cookie cũ 401 sau logout; Playwright role/redirect trước merge qua | Áp migration Auth trên DB nhóm |
 | T08 | Payment | TV1+TV5 | IN_PROGRESS | T06 | frontend/src/services, frontend/src/app/payment, backend/src/payments, backend/prisma | Wallet/Card, PAID/FAILED/UNKNOWN, idempotency | Sau khi hợp nhất Cart + Payment: frontend 7/7 unit + build; backend 56/56 + build; Prisma Client generate qua | Chờ TV4 cung cấp Orders port, chạy migration DB và API E2E thật |
 | T09 | Xác nhận/lịch sử/Docker | TV1+TV6 | BACKEND_PENDING | T06,T08 | frontend/src/app/orders, compose | GET /orders/me, demo E2E | Playwright history/timeline + Compose 3 dịch vụ qua | Orders history backend thật |

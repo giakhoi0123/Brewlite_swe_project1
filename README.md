@@ -1,5 +1,7 @@
 # BrewLite 1.0
 
+> Task 06 đã hoàn thiện và kiểm chứng trên nhánh `codex/task-06-orders` từ main `c2d6922`: 201 backend tests PostgreSQL thật và 4 browser API E2E PASS. Xem [ma trận nghiệm thu, commit, bằng chứng và lệnh chạy lại](docs/TASK06_VERIFICATION.md). Chờ review PR của nhóm; Task 08/09/10 theo dõi riêng. Các ghi chú lịch sử bên dưới có thể chưa phản ánh phần Payment/Promotion vừa nhập từ PR #12.
+
 Ứng dụng đặt cà phê Việt và thanh toán không tiền mặt cho bài tập Công nghệ phần mềm nhóm 6 người. Gồm Next.js frontend, NestJS backend, PostgreSQL/Prisma và Docker Compose. Mã nguồn tập trung trong **`BrewLite_swe-project_1`**; `stitch/` chứa HTML và design tokens gốc cùng ảnh tham chiếu WebP đã nén.
 
 ## Phạm vi và hiện trạng

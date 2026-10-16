@@ -1,5 +1,15 @@
 # Hợp đồng API BrewLite
 
+## Task 06 — cập nhật 2026-10-16
+
+`POST /orders` đã kiểm chứng trên PostgreSQL 15 và trình duyệt API mode (1440/768/390): HTTP 201, UUID mã đơn, PENDING, giá server và snapshot/history/kho lưu cùng transaction. Xem [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md).
+
+- `productId` và mỗi `toppingIds` được chuẩn hóa chữ thường trước lookup; topping trùng khác hoa/thường bị 400.
+- `ice` chỉ nhận `100% đá | 70% đá | 30% đá | Không đá`; `sugar` chỉ nhận `100% chuẩn | 70% ngọt vừa | 50% ít ngọt | Không đường`, dùng cùng danh sách Cart. Không còn nhận chuỗi bất kỳ 1–40 ký tự.
+- Giá/owner/status client tự gửi bị 400; cấu hình hoặc mã ưu đãi không hợp lệ trả 400 với provider PromotionDiscount trên main mới; thiếu kho/xung đột 409. Không cần migration cho thay đổi DTO này.
+- Tạo PENDING giữ nguyên Cart, không tự tạo Payment/cộng điểm. Browser test cô lập request Payment của Task 08, không suy ra thanh toán đã hoàn thành.
+- Main `c2d6922` đã đăng ký PaymentsModule và provider PromotionDiscount; trạng thái Payment/Promotion cũ bên dưới cần được owner cập nhật/kiểm chứng riêng.
+
 Cập nhật kiểm chứng TV4 2026-10-15: Orders đã qua test HTTP + PostgreSQL thật (POST 201/PENDING, size L+topping 45.000đ, JWT cookie/Origin, history và inventory). Quan hệ Prisma nội bộ là `Order.statusHistory`; sửa service từ `history` sang `statusHistory` không thay đổi JSON API và không cần migration mới. Các ghi chú chưa kiểm chứng PostgreSQL ở mốc cũ bên dưới được thay thế bằng kết quả trong `TESTING.md`.
 
 Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie `brewlite_session` HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory và migration Auth mới đã chạy chung trên PostgreSQL kiểm thử riêng sau merge: 168/168 tests. Payments vẫn chờ TV5.
@@ -12,7 +22,7 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV2 | GET `/products/:id` | Không | UUID path | `ProductDetail` | 400 UUID, 404, 500 | Chi tiết | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
-| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + PostgreSQL tests sau merge qua; browser API E2E chưa chạy |
+| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự) | `Order` PENDING, UUID mã đơn | 400, 401, 403, 409 | Checkout | PostgreSQL 15 và browser API 1440/768/390 PASS, xem TASK06_VERIFICATION |
 | TV5 | POST `/payments` | CUSTOMER | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 404, 409 | Xử lý/kết quả | Core/controller/schema có; chờ Orders port để bật module |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 

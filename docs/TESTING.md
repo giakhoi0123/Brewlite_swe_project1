@@ -1,4 +1,14 @@
-# Kiểm chứng tích hợp `origin/main` vào `feature/auth-and-base` — 2026-10-16
+# Kiểm thử và bằng chứng BrewLite
+
+## Task 06 — 2026-10-16, main c2d6922 → codex/task-06-orders
+
+Backend `npm run test:postgres`: **19 suites, 201/201 tests PASS, 0 skipped**, PostgreSQL 15.18 thật, DB riêng tạo bằng UUID, đủ 8 migration rồi tự dọn. Trong đó hai suite Orders PostgreSQL có 31 bài thật (23 mới + 8 có sẵn). Backend build/lint và typecheck toàn bộ test PASS. Frontend unit **13/13 PASS**, build API mode `--webpack` PASS, lint hai file frontend thay đổi PASS. Browser Edge API/Auth/Cart/Orders thật: **4/4 PASS**, gồm tạo/lưu PENDING ở 1440/768/390, mở lại không tạo trùng và 409 thiếu hàng giữ giỏ.
+
+Frontend lint toàn repo FAIL có sẵn từ main mới tại profile/page.tsx:21 (`react-hooks/preserve-manual-memoization`). Turbopack có lỗi tạo tiến trình trên máy; không sửa script mặc định, dùng Webpack kiểm chứng. Docker CLI không có nên không xác nhận Compose. Không dùng các kết quả này để chốt Task 08/09/10.
+
+[TASK06_VERIFICATION.md](TASK06_VERIFICATION.md) có cách chạy, ma trận AC, commit từng phần, log và ảnh thật. Lượt trước có audit 160 pass + 8 skip trên main cũ; con số đó không phải kết quả hiện tại. Các mốc bên dưới giữ làm lịch sử.
+
+## Lịch sử tích hợp origin/main vào feature/auth-and-base — 2026-10-16
 
 Sau fetch/merge main có Orders/Inventory, backend build lần đầu PASS nhưng full PostgreSQL suite có **24 lỗi HTTP Orders**: fixture user của TV4 thiếu `sessionVersion` nên JwtStrategy TV1 trả 401. Đã thêm version 0 vào fixture và JWT test. Chạy lại bằng `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs`: **18 suites, 168/168 tests PASS**, không skipped. Script tạo database `brewlite_orders_test_<uuid>` riêng, áp dụng đủ 8 migrations (gồm Orders và Auth session_version), rồi xóa đúng database tạm. Không thay đổi DB ứng dụng. Backend Docker build PASS; frontend build/lint PASS; `npm --prefix frontend test`: 13/13 PASS. Browser Orders/Staff API E2E chưa chạy; Playwright demo 4/4 là bằng chứng **trước merge** và dùng mock nghiệp vụ.
 

@@ -1,5 +1,11 @@
 # Trạng thái dự án
 
+## Task 06 trên main mới — 2026-10-16
+
+Đã fetch/pull từ `a80e712` lên `origin/main:c2d6922` trước khi tạo nhánh `codex/task-06-orders`. **T06 READY_FOR_REVIEW**: API tạo PENDING, validation/UUID, giá server, transaction/snapshot, Auth và ownership đã kiểm chứng. Backend **201/201 trên PostgreSQL 15 thật, 0 skipped**; browser API **4/4 tại 1440/768/390**; frontend unit 13/13, backend build/lint/typecheck và frontend Webpack build PASS. Còn review PR của nhóm theo DoD.
+
+Bằng chứng, commit từng phần và cách chạy: [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md). Lint frontend toàn repo đang có lỗi memoization ở profile từ main mới; lint các file Task 06 thay đổi PASS. Docker Compose chưa chạy ở máy này; kết quả không xác nhận Task 08/09/10 hoàn thành. Main mới đã có PaymentsModule/PromotionDiscount, nên những đoạn “chưa bật/chưa có” phía dưới là lịch sử, không phải trạng thái mã mới.
+
 ## Ảnh chụp trạng thái sau khi nhập origin/main — 2026-10-16
 
 | Phần | UI có mã | Đã so Stitch | Chức năng FE đã test | Backend thật | Test backend/API | Phần còn chờ |
