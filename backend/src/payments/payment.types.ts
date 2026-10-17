@@ -1,4 +1,4 @@
-import type { PaymentMethod, PaymentStatus } from '@prisma/client';
+import type { PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 
 export const PAYMENT_ORDER_PORT = Symbol('PAYMENT_ORDER_PORT');
 export const PAYMENT_GATEWAY = Symbol('PAYMENT_GATEWAY');
@@ -14,12 +14,19 @@ export type PayableOrder = {
 
 export interface PaymentOrderPort {
   findOwned(orderId: string, userId: string): Promise<PayableOrder | null>;
-  applyPaymentResult(input: {
-    orderId: string;
-    userId: string;
-    method: PaymentMethod;
-    status: PaymentResultStatus;
-  }): Promise<void>;
+  prepareAttempt(
+    input: { orderId: string; userId: string },
+    tx: Prisma.TransactionClient,
+  ): Promise<PayableOrder>;
+  applyPaymentResult(
+    input: {
+      orderId: string;
+      userId: string;
+      method: PaymentMethod;
+      status: PaymentResultStatus;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<void>;
 }
 
 export interface PaymentGateway {
@@ -27,5 +34,7 @@ export interface PaymentGateway {
     orderId: string;
     amount: number;
     method: PaymentMethod;
+    // Stable provider key of the persisted attempt; never regenerated on replay.
+    idempotencyKey: string;
   }): Promise<PaymentResultStatus>;
 }

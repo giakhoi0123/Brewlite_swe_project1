@@ -1,4 +1,5 @@
-import { Module, NotFoundException } from '@nestjs/common';
+import { ConflictException, Module, NotFoundException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -42,8 +43,21 @@ import {
           async findOwned(id: string, userId: string) {
             return orders.get(id, userId);
           },
-          async applyPaymentResult(input) {
-            await prisma.$transaction(async (tx) => {
+          async prepareAttempt(input, tx) {
+            const owned = await tx.order.findFirst({
+              where: { id: input.orderId, userId: input.userId },
+            });
+            if (!owned) throw new NotFoundException('Không tìm thấy đơn hàng');
+            if (owned.status === 'PAYMENT_FAILED') {
+              return orders.transitionInTransaction(tx, owned.id, 'PENDING');
+            }
+            if (owned.status !== 'PENDING') {
+              throw new ConflictException('Đơn hàng không thể thanh toán');
+            }
+            return owned;
+          },
+          async applyPaymentResult(input, transaction) {
+            const apply = async (tx: Prisma.TransactionClient) => {
               const owned = await tx.order.findFirst({
                 where: { id: input.orderId, userId: input.userId },
                 select: { id: true },
@@ -72,7 +86,9 @@ import {
                   });
                 }
               }
-            });
+            };
+            if (transaction) await apply(transaction);
+            else await prisma.$transaction(apply);
           },
         }),
         inject: [OrdersService, PrismaService],
