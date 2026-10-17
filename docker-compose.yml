@@ -31,11 +31,13 @@ services:
       args:
         NEXT_PUBLIC_DATA_MODE: ${NEXT_PUBLIC_DATA_MODE:-mock}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
+        NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS: ${NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS:-false}
     env_file: .env
     environment:
       PORT: 3000
       NEXT_PUBLIC_API_URL: http://localhost:3001/api
       NEXT_PUBLIC_DATA_MODE: ${NEXT_PUBLIC_DATA_MODE:-mock}
+      NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS: ${NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS:-false}
     ports:
       - "3000:3000"
     depends_on:
