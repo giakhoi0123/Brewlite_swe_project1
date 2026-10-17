@@ -32,12 +32,13 @@ export const demoOrders = !allApi;
 /** Cho phép chọn phản hồi gateway sandbox mà vẫn dùng Orders/Payments API thật. */
 export const paymentDemoControls =
   demoOrders || process.env.NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS === "true";
+// Sửa đoạn export const services ở cuối file thành:
 export const services = {
-  products: catalogApi ? apiProducts : mockProducts,
-  cart: catalogApi ? apiCart : mockCart,
-  orders: allApi ? apiOrders : mockOrders,
-  payments: allApi ? apiPayments : mockPayments,
-  promotions: allApi ? apiPromotions : mockPromotions,
-  loyalty: allApi ? apiLoyalty : mockLoyalty,
-  barista: allApi ? apiBarista : mockBarista,
+  products: apiProducts,
+  cart: apiCart,
+  orders: apiOrders,
+  payments: apiPayments,
+  promotions: apiPromotions,
+  loyalty: apiLoyalty,
+  barista: apiBarista,
 };
