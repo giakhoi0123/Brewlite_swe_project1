@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { apiOrders, apiBarista } from './api';
+import { apiOrders, apiPayments, apiBarista } from './api';
 import { ApiError } from './http';
 import type { CartItem } from '../types/domain';
 
@@ -69,4 +69,24 @@ test('history, detail, status and staff requests retain authentication and expec
 test('status adapter unwraps the JSON status response', async () => {
   globalThis.fetch = async () => Response.json({ status: 'PENDING' });
   assert.equal(await apiOrders.status('order'), 'PENDING');
+});
+
+test('payments adapter forwards the selected sandbox outcome to the API', async () => {
+  let body: unknown;
+  globalThis.fetch = async (_url, init) => {
+    body = JSON.parse(String(init?.body));
+    return Response.json({ status: 'PAYMENT_FAILED' }, { status: 201 });
+  };
+  await apiPayments.pay(
+    'order-id',
+    'CARD',
+    '41a650c7-8597-4a01-a8e2-000000000001',
+    'PAYMENT_FAILED',
+  );
+  assert.deepEqual(body, {
+    orderId: 'order-id',
+    method: 'CARD',
+    idempotencyKey: '41a650c7-8597-4a01-a8e2-000000000001',
+    demoOutcome: 'PAYMENT_FAILED',
+  });
 });

@@ -1,0 +1,47 @@
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "brewlite_payment_status_a95989b44d4b490eb84dc3e8b75d4e04", schema "public" at "127.0.0.1:55438"
+
+8 migrations found in prisma/migrations
+
+Applying migration `0_baseline_users`
+Applying migration `20261006000100_add_products`
+Applying migration `20261014000000_add_rbac`
+Applying migration `20261014000100_product_customization`
+Applying migration `20261015000000_add_cart`
+Applying migration `20261015000000_add_payments`
+Applying migration `20261015000100_orders_inventory`
+Applying migration `20261016000000_session_version`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 0_baseline_users/
+    └─ migration.sql
+  └─ 20261006000100_add_products/
+    └─ migration.sql
+  └─ 20261014000000_add_rbac/
+    └─ migration.sql
+  └─ 20261014000100_product_customization/
+    └─ migration.sql
+  └─ 20261015000000_add_cart/
+    └─ migration.sql
+  └─ 20261015000000_add_payments/
+    └─ migration.sql
+  └─ 20261015000100_orders_inventory/
+    └─ migration.sql
+  └─ 20261016000000_session_version/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+(node:39088) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Test Suites: 5 passed, 5 total
+Tests:       80 passed, 80 total
+Snapshots:   0 total
+Time:        3.409 s, estimated 4 s
+Ran all test suites within paths "src/payments/payment-status.postgres.spec.ts", "src/payments/payments.service.spec.ts", "src/payments/payments.http.spec.ts", "src/orders/order-state-machine.spec.ts", "src/inventory/inventory.service.spec.ts".
+Removed dedicated test database

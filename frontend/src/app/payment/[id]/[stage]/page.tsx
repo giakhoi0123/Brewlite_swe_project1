@@ -2,7 +2,7 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { services, demoOrders } from "@/services";
+import { services, paymentDemoControls } from "@/services";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "@/components/auth-provider";
 import type { Order, PaymentMethod } from "@/types/domain";
@@ -11,7 +11,6 @@ import { ErrorState, Loading, StatusBadge } from "@/components/ui";
 import {
   readPaymentIntent,
   removePaymentIntent,
-  savePaymentIntent,
 } from "@/services/payment-intent";
 export default function PaymentPage({
   params,
@@ -116,19 +115,7 @@ export default function PaymentPage({
   };
   const retry = () => {
     if (!order) return;
-    started.current = false;
-    const method =
-      readPaymentIntent(id)?.method ||
-      paymentMethod ||
-      order.paymentMethod ||
-      "WALLET";
-    setPaymentMethod(method);
-    savePaymentIntent(id, {
-      method,
-      key: crypto.randomUUID(),
-      ...(demoOrders ? { outcome: "PAID" as const } : {}),
-    });
-    router.push(`/payment/${id}/processing`);
+    router.push(`/checkout?retryOrder=${encodeURIComponent(id)}`);
   };
   if (loading || authLoading)
     return (
@@ -232,7 +219,7 @@ export default function PaymentPage({
                 Xem chi tiết đơn
               </Link>
             </div>
-            {demoOrders && (
+            {paymentDemoControls && (
               <p className="muted" style={{ fontSize: 12 }}>
                 Demo không tự chuyển trạng thái khi kết quả chưa rõ.
               </p>

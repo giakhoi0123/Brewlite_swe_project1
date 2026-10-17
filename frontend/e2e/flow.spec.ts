@@ -19,6 +19,13 @@ async function addCoffee(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/cart$/);
   await expect(page.getByLabel(/Giỏ hàng 2 món/)).toBeVisible();
 }
+async function addSeededCoffee(page: import('@playwright/test').Page) {
+  await page.goto('/products/31a650c7-8597-4a01-a8e2-000000000001');
+  await expect(page.getByRole('heading',{name:'Bạc xỉu 3 tầng Sài Gòn'})).toBeVisible();
+  await page.getByRole('button',{name:'Thêm vào giỏ hàng'}).click();
+  await expect(page).toHaveURL(/\/cart$/);
+  await expect(page.getByLabel(/Giỏ hàng 1 món/)).toBeVisible();
+}
 async function registerFromCheckout(page: import('@playwright/test').Page) {
   await page.getByRole('button',{name:/Tiến hành đặt hàng/}).click();
   await expect(page).toHaveURL(/\/login\?next=/);
@@ -32,6 +39,34 @@ async function registerFromCheckout(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/checkout$/);
   return email;
 }
+test('failed payment retry returns to checkout and reuses the order', async ({page}) => {
+  await addSeededCoffee(page);
+  await registerFromCheckout(page);
+  await page.getByLabel('Kết quả thanh toán demo').selectOption('PAYMENT_FAILED');
+  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
+  await expect(page.getByRole('heading',{name:'Thanh toán chưa thành công'})).toBeVisible();
+  const orderId = new URL(page.url()).pathname.split('/')[2];
+  await page.getByRole('button',{name:'Thử thanh toán lại'}).click();
+  await expect(page).toHaveURL(new RegExp(`/checkout\\?retryOrder=${orderId}$`));
+  await expect(page.getByText(`Thanh toán lại đơn #${orderId}`)).toBeVisible();
+  await expect(page.getByText('hệ thống sẽ không tạo thêm đơn mới')).toBeVisible();
+  for (const viewport of [
+    {width:1440,height:900},
+    {width:768,height:1024},
+    {width:390,height:844},
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByLabel('Kết quả thanh toán demo')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  await page.getByLabel('Kết quả thanh toán demo').selectOption('PAID');
+  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
+  await expect(page).toHaveURL(new RegExp(`/payment/${orderId}/success$`));
+  await expect(page.getByRole('heading',{name:'Đặt hàng thành công!'})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Đặt hàng thành công!'})).toBeVisible();
+  await expect(page.getByText('Phương thức: Ví điện tử')).toBeVisible();
+});
 test('customer failure retry success, loyalty and Barista workflow', async ({page}) => {
   test.slow();
   await addCoffee(page);
@@ -57,6 +92,12 @@ test('customer failure retry success, loyalty and Barista workflow', async ({pag
   const orderId = new URL(page.url()).pathname.split('/')[2];
   await expect(page.getByLabel(/Giỏ hàng 2 món/)).toBeVisible();
   await page.getByRole('button',{name:'Thử thanh toán lại'}).click();
+  await expect(page).toHaveURL(new RegExp(`/checkout\\?retryOrder=${orderId}$`));
+  await expect(page.getByText(`Thanh toán lại đơn #${orderId}`)).toBeVisible();
+  await expect(page.getByText('hệ thống sẽ không tạo thêm đơn mới')).toBeVisible();
+  await expect(page.getByLabel('Kết quả thanh toán demo')).toHaveValue('PAID');
+  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
+  await expect(page).toHaveURL(new RegExp(`/payment/${orderId}/success$`));
   await expect(page.getByRole('heading',{name:'Đặt hàng thành công!'})).toBeVisible();
   await expect(page.getByText('116.000 ₫')).toBeVisible();
   await expect(page.getByText('Phương thức: Thẻ ngân hàng')).toBeVisible();

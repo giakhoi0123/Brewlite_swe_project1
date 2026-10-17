@@ -77,6 +77,31 @@ describe('Payments HTTP contract', () => {
     expect(pay).not.toHaveBeenCalled();
   });
 
+  it('accepts a validated sandbox outcome without trusting arbitrary values', async () => {
+    await request(app.getHttpServer())
+      .post('/api/payments')
+      .send({
+        orderId,
+        method: 'CARD',
+        idempotencyKey,
+        demoOutcome: 'PAYMENT_FAILED',
+      })
+      .expect(201);
+    expect(pay).toHaveBeenCalledWith('customer-1', {
+      orderId,
+      method: 'CARD',
+      idempotencyKey,
+      demoOutcome: 'PAYMENT_FAILED',
+    });
+
+    pay.mockClear();
+    await request(app.getHttpServer())
+      .post('/api/payments')
+      .send({ orderId, method: 'CARD', idempotencyKey, demoOutcome: 'SUCCESS' })
+      .expect(400);
+    expect(pay).not.toHaveBeenCalled();
+  });
+
   it('rejects extra identity fields instead of trusting the client', async () => {
     await request(app.getHttpServer())
       .post('/api/payments')
