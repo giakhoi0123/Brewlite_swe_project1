@@ -1,5 +1,13 @@
 # Trạng thái dự án
 
+## Task 06 review — 2026-10-17, mới nhất
+
+Nhánh hiện tại `feature/task-06-orders`; PR #16 đang mở, chưa merge. PR #13 đóng chưa merge; đủ 5 commit gốc đến `03ff19b` còn nguyên và chưa có trong main tại lúc audit. Đã nhập main `bacb7a6` qua `2c8adc2`; chỉ xung đột tài liệu, không ghi đè AppModule/Payment/Promotion/Staff/schema của main.
+
+Kiểm chứng code `2c8adc2`: **247/247 backend tests trên PostgreSQL 15.18 thật, 24 suites, 0 skipped**, đủ 10 migration; frontend unit **14/14**, browser Orders API **4/4 tại 1440/768/390**. Backend build/lint/full test typecheck, frontend API build Webpack và scoped lint frontend PASS. Frontend lint toàn repo **FAIL** ở `profile/page.tsx:21` (memoization) có sẵn từ main; không sửa UI ngoài Task 06. Prisma generate PASS sau khi chờ lượt DB test kết thúc để giải phóng DLL Windows.
+
+T06 READY_FOR_REVIEW. Browser chặn request Payment bằng route.abort, xác minh Order PENDING, giỏ còn, Payment=0; không dùng để chốt Payment. Log/ảnh/ma trận commit và lệnh chạy: [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). PostgreSQL/servers/DB test riêng, không reset DB nhóm. Compose/default Turbopack chưa chạy ở lượt này. Các mốc dưới là lịch sử.
+
 ## Task 06 trên main mới — 2026-10-16
 
 Đã fetch/pull từ `a80e712` lên `origin/main:c2d6922` trước khi tạo nhánh `codex/task-06-orders`. **T06 READY_FOR_REVIEW**: API tạo PENDING, validation/UUID, giá server, transaction/snapshot, Auth và ownership đã kiểm chứng. Backend **201/201 trên PostgreSQL 15 thật, 0 skipped**; browser API **4/4 tại 1440/768/390**; frontend unit 13/13, backend build/lint/typecheck và frontend Webpack build PASS. Còn review PR của nhóm theo DoD.

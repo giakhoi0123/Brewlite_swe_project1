@@ -1,8 +1,10 @@
 # Task 06 — API tạo đơn: triển khai và kiểm chứng
 
+Đây là bằng chứng lịch sử ngày 2026-10-16. PR #13 đã đóng chưa merge; PR thay thế đang dùng là [#16](https://github.com/giakhoi0123/Brewlite_swe_project1/pull/16). Xem [kiểm chứng lại trên main mới ngày 2026-10-17](TASK06_REVIEW_VERIFICATION.md) cho SHA/kết quả mới nhất. Các số 201 tests/8 migrations bên dưới thuộc lượt cũ.
+
 Ngày: 2026-10-16. Nhánh: `codex/task-06-orders`.
 
-PR nghiệm thu: [#13 — Task 06](https://github.com/giakhoi0123/Brewlite_swe_project1/pull/13), mở vào `main`, chờ review nhóm.
+PR ban đầu: [#13 — Task 06](https://github.com/giakhoi0123/Brewlite_swe_project1/pull/13), hiện đã đóng và chưa merge.
 
 ## Phạm vi và trạng thái
 

@@ -1,5 +1,9 @@
 # Hợp đồng API BrewLite
 
+## Task 06 review — 2026-10-17, mới nhất
+
+Kiểm chứng lại trên code `2c8adc2` sau khi nhập main `bacb7a6`, PR #16 chưa merge: toàn bộ backend 247/247 trên PostgreSQL thật (10 migration, 0 skipped); browser Orders API 4/4 tại 1440/768/390. Hợp đồng Task 06 giữ nguyên: POST 201 với UUID/PENDING, giá server, snapshot/history/reserve cùng transaction, giỏ chưa xóa và chưa cấp điểm/Payment. Browser chặn request Payment bằng route.abort, không giả kết quả thanh toán. Chi tiết [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Phần Task 06 ngày 16 dưới là bằng chứng cũ; Payment/Promotion/Staff được bảo toàn từ main.
+
 ## Task 06 — cập nhật 2026-10-16
 
 `POST /orders` đã kiểm chứng trên PostgreSQL 15 và trình duyệt API mode (1440/768/390): HTTP 201, UUID mã đơn, PENDING, giá server và snapshot/history/kho lưu cùng transaction. Xem [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md).

@@ -1,5 +1,9 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Task 06 review — 2026-10-17, mới nhất
+
+Đã xác minh 5 commit đến `03ff19b` đầy đủ, chưa có trong main; PR #13 đóng chưa merge, PR #16 đang mở trên `feature/task-06-orders` nên cập nhật PR hiện có. Merge main `bacb7a6` (đã nhận Payment consistency #18) thành code `2c8adc2`, giữ nguyên 5 commit và mã Payment/Promotion/Staff của main. **24 suites/247 backend tests PASS, 0 skipped; frontend unit 14/14; browser Orders API 4/4 tại 1440/768/390; backend build/lint/full typecheck và frontend API Webpack build PASS**. Frontend lint toàn repo vẫn FAIL do profile:21 có sẵn; scoped lint E2E/config PASS. T06 **READY_FOR_REVIEW**, chưa merge; Task 06 kết thúc PENDING, không chốt T08/09/10. Xem [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Các phần bên dưới là lịch sử.
+
 ## Kết quả Task 06 — 2026-10-16
 
 Nhánh `codex/task-06-orders` tạo sau khi cập nhật `origin/main:c2d6922`. Phần triển khai và kiểm chứng kỹ thuật Task 06 đã xong, **READY_FOR_REVIEW** để nhóm review PR theo DoD. Backend 201/201 trên PostgreSQL thật, 0 skipped; browser API 4/4 ở 1440/768/390; build/lint/typecheck liên quan PASS. Chi tiết/commit/bằng chứng tại [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md). Không nâng Task 08/09/10 từ kết quả tạo PENDING. Các bảng workstream cũ bên dưới là lịch sử.
