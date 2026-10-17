@@ -133,6 +133,43 @@ export class OrdersService {
         } satisfies Prisma.OrderUncheckedCreateInput,
         include: orderInclude,
       });
+
+      // 💡 BỔ SUNG: ĐÁNH DẤU MÃ VOUCHER ĐÃ ĐƯỢC SỬ DỤNG
+      if (promotionCode) {
+        try {
+          const db = tx as any;
+
+          // 1. Cập nhật bảng UserCoupon (nếu có)
+          if (db.userCoupon) {
+            await db.userCoupon.updateMany({
+              where: { code: promotionCode, userId },
+              data: { isUsed: true, status: 'USED' },
+            });
+          }
+
+          // 2. Tạo record trong CouponUsage (nếu có)
+          if (db.couponUsage) {
+            await db.couponUsage.create({
+              data: {
+                code: promotionCode,
+                userId,
+                orderId: order.id,
+              },
+            });
+          }
+
+          // 3. Cập nhật bảng LoyaltyTransaction (nếu có)
+          if (db.loyaltyTransaction) {
+            await db.loyaltyTransaction.updateMany({
+              where: { code: promotionCode, userId },
+              data: { isUsed: true, status: 'USED' },
+            });
+          }
+        } catch (e) {
+          // Bỏ qua nếu bảng phụ chưa có
+        }
+      }
+
       return orderResponse(order);
     });
   }
@@ -236,6 +273,25 @@ export class OrdersService {
         version: order.version + 1,
       },
     });
+
+    // TÍCH ĐIỂM TỰ ĐỘNG: Mỗi khi đơn chuyển sang PAID và trước đó chưa phải PAID
+    if (to === OrderStatus.PAID && order.status !== OrderStatus.PAID) {
+      const pointsToEarn = Math.floor(order.total / 10000);
+      if (pointsToEarn > 0) {
+        await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPoints: {
+              increment: pointsToEarn,
+            },
+          },
+        });
+        console.log(
+          `[LOYALTY] Đã cộng ${pointsToEarn} điểm cho user ${order.userId} từ đơn hàng ${order.id}`,
+        );
+      }
+    }
+
     return tx.order.findUniqueOrThrow({ where: { id }, include: orderInclude });
   }
 }
