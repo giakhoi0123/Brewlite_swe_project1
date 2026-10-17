@@ -1,5 +1,21 @@
 # Hợp đồng API BrewLite
 
+## Bản sửa hợp đồng trạng thái Payment — 2026-10-17
+
+`PaymentsModule` đã được đăng ký trong `AppModule` từ main `c2d6922`. Bản sửa trên `feature/fix-payment-status` dùng chung `PaymentResultStatus = Exclude<PaymentStatus, 'PROCESSING'>` cho gateway, service, repository và `PaymentOrderPort`; factory trong AppModule khai báo rõ kiểu trả về `PaymentOrderPort`. Không có trạng thái `SUCCESS`/`FAILED` trong hợp đồng nội bộ này.
+
+| Kết quả gateway/core | Adapter Orders | Điểm và tồn kho |
+|---|---|---|
+| `PAID` | Gọi state machine với `PAID`; từ PENDING hợp lệ chuyển thành PAID | Giữ kho đã reserve; áp dụng chính sách điểm hiện có `floor(total/10000)` cho chủ đơn trong cùng transaction chuyển trạng thái |
+| `PAYMENT_FAILED` | Gọi state machine với `PAYMENT_FAILED`; từ PENDING chuyển thất bại | Hoàn kho theo `inventoryHeld`, không cộng điểm |
+| `UNKNOWN` | Không gọi transition, giữ nguyên trạng thái/version/history | Không thay tồn kho, không cộng điểm |
+
+Adapter kiểm tra `orderId + userId` trong transaction trước khi áp dụng mọi kết quả, kể cả UNKNOWN; không thuộc chủ đơn trả 404. HTTP lấy user từ JWT; DTO chỉ nhận `orderId,method,idempotencyKey`, các field `status,userId,amount` bị từ chối 400. Khách không có endpoint để tự đặt PAID.
+
+Đã kiểm chứng 15 ca PostgreSQL qua AppModule thật và HTTP/JWT/DTO thật; không thay PaymentOrderPort hoặc gateway bằng port giả trong suite này. Tổng bộ test liên quan: 80/80 PASS. Chi tiết và lệnh chạy tại [PAYMENT_STATUS_VERIFICATION.md](PAYMENT_STATUS_VERIFICATION.md).
+
+Phạm vi này chỉ sửa trạng thái và ownership. Replay vào trạng thái đã áp dụng vẫn có thể 409 theo state machine; retry PAYMENT_FAILED cần bước reserve lại; Payment.finalize và Order đang ở các transaction riêng. Chưa chốt Task 08/10B về idempotency/retry/atomicity và chưa kiểm chứng browser Payment hoặc thanh toán tiền thật. Các ghi chú cũ “chờ bật module/Orders port” phía dưới là lịch sử; các quy ước về replay là yêu cầu cần tiếp tục hoàn thiện.
+
 Cập nhật kiểm chứng TV4 2026-10-15: Orders đã qua test HTTP + PostgreSQL thật (POST 201/PENDING, size L+topping 45.000đ, JWT cookie/Origin, history và inventory). Quan hệ Prisma nội bộ là `Order.statusHistory`; sửa service từ `history` sang `statusHistory` không thay đổi JSON API và không cần migration mới. Các ghi chú chưa kiểm chứng PostgreSQL ở mốc cũ bên dưới được thay thế bằng kết quả trong `TESTING.md`.
 
 Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie `brewlite_session` HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory và migration Auth mới đã chạy chung trên PostgreSQL kiểm thử riêng sau merge: 168/168 tests. Payments vẫn chờ TV5.

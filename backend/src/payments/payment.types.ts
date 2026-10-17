@@ -3,6 +3,8 @@ import type { PaymentMethod, PaymentStatus } from '@prisma/client';
 export const PAYMENT_ORDER_PORT = Symbol('PAYMENT_ORDER_PORT');
 export const PAYMENT_GATEWAY = Symbol('PAYMENT_GATEWAY');
 
+export type PaymentResultStatus = Exclude<PaymentStatus, 'PROCESSING'>;
+
 export type PayableOrder = {
   id: string;
   userId: string;
@@ -16,7 +18,7 @@ export interface PaymentOrderPort {
     orderId: string;
     userId: string;
     method: PaymentMethod;
-    status: Exclude<PaymentStatus, 'PROCESSING'>;
+    status: PaymentResultStatus;
   }): Promise<void>;
 }
 
@@ -25,5 +27,5 @@ export interface PaymentGateway {
     orderId: string;
     amount: number;
     method: PaymentMethod;
-  }): Promise<Exclude<PaymentStatus, 'PROCESSING'>>;
+  }): Promise<PaymentResultStatus>;
 }

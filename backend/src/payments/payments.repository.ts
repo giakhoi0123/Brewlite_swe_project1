@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type PaymentMethod, type PaymentStatus } from '@prisma/client';
+import { Prisma, type PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import type { PaymentResultStatus } from './payment.types';
 
 type ClaimInput = {
   userId: string;
@@ -43,7 +44,7 @@ export class PaymentsRepository {
     }
   }
 
-  finalize(id: string, status: Exclude<PaymentStatus, 'PROCESSING'>) {
+  finalize(id: string, status: PaymentResultStatus) {
     return this.prisma.payment.update({ where: { id }, data: { status } });
   }
 }

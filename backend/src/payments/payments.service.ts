@@ -4,13 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Payment, PaymentStatus } from '@prisma/client';
+import type { Payment } from '@prisma/client';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import {
   PAYMENT_GATEWAY,
   PAYMENT_ORDER_PORT,
   type PaymentGateway,
   type PaymentOrderPort,
+  type PaymentResultStatus,
 } from './payment.types';
 import { PaymentsRepository } from './payments.repository';
 
@@ -43,7 +44,7 @@ export class PaymentsService {
     });
     if (!claim.created) return this.replay(claim.payment, userId, input);
 
-    let status: Exclude<PaymentStatus, 'PROCESSING'>;
+    let status: PaymentResultStatus;
     try {
       status = await this.gateway.charge({
         orderId: order.id,

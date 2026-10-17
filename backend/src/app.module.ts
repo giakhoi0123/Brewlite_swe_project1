@@ -1,6 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, NotFoundException } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { OrderStatus } from '@prisma/client';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma.module';
@@ -14,7 +13,10 @@ import { OrdersModule } from './orders/orders.module';
 import { OrdersService } from './orders/orders.service';
 import { InventoryModule } from './inventory/inventory.module';
 import { PaymentsModule } from './payments/payments.module';
-import { PAYMENT_ORDER_PORT } from './payments/payment.types';
+import {
+  PAYMENT_ORDER_PORT,
+  type PaymentOrderPort,
+} from './payments/payment.types';
 
 @Module({
   imports: [
@@ -33,36 +35,35 @@ import { PAYMENT_ORDER_PORT } from './payments/payment.types';
       imports: [OrdersModule, PrismaModule],
       orderProvider: {
         provide: PAYMENT_ORDER_PORT,
-        useFactory: (orders: OrdersService, prisma: PrismaService) => ({
+        useFactory: (
+          orders: OrdersService,
+          prisma: PrismaService,
+        ): PaymentOrderPort => ({
           async findOwned(id: string, userId: string) {
             return orders.get(id, userId);
           },
-          async applyPaymentResult(input: {
-            orderId: string;
-            userId: string;
-            method: string;
-            status: 'SUCCESS' | 'FAILED' | 'UNKNOWN';
-          }) {
-            if (input.status === 'UNKNOWN') return;
+          async applyPaymentResult(input) {
+            await prisma.$transaction(async (tx) => {
+              const owned = await tx.order.findFirst({
+                where: { id: input.orderId, userId: input.userId },
+                select: { id: true },
+              });
+              if (!owned)
+                throw new NotFoundException('Không tìm thấy đơn hàng');
+              if (input.status === 'UNKNOWN') return;
 
-            const targetStatus =
-              input.status === 'SUCCESS'
-                ? OrderStatus.PAID
-                : OrderStatus.PAYMENT_FAILED;
-
-            return prisma.$transaction(async (tx) => {
               const order = await orders.transitionInTransaction(
                 tx,
                 input.orderId,
-                targetStatus,
+                input.status,
               );
 
-              if (input.status === 'SUCCESS') {
+              if (input.status === 'PAID') {
                 const pointsToEarn = Math.floor(order.total / 10000);
 
                 if (pointsToEarn > 0) {
                   await tx.user.update({
-                    where: { id: input.userId },
+                    where: { id: order.userId },
                     data: {
                       loyaltyPoints: {
                         increment: pointsToEarn,
@@ -71,8 +72,6 @@ import { PAYMENT_ORDER_PORT } from './payments/payment.types';
                   });
                 }
               }
-
-              return order;
             });
           },
         }),
