@@ -1,5 +1,19 @@
 # Hợp đồng API BrewLite
 
+## Task 06 review — 2026-10-17, mới nhất
+
+Kiểm chứng lại trên code `2c8adc2` sau khi nhập main `bacb7a6`, PR #16 chưa merge: toàn bộ backend 247/247 trên PostgreSQL thật (10 migration, 0 skipped); browser Orders API 4/4 tại 1440/768/390. Hợp đồng Task 06 giữ nguyên: POST 201 với UUID/PENDING, giá server, snapshot/history/reserve cùng transaction, giỏ chưa xóa và chưa cấp điểm/Payment. Browser chặn request Payment bằng route.abort, không giả kết quả thanh toán. Chi tiết [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Phần Task 06 ngày 16 dưới là bằng chứng cũ; Payment/Promotion/Staff được bảo toàn từ main.
+
+## Task 06 — cập nhật 2026-10-16
+
+`POST /orders` đã kiểm chứng trên PostgreSQL 15 và trình duyệt API mode (1440/768/390): HTTP 201, UUID mã đơn, PENDING, giá server và snapshot/history/kho lưu cùng transaction. Xem [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md).
+
+- `productId` và mỗi `toppingIds` được chuẩn hóa chữ thường trước lookup; topping trùng khác hoa/thường bị 400.
+- `ice` chỉ nhận `100% đá | 70% đá | 30% đá | Không đá`; `sugar` chỉ nhận `100% chuẩn | 70% ngọt vừa | 50% ít ngọt | Không đường`, dùng cùng danh sách Cart. Không còn nhận chuỗi bất kỳ 1–40 ký tự.
+- Giá/owner/status client tự gửi bị 400; cấu hình hoặc mã ưu đãi không hợp lệ trả 400 với provider PromotionDiscount trên main mới; thiếu kho/xung đột 409. Không cần migration cho thay đổi DTO này.
+- Tạo PENDING giữ nguyên Cart, không tự tạo Payment/cộng điểm. Browser test cô lập request Payment của Task 08, không suy ra thanh toán đã hoàn thành.
+- Main `c2d6922` đã đăng ký PaymentsModule và provider PromotionDiscount; trạng thái Payment/Promotion cũ bên dưới cần được owner cập nhật/kiểm chứng riêng.
+
 ## Payment consistency — 2026-10-17, trạng thái mới nhất
 
 Đã tích hợp `origin/main:808077f` (PR #15/#17) trong lượt này. Giữ FK Payment→Order, trường paymentMethod và sandbox `demoOutcome` của main: chỉ gateway có `PAYMENT_DEMO_CONTROLS=true` sử dụng lựa chọn demo; replay cùng key luôn trả kết quả cũ dù client thay lựa chọn demo. `prepareAttempt` dùng lại `OrdersService.preparePaymentRetry` khi cần reserve, không nhân bản state machine.
@@ -46,7 +60,7 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV2 | GET `/products/:id` | Không | UUID path | `ProductDetail` | 400 UUID, 404, 500 | Chi tiết | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
-| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + PostgreSQL tests sau merge qua; browser API E2E chưa chạy |
+| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự) | `Order` PENDING, UUID mã đơn | 400, 401, 403, 409 | Checkout | PostgreSQL 15 và browser API 1440/768/390 PASS, xem TASK06_VERIFICATION |
 | TV5 | POST `/payments` | JWT, chủ đơn | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 404, 409 | Xử lý/kết quả | Đã đăng ký AppModule; status/consistency qua PostgreSQL, browser E2E còn chờ |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 

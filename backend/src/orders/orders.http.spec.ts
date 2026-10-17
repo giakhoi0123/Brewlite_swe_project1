@@ -13,7 +13,8 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
   let jwt: JwtService;
   const customer = '10000000-0000-4000-8000-000000000001';
   const staff = '10000000-0000-4000-8000-000000000002';
-  const productId = '20000000-0000-4000-8000-000000000001';
+  const productId = '2a000000-0000-4000-8000-000000000001';
+  const toppingId = '2b000000-0000-4000-8000-000000000001';
   const orderId = '30000000-0000-4000-8000-000000000001';
   const findFirst = jest.fn(async (_args: unknown): Promise<any> => null);
   const updateMany = jest.fn(async (_args: unknown) => ({ count: 1 }));
@@ -50,7 +51,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
           stock: 5,
           version: 1,
           sizes: [{ code: 'M', extraPrice: 5000, available: true }],
-          toppings: [],
+          toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa' } }],
         },
       ],
       updateMany,
@@ -130,6 +131,14 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
     expect(updateMany).toHaveBeenCalledTimes(1);
   });
 
+  it('normalizes uppercase product and topping UUIDs before catalog lookup', async () => {
+    const response = await post({
+      items: [{ ...payload.items[0], productId: productId.toUpperCase(), toppingIds: [toppingId.toUpperCase()] }],
+    }).expect(201);
+    expect(response.body).toMatchObject({ status: 'PENDING', userId: customer, total: 80000 });
+    expect(response.body.items[0]).toMatchObject({ productId, toppingIds: [toppingId], unitPrice: 40000 });
+  });
+
   it.each([
     {},
     { items: [] },
@@ -137,6 +146,9 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
     { items: [null] },
     { ...payload, userId: staff },
     { ...payload, total: 1 },
+    { ...payload, status: 'PAID' },
+    { ...payload, discount: 99999 },
+    { items: Array.from({ length: 101 }, () => payload.items[0]) },
     ...[0, -1, 1.5, '2', 100].map((quantity) => ({
       items: [{ ...payload.items[0], quantity }],
     })),
@@ -147,7 +159,13 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
       { toppingIds: ['bad'] },
       { note: 'x'.repeat(121) },
       { toppingIds: [productId, productId] },
+      { toppingIds: [toppingId, toppingId.toUpperCase()] },
+      { toppingIds: 'not-an-array' },
       { ice: '' },
+      { ice: 'unsupported ice' },
+      { sugar: 'unsupported sugar' },
+      { sugar: null },
+      { lineTotal: 1 },
     ].map((override) => ({ items: [{ ...payload.items[0], ...override }] })),
   ])('rejects malformed/tampered cart %# before mutation', async (body) => {
     await post(body).expect(400);
