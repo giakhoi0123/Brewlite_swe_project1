@@ -1,5 +1,13 @@
 # Trạng thái dự án
 
+## Bản sửa Payment status — 2026-10-17
+
+Nhánh `feature/fix-payment-status` từ `origin/main:c2d6922`. Đã thống nhất PAID/PAYMENT_FAILED/UNKNOWN giữa gateway, PaymentsService, repository, PaymentOrderPort và adapter AppModule; loại ánh xạ SUCCESS/FAILED sai, kiểm tra ownership trong transaction và chỉ cộng điểm theo chính sách có sẵn khi chuyển PAID thành công. Không sửa UI/đổi điểm, không thêm migration.
+
+Trước sửa: suite mới tái hiện 5 lỗi (2 kết quả PAID bị chuyển PAYMENT_FAILED và 3 trường hợp adapter không kiểm tra ownership). Sau sửa: **5 suites / 80 tests PASS, 0 skipped**, gồm **15 ca AppModule/HTTP trên PostgreSQL 15.18 thật**, áp đủ 8 migration trong DB tạm riêng. Backend build/lint và typecheck phạm vi Payment cùng các import PASS. Typecheck toàn bộ tests vẫn lỗi 5 mục có sẵn ở main: 2 import NoPromotionDiscount và 3 fixture Products. Chi tiết tại [PAYMENT_STATUS_VERIFICATION.md](PAYMENT_STATUS_VERIFICATION.md).
+
+**T08 vẫn IN_PROGRESS**: retry/replay, transaction giữa Payment và Order, concurrency và browser E2E toàn luồng còn cần TV5 xử lý. PostgreSQL chạy tạm riêng, không thay DB ứng dụng; Docker Compose chưa kiểm chứng trong lượt này. Các bảng phía dưới là lịch sử trước bản sửa.
+
 ## Ảnh chụp trạng thái sau khi nhập origin/main — 2026-10-16
 
 | Phần | UI có mã | Đã so Stitch | Chức năng FE đã test | Backend thật | Test backend/API | Phần còn chờ |

@@ -1,5 +1,9 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Payment status — 2026-10-17
+
+Nhánh `feature/fix-payment-status` từ main `c2d6922`: đã sửa hợp đồng trạng thái adapter AppModule theo PAID/PAYMENT_FAILED/UNKNOWN và kiểm tra ownership; 80/80 tests liên quan PASS, gồm 15 ca PostgreSQL qua AppModule thật, build/lint PASS. Xem [PAYMENT_STATUS_VERIFICATION.md](PAYMENT_STATUS_VERIFICATION.md). **T08/10B tiếp tục IN_PROGRESS** vì retry/replay/atomicity và E2E toàn luồng chưa hoàn tất. Không dùng bản sửa này để chốt toàn bộ Payment, Loyalty hoặc Task 06.
+
 ## Kiểm kê workstream TV1 ngày 2026-10-16
 
 Đã đối chiếu mã nguồn với cả 9 `stitch/*/code.html`, 9 `screen.webp` và `DESIGN.md`. Nhánh hiện tại là `feature/auth-and-base`, cây làm việc sạch trước lượt sửa.
