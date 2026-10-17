@@ -28,12 +28,14 @@ export class PaymentsService {
       userId,
       input.idempotencyKey,
     );
-    if (existing) return this.replay(existing, userId, input);
+    if (existing) return this.replay(existing, input);
 
     const order = await this.orders.findOwned(input.orderId, userId);
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     if (!['PENDING', 'PAYMENT_FAILED'].includes(order.status))
       throw new ConflictException('Đơn hàng không thể thanh toán');
+
+    const retryingFailedOrder = order.status === 'PAYMENT_FAILED';
 
     const claim = await this.payments.claim({
       userId,
@@ -42,7 +44,7 @@ export class PaymentsService {
       method: input.method,
       idempotencyKey: input.idempotencyKey,
     });
-    if (!claim.created) return this.replay(claim.payment, userId, input);
+    if (!claim.created) return this.replay(claim.payment, input);
 
     let status: PaymentResultStatus;
     try {
@@ -50,37 +52,46 @@ export class PaymentsService {
         orderId: order.id,
         amount: order.total,
         method: input.method,
+        ...(input.demoOutcome ? { demoOutcome: input.demoOutcome } : {}),
       });
     } catch {
       status = 'UNKNOWN';
     }
-    const payment = await this.payments.finalize(claim.payment.id, status);
-    await this.orders.applyPaymentResult({
-      orderId: order.id,
-      userId,
-      method: input.method,
-      status,
+    const payment = await this.payments.transaction(async (tx) => {
+      if (retryingFailedOrder && status === 'PAID') {
+        await this.orders.prepareRetry(order.id, userId, tx);
+      }
+      const finalized = await this.payments.finalize(
+        tx,
+        claim.payment.id,
+        status,
+      );
+      if (
+        status !== 'UNKNOWN' &&
+        !(retryingFailedOrder && status === 'PAYMENT_FAILED')
+      ) {
+        await this.orders.applyPaymentResult(
+          {
+            orderId: order.id,
+            userId,
+            method: input.method,
+            status,
+          },
+          tx,
+        );
+      }
+      return finalized;
     });
     return this.toResponse(payment);
   }
 
-  private async replay(
-    payment: Payment,
-    userId: string,
-    input: CreatePaymentDto,
-  ) {
+  private async replay(payment: Payment, input: CreatePaymentDto) {
     if (payment.orderId !== input.orderId || payment.method !== input.method)
       throw new ConflictException(
         'Idempotency key đã được dùng cho yêu cầu khác',
       );
     if (payment.status === 'PROCESSING')
       throw new ConflictException('Yêu cầu thanh toán đang được xử lý');
-    await this.orders.applyPaymentResult({
-      orderId: payment.orderId,
-      userId,
-      method: payment.method,
-      status: payment.status,
-    });
     return this.toResponse(payment);
   }
 

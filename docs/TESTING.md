@@ -148,3 +148,32 @@ Sau lượt chỉnh UI theo Stitch: `npm --prefix frontend run build` PASS (13 r
 - `BREWLITE_RUN_API_E2E=1 npm --prefix frontend run test:e2e -- --grep "API mode"`: PASS 2/2 Chromium E2E khi Next chạy API mode trên origin 3000: 10 sản phẩm từ PostgreSQL, S/M/L, topping, giá động, loading/empty/error/retry.
 
 Orders API thật chưa có; Payment core đã có nhưng endpoint chưa thể bật nếu thiếu Orders port. Task 07/08/09/10 chưa thể VERIFIED_COMPLETE toàn bộ. `npm ci` backend báo 29 lỗ hổng audit (2 low, 21 moderate, 5 high, 1 critical); cần rà soát riêng trước production, không chạy `audit fix --force` tự động.
+
+---
+
+## Payment–Order integration — 2026-10-17
+
+Đã nối `PaymentsModule` với `OrdersService`, thêm foreign key `payments.order_id → orders.id`, và đưa finalize Payment + chuyển trạng thái Order/history/tồn kho/điểm vào cùng transaction. Replay idempotency không gọi gateway hoặc transition lần hai. Retry từ PAYMENT_FAILED chỉ giữ lại tồn kho và chuyển PENDING→PAID trong transaction finalize khi gateway trả PAID; PAYMENT_FAILED/UNKNOWN lặp lại giữ nguyên Order thất bại.
+
+- `npm --prefix backend run prisma:generate`: PASS.
+- `npm --prefix backend run build`: PASS.
+- `npm --prefix backend run lint`: PASS.
+- `npm --prefix backend test -- --runInBand`: PASS 18 suites/165 tests cho bộ không cần DB; 2 suite PostgreSQL opt-in được chạy riêng.
+- Khởi tạo PostgreSQL 18 test riêng tại cổng 55434, áp đủ 9 migration và seed products/Barista: PASS.
+- `backend/src/payments/payments.postgres.spec.ts` cùng `payment-status.postgres.spec.ts`: PASS 2 suite/18 test cho PAID persistence + replay, PAYMENT_FAILED→retry PAID + tồn kho, foreign key và adapter trạng thái/ownership.
+- HTTP smoke với cookie/Origin thật: đăng ký customer, tạo Order, POST Payment, GET Order đều thành công. Truy vấn DB cho order smoke trả `PAID|PAID|29000|2` tương ứng Order status, Payment status, amount và số status history.
+- Khôi phục “Kịch bản demo” trong API mode bằng hai cờ sandbox. Backend API thật xác nhận `PAYMENT_FAILED`, retry `PAID`, và Payment `UNKNOWN` trong khi Order giữ `PENDING`; dữ liệu vẫn ghi PostgreSQL.
+- Backend build/lint và 13 Payment unit tests PASS; frontend 14/14 unit PASS và production build PASS. Browser headless xác nhận selector hiển thị cùng ghi chú PostgreSQL ở 1440/768/390, mobile `scrollWidth=innerWidth=390`; luồng API mode chọn PAYMENT_FAILED → màn thất bại → retry PAID → màn thành công PASS.
+- Sau sửa luồng retry, Playwright riêng `failed payment retry returns to checkout and reuses the order` PASS: nút retry quay về checkout, hiện cảnh báo không tạo đơn mới, chọn lại outcome rồi thành công với cùng ID; kiểm tra 1440/768/390 không tràn ngang. Truy vấn PostgreSQL của order mới nhất trả một Order `PAID`, tổng 33.000 VND và đúng hai Payment `PAYMENT_FAILED → PAID`. Frontend unit 14/14, lint hai file thay đổi và production build PASS; lint toàn frontend còn bị chặn bởi lỗi memoization có sẵn tại `src/app/profile/page.tsx:21`.
+- Sửa Order response trả phương thức của Payment PAID mới nhất: backend build PASS, Orders/Payments không-DB 6 suites/105 tests PASS, PostgreSQL Payment 2 suite/18 test PASS và kiểm tra `GET /orders/:id` có `paymentMethod:CARD`. Playwright retry PASS sau khi reload trang success và xác nhận “Phương thức: Ví điện tử”.
+
+Chạy lại trên database kiểm thử riêng đã migrate:
+
+```powershell
+$env:DATABASE_URL='postgresql://USER:PASSWORD@localhost:5434/brewlite_payments_test?schema=public'
+npm run db:migrate
+$env:PAYMENTS_TEST_DATABASE_URL=$env:DATABASE_URL
+npm --prefix backend test -- --runInBand src/payments/payments.postgres.spec.ts
+```
+
+Không trỏ hai biến trên vào database demo/chung vì suite tạo và xóa fixture của riêng nó nhưng migration vẫn thay đổi schema. T08 giữ IN_PROGRESS cho đến khi browser API E2E đầy đủ và QA thủ công hoàn tất.

@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { ConflictException } from '@nestjs/common';
-import type { Payment } from '@prisma/client';
+import type { Payment, Prisma } from '@prisma/client';
 import type { CreatePaymentDto } from './dto/create-payment.dto';
 import type { PaymentGateway, PaymentOrderPort } from './payment.types';
 import { PaymentsRepository } from './payments.repository';
@@ -32,15 +32,26 @@ describe('PaymentsService', () => {
   const findByKey = jest.fn<PaymentsRepository['findByKey']>();
   const claim = jest.fn<PaymentsRepository['claim']>();
   const finalize = jest.fn<PaymentsRepository['finalize']>();
+  const transactionClient = {} as Prisma.TransactionClient;
+  const transaction = jest.fn(
+    async (work: (tx: Prisma.TransactionClient) => Promise<Payment>) =>
+      work(transactionClient),
+  );
   const findOwned = jest.fn<PaymentOrderPort['findOwned']>();
+  const prepareRetry = jest.fn<PaymentOrderPort['prepareRetry']>();
   const applyPaymentResult = jest.fn<PaymentOrderPort['applyPaymentResult']>();
   const charge = jest.fn<PaymentGateway['charge']>();
   const repository = {
     findByKey,
     claim,
     finalize,
+    transaction,
   } as unknown as PaymentsRepository;
-  const orders: PaymentOrderPort = { findOwned, applyPaymentResult };
+  const orders: PaymentOrderPort = {
+    findOwned,
+    prepareRetry,
+    applyPaymentResult,
+  };
   const gateway: PaymentGateway = { charge };
   const service = new PaymentsService(repository, orders, gateway);
 
@@ -48,6 +59,12 @@ describe('PaymentsService', () => {
     jest.clearAllMocks();
     findByKey.mockResolvedValue(null);
     findOwned.mockResolvedValue({
+      id: orderId,
+      userId,
+      total: 98000,
+      status: 'PENDING',
+    });
+    prepareRetry.mockResolvedValue({
       id: orderId,
       userId,
       total: 98000,
@@ -75,12 +92,15 @@ describe('PaymentsService', () => {
       idempotencyKey,
     });
     expect(charge).toHaveBeenCalledTimes(1);
-    expect(applyPaymentResult).toHaveBeenCalledWith({
-      orderId,
-      userId,
-      method: 'CARD',
-      status: 'PAID',
-    });
+    expect(applyPaymentResult).toHaveBeenCalledWith(
+      {
+        orderId,
+        userId,
+        method: 'CARD',
+        status: 'PAID',
+      },
+      transactionClient,
+    );
   });
 
   it('replays the stored result without charging the gateway again', async () => {
@@ -92,7 +112,7 @@ describe('PaymentsService', () => {
     expect(findOwned).not.toHaveBeenCalled();
     expect(claim).not.toHaveBeenCalled();
     expect(charge).not.toHaveBeenCalled();
-    expect(applyPaymentResult).toHaveBeenCalledTimes(1);
+    expect(applyPaymentResult).not.toHaveBeenCalled();
   });
 
   it('rejects reuse of a key for a different payment request', async () => {
@@ -117,9 +137,54 @@ describe('PaymentsService', () => {
     await expect(service.pay(userId, input)).resolves.toMatchObject({
       status: 'UNKNOWN',
     });
-    expect(finalize).toHaveBeenCalledWith(paymentId, 'UNKNOWN');
-    expect(applyPaymentResult).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'UNKNOWN' }),
+    expect(finalize).toHaveBeenCalledWith(
+      transactionClient,
+      paymentId,
+      'UNKNOWN',
     );
+    expect(applyPaymentResult).not.toHaveBeenCalled();
+  });
+
+  it('re-reserves a failed order in the finalization transaction after a paid retry', async () => {
+    findOwned.mockResolvedValue({
+      id: orderId,
+      userId,
+      total: 98000,
+      status: 'PAYMENT_FAILED',
+    });
+    await service.pay(userId, input);
+    expect(prepareRetry).toHaveBeenCalledWith(
+      orderId,
+      userId,
+      transactionClient,
+    );
+    expect(charge.mock.invocationCallOrder[0]).toBeLessThan(
+      prepareRetry.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('keeps a failed order unchanged when a retry is still unresolved', async () => {
+    findOwned.mockResolvedValue({
+      id: orderId,
+      userId,
+      total: 98000,
+      status: 'PAYMENT_FAILED',
+    });
+    charge.mockResolvedValue('UNKNOWN');
+    finalize.mockResolvedValue(payment('UNKNOWN'));
+
+    await expect(service.pay(userId, input)).resolves.toMatchObject({
+      status: 'UNKNOWN',
+    });
+    expect(prepareRetry).not.toHaveBeenCalled();
+    expect(applyPaymentResult).not.toHaveBeenCalled();
+  });
+
+  it('rolls back payment finalization when the order transition fails', async () => {
+    applyPaymentResult.mockRejectedValue(new ConflictException('race'));
+    await expect(service.pay(userId, input)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(finalize).toHaveBeenCalledWith(transactionClient, paymentId, 'PAID');
   });
 });
