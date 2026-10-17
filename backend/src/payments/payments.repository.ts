@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type PaymentMethod } from '@prisma/client';
+import { Prisma, type PaymentMethod, type PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import type { PaymentResultStatus } from './payment.types';
 
 type ClaimInput = {
   userId: string;
@@ -14,6 +13,10 @@ type ClaimInput = {
 @Injectable()
 export class PaymentsRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>) {
+    return this.prisma.$transaction(work);
+  }
 
   findByKey(userId: string, idempotencyKey: string) {
     return this.prisma.payment.findUnique({
@@ -44,7 +47,11 @@ export class PaymentsRepository {
     }
   }
 
-  finalize(id: string, status: PaymentResultStatus) {
-    return this.prisma.payment.update({ where: { id }, data: { status } });
+  finalize(
+    tx: Prisma.TransactionClient,
+    id: string,
+    status: Exclude<PaymentStatus, 'PROCESSING'>,
+  ) {
+    return tx.payment.update({ where: { id }, data: { status } });
   }
 }

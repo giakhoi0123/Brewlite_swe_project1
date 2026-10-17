@@ -1,5 +1,9 @@
 # Trạng thái dự án
 
+## Tích hợp Payment–Order — 2026-10-17
+
+Payment đã có foreign key tới Order, finalize Payment/Order trong cùng transaction, replay idempotent và retry cùng order. Retry chỉ giữ lại tồn kho khi gateway trả PAID; PAYMENT_FAILED/UNKNOWN lặp lại không đổi Order hoặc tồn kho. Backend Prisma generate/build/lint và 18 suite/165 test không-DB qua; 2 suite/18 test PostgreSQL Payment qua; frontend 14/14 unit, production build và browser API FAILED→checkout→PAID cùng order qua. Gateway production và browser UNKNOWN/Wallet mở rộng vẫn còn chờ nên T08 giữ IN_PROGRESS.
+
 ## Bản sửa Payment status — 2026-10-17
 
 Nhánh `feature/fix-payment-status` từ `origin/main:c2d6922`. Đã thống nhất PAID/PAYMENT_FAILED/UNKNOWN giữa gateway, PaymentsService, repository, PaymentOrderPort và adapter AppModule; loại ánh xạ SUCCESS/FAILED sai, kiểm tra ownership trong transaction và chỉ cộng điểm theo chính sách có sẵn khi chuyển PAID thành công. Không sửa UI/đổi điểm, không thêm migration.
@@ -12,7 +16,7 @@ Trước sửa: suite mới tái hiện 5 lỗi (2 kết quả PAID bị chuyể
 
 | Phần | UI có mã | Đã so Stitch | Chức năng FE đã test | Backend thật | Test backend/API | Phần còn chờ |
 |---|---|---|---|---|---|---|
-| Menu/chi tiết/giỏ/checkout/payment/order | Có | 9 export đã xem; các trang chính đã chụp QA 1440/768/390 | Demo E2E 4/4 trước merge; unit 13/13 sau merge | Products/Cart/Orders code thật; Payment endpoint chưa nối | Mã tích hợp 168/168 backend tests trên PostgreSQL QA | Payment TV5, Promo TV6, API browser E2E |
+| Menu/chi tiết/giỏ/checkout/payment/order | Có | 9 export đã xem; các trang chính đã chụp QA 1440/768/390 | Demo E2E 4/4 trước merge; unit 14/14 hiện tại | Products/Cart/Orders/Payment có backend; gateway Payment là mock | Backend 18 suites/165 tests; Payment PostgreSQL 2 suite/18 test và HTTP smoke DB qua | Payment/browser API E2E mở rộng, Promo |
 | Hồ sơ/điểm | Có; thẻ thành viên, lịch sử đơn, trạng thái voucher | Hồ sơ đối chiếu Stitch; 3 viewport không tràn | E2E điểm sau PAID; browser QA | Auth thật; Loyalty mock | Auth DB HTTP PASS; Loyalty API chưa có | TV6 |
 | Auth | Có | Login/register đối chiếu Stitch | Đăng ký, đăng nhập, refresh, role, logout trong E2E trước merge | NestJS/PostgreSQL thật, JWT version | 168/168 backend tests sau merge; HTTP smoke Auth DB QA PASS trước merge | Deploy migration trên DB dùng chung |
 | Barista | 5 route, KDS, KPI, chi tiết, xác nhận, hủy, lịch sử | Barista Stitch và QA 3 viewport | Unit + E2E mock workflow/hủy PASS | TV4 đã có list/transition; detail/hủy lý do/lịch sử chưa có | API integration một phần; cần test sau merge | TV4 hoàn thiện hợp đồng Staff |
@@ -33,7 +37,7 @@ Cây thư mục và bản đồ chức năng để bàn giao/đánh giá đượ
 
 Đã đối chiếu lại `screen.webp` của trang chủ, auth, chi tiết món và giỏ hàng: hero ảnh xếp lớp, danh sách món, bố cục auth hai cột, nhóm tùy chọn và tóm tắt giỏ đã được chỉnh gần thiết kế Stitch hơn. Kiểm tra desktop 1440 px và mobile 390 px không thấy tràn ngang; build/lint và 3 frontend unit tests qua. Backend auth vẫn cần chạy để thử đăng nhập thực tế.
 
-Payment frontend đã bổ sung payment intent có kiểm tra dữ liệu, giữ đúng phương thức khi retry, xử lý lỗi khi xác minh và chỉ xóa intent/giỏ sau PAID. Backend đã có Payments core, DTO/controller, mock gateway, Prisma schema/migration và idempotency claim; chưa đăng ký vào AppModule vì đang chờ OrdersModule của TV4 cung cấp `PAYMENT_ORDER_PORT`.
+Payment frontend đã bổ sung payment intent có kiểm tra dữ liệu, xử lý lỗi khi xác minh và chỉ xóa intent/giỏ sau PAID. Từ màn thất bại, “Thử thanh toán lại” quay về checkout của cùng order, dùng snapshot/tổng tiền cũ, cho chọn lại phương thức/kịch bản và không tạo order trùng. Order API trả `paymentMethod` từ Payment PAID mới nhất để màn thành công luôn hiện đúng Ví/Thẻ kể cả sau reload. Backend đã đăng ký PaymentsModule và nối `PAYMENT_ORDER_PORT`; finalize Payment và Order transition dùng cùng transaction, replay không ghi/cộng điểm lần hai, retry failed giữ lại tồn kho. Migration mới thêm foreign key Payment→Order.
 
 | Feature | Frontend | Backend | Tests | Owner | Ghi chú |
 |---|---|---|---|---|---|
@@ -41,7 +45,7 @@ Payment frontend đã bổ sung payment intent có kiểm tra dữ liệu, giữ
 | Giỏ | VERIFIED_COMPLETE (làm lại theo Stitch 2026-10-15) | Cart API VERIFIED_COMPLETE (`/cart`, PostgreSQL) | 11 backend tests; smoke HTTP DB thật 12/12; luồng trình duyệt API mode 8/8; unit mock cart | TV1/TV3 | Khách: Zustand persist; đăng nhập: giỏ lưu server |
 | Auth | UI_COMPLETED | Code đầy đủ | 37 backend tests; PostgreSQL HTTP; Playwright đăng ký/role qua | TV1 | Cookie JWT và role |
 | Checkout / Orders | UI_COMPLETED | IN_PROGRESS (code TV4 đã có) | Unit/HTTP giá, DTO, guard, stock/state qua; PostgreSQL/E2E thật chưa chạy | TV1/TV4 | Có POST PENDING, GET mine/detail/status; bật api mode để dùng backend |
-| Payment | UI_COMPLETED | IN_PROGRESS | Sau khi hợp nhất Cart + Payment: frontend 7/7 unit + build; backend 56/56 + build | TV1/TV5 | Core/schema/migration có; chờ Orders port và API E2E thật |
+| Payment | UI_COMPLETED | IN_PROGRESS | PostgreSQL 2 suite/18 test; API sandbox PAID/FAILED/UNKNOWN; browser FAILED→checkout→retry PAID cùng order; checkout retry QA 1440/768/390 | TV1/TV5 | Đã nối Orders/FK; còn browser UNKNOWN/Wallet mở rộng và gateway production |
 | Lịch sử/tracking | UI_COMPLETED | IN_PROGRESS | GET orders/me/detail/status có backend TV4; DB/E2E chưa xác minh | TV1/TV4/TV6 | Snapshot item giữ nguyên giá/tên cũ; TV6 tiếp tục history integration |
 | Promotion/Loyalty | UI_COMPLETED | BACKEND_PENDING | Playwright mã sai/đúng, điểm sau PAID qua | TV1/TV6 | BREW10 chỉ demo |
 | Barista | UI_COMPLETED | IN_PROGRESS | HTTP role/DTO tests qua; state machine đủ 49 cặp | TV1/TV4 | Có GET/PATCH staff orders; chưa xác minh DB/browser |

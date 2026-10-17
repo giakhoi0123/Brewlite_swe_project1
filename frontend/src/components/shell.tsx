@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "./auth-provider";
-import { dataMode } from "@/services";
+import { dataMode, paymentDemoControls } from "@/services";
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   if (pathname.startsWith("/barista/")) return <>{children}</>;
@@ -72,6 +72,12 @@ export function Header() {
         <div className="demo">
           Sản phẩm, giỏ hàng và đăng nhập dùng máy chủ thật; đơn hàng và thanh
           toán đang được mô phỏng.
+        </div>
+      )}
+      {dataMode === "api" && paymentDemoControls && (
+        <div className="demo">
+          Dữ liệu Order/Payment dùng PostgreSQL thật; kết quả cổng thanh toán là
+          sandbox có thể chọn khi checkout.
         </div>
       )}
     </>

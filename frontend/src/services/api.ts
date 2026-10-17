@@ -149,10 +149,15 @@ export const apiOrders: OrderService = {
       .then((result) => result.status),
 };
 export const apiPayments: PaymentService = {
-  pay: (orderId, method, idempotencyKey) =>
+  pay: (orderId, method, idempotencyKey, demoOutcome) =>
     request<Payment>("/payments", {
       method: "POST",
-      body: JSON.stringify({ orderId, method, idempotencyKey }),
+      body: JSON.stringify({
+        orderId,
+        method,
+        idempotencyKey,
+        ...(demoOutcome ? { demoOutcome } : {}),
+      }),
     }),
 };
 export const apiPromotions: PromotionService = {
