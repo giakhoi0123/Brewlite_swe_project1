@@ -132,6 +132,7 @@ model Order {
   user           User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   items          OrderItem[]
   statusHistory  OrderStatusHistory[]
+  payments       Payment[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -237,6 +238,7 @@ model Payment {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
   // SQL migration also owns a partial unique order_id index for live attempts.

@@ -96,6 +96,16 @@ describe('PaymentsService orchestration (PostgreSQL behavior tested separately)'
     expect(finalize).toHaveBeenCalledWith(paymentId, 'PAID', tx);
   });
 
+  it('preserves the optional sandbox outcome for the configured gateway', async () => {
+    await service.pay(userId, { ...input, demoOutcome: 'PAYMENT_FAILED' });
+    expect(charge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        demoOutcome: 'PAYMENT_FAILED',
+        idempotencyKey: paymentId,
+      }),
+    );
+  });
+
   it('returns a final stored result without charging or applying points again', async () => {
     findByKey.mockReset().mockResolvedValue(payment('PAID', 'PAID'));
     expect((await service.pay(userId, input)).status).toBe('PAID');

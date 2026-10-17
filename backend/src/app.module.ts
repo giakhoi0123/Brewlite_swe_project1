@@ -49,7 +49,7 @@ import {
             });
             if (!owned) throw new NotFoundException('Không tìm thấy đơn hàng');
             if (owned.status === 'PAYMENT_FAILED') {
-              return orders.transitionInTransaction(tx, owned.id, 'PENDING');
+              return orders.preparePaymentRetry(owned.id, input.userId, tx);
             }
             if (owned.status !== 'PENDING') {
               throw new ConflictException('Đơn hàng không thể thanh toán');

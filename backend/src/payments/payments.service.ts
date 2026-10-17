@@ -75,6 +75,7 @@ export class PaymentsService {
         amount: started.payment.amount,
         method: started.payment.method,
         idempotencyKey: started.payment.id,
+        ...(input.demoOutcome ? { demoOutcome: input.demoOutcome } : {}),
       });
     } catch {
       status = 'UNKNOWN';

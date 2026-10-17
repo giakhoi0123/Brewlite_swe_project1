@@ -16,6 +16,7 @@ async function main() {
     ...process.env,
     DATABASE_URL: testUrl.toString(),
     ORDERS_TEST_DATABASE_URL: testUrl.toString(),
+    PAYMENTS_TEST_DATABASE_URL: testUrl.toString(),
   };
   let created = false;
   try {
@@ -34,6 +35,8 @@ async function main() {
         'src/payments/payment-status.postgres.spec.ts',
         'src/payments/payments.service.spec.ts',
         'src/payments/payments.http.spec.ts',
+        'src/payments/payments.postgres.spec.ts',
+        'src/payments/mock-payment.gateway.spec.ts',
         'src/orders/order-state-machine.spec.ts',
         'src/inventory/inventory.service.spec.ts',
       ],

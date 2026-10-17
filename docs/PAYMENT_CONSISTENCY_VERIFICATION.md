@@ -1,6 +1,6 @@
 # Kiểm chứng Payment consistency
 
-Ngày 2026-10-17. Tiếp tục nhánh hiện có `feature/fix-payment-status` từ `faea93e`; đã fetch origin và xác minh `b6ca9ac` (status fix) là ancestor trước khi sửa. `origin/main` vẫn ở `c2d6922`, chưa chứa status fix. Theo AGENTS giữ nhánh hiện có và cập nhật PR #15; không tạo PR trùng. File audit và tmp chưa commit giữ riêng, không đưa vào PR.
+Ngày 2026-10-17. Tiếp tục nhánh hiện có `feature/fix-payment-status` từ `faea93e`; đã fetch origin và xác minh `b6ca9ac` (status fix) là ancestor trước khi sửa. Lúc bắt đầu, `origin/main` ở `c2d6922`, chưa chứa status fix. Theo AGENTS giữ nhánh hiện có. Trong lúc làm, PR #15 đã được merge và main lên 808077f (có PR #17 sandbox/FK); đã tích hợp main này, giữ nguyên UI/sandbox của nhóm và chạy lại kiểm chứng. PR consistency mới là #18. File audit và tmp chưa commit giữ riêng, không đưa vào PR.
 
 ## Phạm vi triển khai
 
@@ -12,7 +12,7 @@ Ngày 2026-10-17. Tiếp tục nhánh hiện có `feature/fix-payment-status` t�
 
 Giữ chính sách điểm hiện có floor(total/10000), không thêm đổi điểm hay UI. Không sửa state machine Orders hoặc logic inventory của TV4; dùng lại transitionInTransaction. DTO/response Payment không đổi.
 
-Commit theo phần: `bb0c222` migration/journal và constraint; `d807605` claim/retry/settle; `00e7fb8` test PostgreSQL và script tái lập; commit tài liệu ghi bằng chứng và bàn giao. [PR #15](https://github.com/giakhoi0123/Brewlite_swe_project1/pull/15) tiếp tục mở vào main, chưa merge.
+Commit theo phần: `bb0c222` migration/journal và constraint; `d807605` claim/retry/settle; `00e7fb8` test PostgreSQL và script tái lập; commit tài liệu ghi bằng chứng và bàn giao. [PR #18](https://github.com/giakhoi0123/Brewlite_swe_project1/pull/18) đang mở vào main, chưa merge.
 
 ## Tình huống và kết quả
 
@@ -48,17 +48,19 @@ Chạy migration bằng migrate deploy trong cửa sổ triển khai có dừng 
 
 ## Bằng chứng PostgreSQL
 
-PostgreSQL 15.18 chạy tạm riêng tại loopback 55439. Script mới tạo `brewlite_payments_test_<uuid>`, áp đủ **9 migration**, chạy test và xóa đúng DB vừa tạo. Không truncate/reset DB chung. Chỉ các fixture UUID của lượt test được dọn trong suite.
+PostgreSQL 15.18 chạy tạm riêng tại loopback 55439. Script mới tạo `brewlite_payments_test_<uuid>`, áp đủ **10 migration**, chạy test và xóa đúng DB vừa tạo. Không truncate/reset DB chung. Chỉ các fixture UUID của lượt test được dọn trong suite.
 
 | Kiểm tra | Kết quả |
 |---|---|
 | Payment consistency PostgreSQL | 20/20 PASS, hai AppModule/Prisma connections độc lập |
 | Migration trên legacy rows/duplicate attempts | 2/2 PASS, bảng tạm riêng trong PostgreSQL thật |
 | Status regression qua AppModule | 15/15 PASS |
-| Tổng 7 suites liên quan | **105/105 PASS, 0 skipped** |
+| Payments/Orders integration và FK từ main mới | 3/3 PASS |
+| Tổng 9 suites liên quan | **111/111 PASS, 0 skipped** |
 | Prisma generate, backend build/lint | PASS |
 | Payment typecheck `npm --prefix backend run check:payments` | PASS, gồm tests mới và imports |
 | Script syntax | PASS |
+| Frontend unit sau tích hợp main | 14/14 PASS |
 | Full test typecheck | 5 lỗi baseline, không có lỗi Payment |
 
 Log: [backend-postgres.txt](evidence/payment-consistency/backend-postgres.txt).
@@ -89,7 +91,7 @@ npm.cmd --prefix backend run build
 npm.cmd --prefix backend run lint
 ```
 
-Nếu chạy Jest trực tiếp mà không đặt ORDERS_TEST_DATABASE_URL, các suite DB sẽ skipped; không dùng kết quả đó để chốt nghiệm thu. Script test:payments:postgres tự đặt URL cho DB test của chính nó.
+Nếu chạy Jest trực tiếp, các suite DB cần ORDERS_TEST_DATABASE_URL hoặc PAYMENTS_TEST_DATABASE_URL tương ứng; thiếu URL thì suite đó sẽ skipped; không dùng kết quả đó để chốt nghiệm thu. Script test:payments:postgres tự đặt URL cho DB test của chính nó.
 
 ## Giới hạn còn lại
 

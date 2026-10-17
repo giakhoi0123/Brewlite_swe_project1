@@ -36,5 +36,6 @@ export interface PaymentGateway {
     method: PaymentMethod;
     // Stable provider key of the persisted attempt; never regenerated on replay.
     idempotencyKey: string;
+    demoOutcome?: PaymentResultStatus;
   }): Promise<PaymentResultStatus>;
 }

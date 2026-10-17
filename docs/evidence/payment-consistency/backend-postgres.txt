@@ -1,11 +1,11 @@
-Created isolated test database: brewlite_payments_test_13f0468ae51a4884b651aca69efdc65b
+Created isolated test database: brewlite_payments_test_0c19f7f200804ba1bc1da63929658f0d
 warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
 For more information, see: https://pris.ly/prisma-config
 
 Prisma schema loaded from prisma\schema.prisma
-Datasource "db": PostgreSQL database "brewlite_payments_test_13f0468ae51a4884b651aca69efdc65b", schema "public" at "127.0.0.1:55439"
+Datasource "db": PostgreSQL database "brewlite_payments_test_0c19f7f200804ba1bc1da63929658f0d", schema "public" at "127.0.0.1:55439"
 
-9 migrations found in prisma/migrations
+10 migrations found in prisma/migrations
 
 Applying migration `0_baseline_users`
 Applying migration `20261006000100_add_products`
@@ -16,6 +16,7 @@ Applying migration `20261015000000_add_payments`
 Applying migration `20261015000100_orders_inventory`
 Applying migration `20261016000000_session_version`
 Applying migration `20261017000000_payment_consistency`
+Applying migration `20261017000000_payment_order_fk`
 
 The following migration(s) have been applied:
 
@@ -38,14 +39,16 @@ migrations/
     └─ migration.sql
   └─ 20261017000000_payment_consistency/
     └─ migration.sql
+  └─ 20261017000000_payment_order_fk/
+    └─ migration.sql
 
 All migrations have been successfully applied.
-(node:50612) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:20304) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
 
-Test Suites: 7 passed, 7 total
-Tests:       105 passed, 105 total
+Test Suites: 9 passed, 9 total
+Tests:       111 passed, 111 total
 Snapshots:   0 total
-Time:        14.482 s
-Ran all test suites within paths "src/payments/payment-consistency.postgres.spec.ts", "src/payments/payment-migration.postgres.spec.ts", "src/payments/payment-status.postgres.spec.ts", "src/payments/payments.service.spec.ts", "src/payments/payments.http.spec.ts", "src/orders/order-state-machine.spec.ts", "src/inventory/inventory.service.spec.ts".
-Removed isolated test database: brewlite_payments_test_13f0468ae51a4884b651aca69efdc65b
+Time:        13.678 s, estimated 15 s
+Ran all test suites within paths "src/payments/payment-consistency.postgres.spec.ts", "src/payments/payment-migration.postgres.spec.ts", "src/payments/payment-status.postgres.spec.ts", "src/payments/payments.service.spec.ts", "src/payments/payments.http.spec.ts", "src/payments/payments.postgres.spec.ts", "src/payments/mock-payment.gateway.spec.ts", "src/orders/order-state-machine.spec.ts", "src/inventory/inventory.service.spec.ts".
+Removed isolated test database: brewlite_payments_test_0c19f7f200804ba1bc1da63929658f0d

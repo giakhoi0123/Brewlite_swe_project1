@@ -2,7 +2,9 @@
 
 ## Payment consistency — 2026-10-17, trạng thái mới nhất
 
-HTTP DTO/response không đổi. Bản sửa trạng thái `b6ca9ac` đã có trong nhánh nền `feature/fix-payment-status` trước lượt này; tiếp tục trên cùng nhánh/PR #15, không trộn Task 06 hoặc Loyalty mới.
+Đã tích hợp `origin/main:808077f` (PR #15/#17) trong lượt này. Giữ FK Payment→Order, trường paymentMethod và sandbox `demoOutcome` của main: chỉ gateway có `PAYMENT_DEMO_CONTROLS=true` sử dụng lựa chọn demo; replay cùng key luôn trả kết quả cũ dù client thay lựa chọn demo. `prepareAttempt` dùng lại `OrdersService.preparePaymentRetry` khi cần reserve, không nhân bản state machine.
+
+HTTP DTO/response không đổi. Bản sửa trạng thái `b6ca9ac` đã có trong nhánh nền `feature/fix-payment-status` trước lượt này; giữ nhánh hiện có; mở PR #18 sau khi PR #15 đã merge, không trộn Task 06 hoặc Loyalty mới.
 
 - Một user + idempotency key + order + method trả đúng Payment đã hoàn tất, kể cả đơn đã chuyển tiếp ở Barista; không gọi gateway, transition hoặc cấp điểm lại. Key đổi order/method trả 409; đơn không thuộc user trả 404.
 - PostgreSQL khóa hàng Order khi claim/settle. Unique `(user_id,idempotency_key)` và partial unique index trên `order_id` cho PROCESSING/UNKNOWN/PAID bảo vệ cả request khác key/instance. Request đang xử lý trả 409; client phải giữ key cũ, không tạo key mới để vượt khóa.
@@ -14,7 +16,7 @@ HTTP DTO/response không đổi. Bản sửa trạng thái `b6ca9ac` đã có tr
 
 Migration `20261017000000_payment_consistency` thêm gateway_status/applied_at, CHECK và partial unique index trong transaction. Không gán điểm/timestamp giả cho bản ghi cũ. Nếu có nhiều live attempts cùng đơn, migration từ chối và rollback; phải audit/đối soát dữ liệu cũ trước deploy, không xóa Payment để ép migration qua. Replay final rows cũ trả kết quả cũ, không tự sửa các sai lệch Order/điểm từ trước.
 
-Kiểm chứng: 7 suites/105 tests PASS, 0 skipped; 37 ca PostgreSQL gồm 20 consistency, 2 migration và 15 status. Hai AppModule độc lập, chỉ gateway bên ngoài được điều khiển trong test consistency; Auth/Prisma/Orders/Inventory/Payment adapter thật. Chi tiết: [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các đoạn bên dưới là mốc trước khi hoàn thiện consistency.
+Kiểm chứng: 9 suites/111 tests PASS, 0 skipped; 40 ca PostgreSQL gồm 20 consistency, 2 migration, 15 status và 3 integration/FK. Hai AppModule độc lập, chỉ gateway bên ngoài được điều khiển trong test consistency; Auth/Prisma/Orders/Inventory/Payment adapter thật. Chi tiết: [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các đoạn bên dưới là mốc trước khi hoàn thiện consistency.
 
 ## Bản sửa hợp đồng trạng thái Payment — 2026-10-17
 
@@ -34,7 +36,7 @@ Phạm vi này chỉ sửa trạng thái và ownership. Replay vào trạng thá
 
 Cập nhật kiểm chứng TV4 2026-10-15: Orders đã qua test HTTP + PostgreSQL thật (POST 201/PENDING, size L+topping 45.000đ, JWT cookie/Origin, history và inventory). Quan hệ Prisma nội bộ là `Order.statusHistory`; sửa service từ `history` sang `statusHistory` không thay đổi JSON API và không cần migration mới. Các ghi chú chưa kiểm chứng PostgreSQL ở mốc cũ bên dưới được thay thế bằng kết quả trong `TESTING.md`.
 
-Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie `brewlite_session` HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory và migration Auth mới đã chạy chung trên PostgreSQL kiểm thử riêng sau merge: 168/168 tests. Payments vẫn chờ TV5.
+Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie `brewlite_session` HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory và migration Auth đã có bằng chứng PostgreSQL trước đó. Payments đã nối Orders trong mã; test PostgreSQL Payment mới còn chờ URL DB test.
 
 ## Endpoint chính thức
 
@@ -71,15 +73,20 @@ Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng n
 ### Ví dụ Auth
 `POST /auth/register` body `{"name":"An","email":"an@example.test","password":"Password123"}` → `201 {"user":{"id":"uuid","email":"an@example.test","name":"An","role":"CUSTOMER","loyaltyPoints":0}}`; header Set-Cookie. Role gửi từ client bị từ chối 400. Email trùng 409. `POST /auth/login` body `{"email":"an@example.test","password":"Password123"}` → cùng user/cookie; sai mật khẩu 401. Không trả JWT trong JSON.
 
-### Ví dụ Orders và Payments (Payments chờ TV5)
-`POST /orders` body `{"items":[{"productId":"uuid","size":"M","toppingIds":[],"quantity":2,"ice":"70% đá","sugar":"50% ít ngọt"}]}` → `201 {"id":"uuid","userId":"uuid","items":[...],"subtotal":98000,"discount":0,"total":98000,"status":"PENDING","createdAt":"2026-10-14T00:00:00Z"}`. `POST /payments` body `{"orderId":"uuid","method":"WALLET","idempotencyKey":"uuid"}` → `201 {"id":"uuid","orderId":"uuid","method":"WALLET","status":"PAID","idempotencyKey":"uuid"}`. Lỗi gateway được trả bằng `PAYMENT_FAILED`, timeout/chưa chắc chắn là `UNKNOWN`. `GET /orders/me` → mảng Order cùng cấu trúc. Backend phải tính giá lại, kiểm tra tồn kho và sở hữu đơn.
+### Ví dụ Orders và Payments
+`POST /orders` body `{"items":[{"productId":"uuid","size":"M","toppingIds":[],"quantity":2,"ice":"70% đá","sugar":"50% ít ngọt"}]}` → `201 {"id":"uuid","userId":"uuid","items":[...],"subtotal":98000,"discount":0,"total":98000,"status":"PENDING","createdAt":"2026-10-14T00:00:00Z"}`. `POST /payments` body `{"orderId":"uuid","method":"WALLET","idempotencyKey":"uuid"}` → `201 {"id":"uuid","orderId":"uuid","method":"WALLET","status":"PAID","idempotencyKey":"uuid"}`. Lỗi gateway được trả bằng `PAYMENT_FAILED`, timeout/chưa chắc chắn là `UNKNOWN`. Trong sandbox có thể gửi thêm `demoOutcome:"PAID"|"PAYMENT_FAILED"|"UNKNOWN"`; backend chỉ sử dụng field này khi `PAYMENT_DEMO_CONTROLS=true`, ngoài sandbox sẽ bỏ qua. `GET /orders/me` → mảng Order cùng cấu trúc. Backend phải tính giá lại, kiểm tra tồn kho và sở hữu đơn.
+
+Order đã thanh toán trả thêm `paymentMethod:"WALLET"|"CARD"`, lấy từ Payment `PAID` mới nhất của order. Màn kết quả phải dùng trường này để hiển thị đúng phương thức kể cả sau khi tải lại trang; không suy đoán từ trạng thái UI hoặc payment intent đã xóa.
 
 ### Quy ước Payment đã chốt
 - `idempotencyKey` là UUID và duy nhất theo user. Cùng user + key + order + method trả lại Payment đã lưu, không gọi gateway lần hai.
 - Dùng lại key với order hoặc method khác trả `409`. Request trùng khi bản ghi nội bộ còn `PROCESSING` cũng trả `409` để client kiểm tra lại, không tự phát lệnh mới.
 - `PROCESSING` là trạng thái nội bộ trong database, không phải success response của API. Gateway ném lỗi/timeout được chốt thành `UNKNOWN`; Order port phải giữ trạng thái hiện tại và cho phép truy vấn xác minh.
 - Backend lấy `amount` từ Order của user, không nhận giá hoặc `userId` từ request. `404` dùng khi không tìm thấy đơn thuộc user; order ngoài `PENDING/PAYMENT_FAILED` trả `409`.
-- `PaymentsModule.register(...)` cần import OrdersModule và provider cho token `PAYMENT_ORDER_PORT`. Migration Payment hiện chưa có khóa ngoại `order_id`; TV4 thêm khóa này khi bảng `orders` được hợp nhất.
+- `PaymentsModule.register(...)` import OrdersModule và provider `PAYMENT_ORDER_PORT`. Migration `20261017000000_payment_order_fk` thêm khóa ngoại `payments.order_id → orders.id`.
+- Kết quả PAID/PAYMENT_FAILED được finalize cùng transaction với Order transition, status history, tồn kho và điểm; lỗi ở bất kỳ bước nào rollback toàn bộ ghi DB. UNKNOWN chỉ finalize Payment, không đổi Order.
+- Replay cùng key đã hoàn tất chỉ trả Payment đã lưu, không chuyển Order lần hai và không cộng điểm lần hai. Retry từ PAYMENT_FAILED không đổi Order trước khi gọi gateway: nếu kết quả PAID, hệ thống giữ lại tồn kho, chuyển qua PENDING rồi PAID trong cùng transaction finalize; nếu tiếp tục PAYMENT_FAILED hoặc UNKNOWN, Order và tồn kho giữ nguyên trạng thái thất bại. Không giữ transaction DB mở trong lúc gọi gateway.
+- Trên frontend, nút “Thử thanh toán lại” từ màn thất bại quay về `/checkout?retryOrder=<orderId>`. Checkout phải tải và xác minh đúng Order của user có trạng thái `PAYMENT_FAILED`, hiển thị snapshot/tổng tiền của đơn cũ, cho chọn lại phương thức/kịch bản gateway rồi tạo payment intent mới cho **cùng orderId**; không gọi lại `POST /orders`.
 - Mock gateway mặc định trả `PAID`; môi trường test có thể đặt `MOCK_PAYMENT_OUTCOME=PAID|PAYMENT_FAILED|UNKNOWN`.
 
 ## Endpoint bổ sung đề xuất, chưa thuộc 7 endpoint chính thức
