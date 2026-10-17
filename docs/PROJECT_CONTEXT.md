@@ -1,5 +1,13 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## Payment consistency — 2026-10-17, cập nhật mới nhất
+
+Đã merge `origin/main:808077f` vào nhánh làm việc sau khi PR #15/#17 được merge trong lúc thực hiện. Bảo toàn sandbox demoOutcome/FK/Orders.preparePaymentRetry và UI của main; consistency được review qua PR #18. Script test tự đặt cả ORDERS_TEST_DATABASE_URL và PAYMENTS_TEST_DATABASE_URL cho DB UUID riêng.
+
+Nhánh hiện tại `feature/fix-payment-status`; giữ nhánh theo AGENTS, PR #18 từ nền `faea93e` đã có status fix `b6ca9ac`. PaymentOrderPort có `prepareAttempt(input,tx)` để retry reserve PENDING và `applyPaymentResult(input,tx?)` để dùng chung transaction với Payment.finalize. PaymentsRepository khóa Order khi claim/settle; gateway chạy ngoài transaction, dùng key Payment.id. `gatewayStatus` là journal trước settle, `appliedAt` ghi cùng transaction Order/điểm. Final replay không áp dụng transition/điểm lần nữa.
+
+Migration mới `20261017000000_payment_consistency`; phải audit Payment cũ trước deploy, partial unique index từ chối duplicate live attempts thay vì xóa dữ liệu. UNKNOWN/PROCESSING thiếu journal không tự mở khóa hoặc charge lại; chưa có API reconciliation. 111 tests liên quan PASS, gồm 40 PostgreSQL (hai AppModule/connection độc lập); build/lint/Payment typecheck PASS. Full test typecheck còn 5 lỗi baseline, browser/Compose/đối soát provider chưa chốt. Xem [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Những mốc thiếu Orders port/Payment endpoint và pending retry/replay phía dưới là lịch sử.
+
 ## Cập nhật sau khi nhập origin/main ngày 2026-10-16
 
 Làm việc trên **nhánh hiện có** `feature/auth-and-base`. Không tạo nhánh mới. Nguồn thiết kế vẫn là toàn bộ 9 export `stitch/`; trang hồ sơ và Barista KDS đã được chỉnh theo ảnh, với 5 route Barista. `frontend/src/components/barista-board.tsx` là UI chính, `barista-board.css` là CSS; `frontend/src/app/barista/[view]/page.tsx` dùng cho orders/preparing/ready/history. Customer shell được ẩn trên staff route.

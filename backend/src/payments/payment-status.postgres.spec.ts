@@ -212,7 +212,18 @@ describeDatabase(
           where: { id: productId },
         });
         process.env.MOCK_PAYMENT_OUTCOME = 'UNKNOWN';
-        expect((await pay().expect(201)).body.status).toBe('UNKNOWN');
+        if (status === 'PAYMENT_FAILED') {
+          // The adapter preserves failed state; a new HTTP attempt now reserves
+          // stock and moves back to PENDING before calling any gateway.
+          await port.applyPaymentResult({
+            orderId,
+            userId: ownerId,
+            method: 'CARD',
+            status: 'UNKNOWN',
+          });
+        } else {
+          expect((await pay().expect(201)).body.status).toBe('UNKNOWN');
+        }
         expect(await storedOrder()).toEqual(before);
         expect(
           await db.product.findUniqueOrThrow({ where: { id: productId } }),

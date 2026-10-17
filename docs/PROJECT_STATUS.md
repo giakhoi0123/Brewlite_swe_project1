@@ -1,8 +1,14 @@
 # Trạng thái dự án
 
-## Tích hợp Payment–Order — 2026-10-17
+## Payment consistency — 2026-10-17, mới nhất
 
-Payment đã có foreign key tới Order, finalize Payment/Order trong cùng transaction, replay idempotent và retry cùng order. Retry chỉ giữ lại tồn kho khi gateway trả PAID; PAYMENT_FAILED/UNKNOWN lặp lại không đổi Order hoặc tồn kho. Backend Prisma generate/build/lint và 18 suite/165 test không-DB qua; 2 suite/18 test PostgreSQL Payment qua; frontend 14/14 unit, production build và browser API FAILED→checkout→PAID cùng order qua. Dockerfile/Compose đã truyền cờ `NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS` vào lúc build; bản Docker API mode đã build, áp đủ 9 migration và chạy lại E2E FAILED→retry→PAID thành công. Gateway production và browser UNKNOWN/Wallet mở rộng vẫn còn chờ nên T08 giữ IN_PROGRESS.
+Đã tích hợp main `808077f` vừa nhận PR #15/#17, giữ nguyên sandbox/UI/FK của nhóm; bộ kiểm chứng cuối gồm cả Payment/Orders/FK và gateway sandbox từ main. Browser/Compose của PR #17 là bằng chứng lịch sử của nhánh đó, không coi là đã kiểm chứng lại consistency trong browser.
+
+Giữ nhánh `feature/fix-payment-status` (nền `faea93e` có bản sửa `b6ca9ac`), PR #18 đang mở, chưa merge; PR #15 status đã được merge. Hoàn thiện claim khóa theo Order, replay không gọi gateway/cộng điểm lại, chặn key mới khi PROCESSING/UNKNOWN/PAID, retry giữ kho lại trước gateway, journal bền vững và transaction chung Payment–Order–kho–history–điểm. Không giữ DB transaction khi gọi gateway, không sửa UI/đổi điểm.
+
+**READY_FOR_REVIEW trong phạm vi consistency**: 9 suites/111 tests PASS, 0 skipped, gồm 40 ca PostgreSQL thật (20 consistency chạy qua hai AppModule độc lập, 2 migration legacy, 15 status, 3 integration/FK). Áp đủ 10 migration trên DB UUID riêng rồi xóa đúng DB đó. Backend build/lint, Payment typecheck và script syntax PASS. Full test typecheck vẫn 5 lỗi baseline Products/NoPromotionDiscount; không mở rộng sang sửa chúng.
+
+**T08/10B chưa VERIFIED_COMPLETE toàn bộ**: chưa browser E2E/Compose, chưa gateway ngân hàng hay quy trình đối soát tự động. PROCESSING không có journal và UNKNOWN phải giữ khóa để đối soát, không tự retry charge. Trước deploy cần audit dữ liệu Payment cũ/multiple live attempts; migration không tự xóa hoặc sửa bản ghi tài chính. Chi tiết/log: [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các mốc dưới là lịch sử.
 
 ## Bản sửa Payment status — 2026-10-17
 

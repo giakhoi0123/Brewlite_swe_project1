@@ -1,6 +1,6 @@
-import { Module, NotFoundException } from '@nestjs/common';
+import { ConflictException, Module, NotFoundException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { ConfigModule } from '@nestjs/config';
-import { OrderStatus, type Prisma } from '@prisma/client';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma.module';
@@ -40,11 +40,21 @@ import {
           orders: OrdersService,
           prisma: PrismaService,
         ): PaymentOrderPort => ({
-          async findOwned(id, userId) {
+          async findOwned(id: string, userId: string) {
             return orders.get(id, userId);
           },
-          async prepareRetry(id, userId, transaction) {
-            return orders.preparePaymentRetry(id, userId, transaction);
+          async prepareAttempt(input, tx) {
+            const owned = await tx.order.findFirst({
+              where: { id: input.orderId, userId: input.userId },
+            });
+            if (!owned) throw new NotFoundException('Không tìm thấy đơn hàng');
+            if (owned.status === 'PAYMENT_FAILED') {
+              return orders.preparePaymentRetry(owned.id, input.userId, tx);
+            }
+            if (owned.status !== 'PENDING') {
+              throw new ConflictException('Đơn hàng không thể thanh toán');
+            }
+            return owned;
           },
           async applyPaymentResult(input, transaction) {
             const apply = async (tx: Prisma.TransactionClient) => {
@@ -56,14 +66,10 @@ import {
                 throw new NotFoundException('Không tìm thấy đơn hàng');
               if (input.status === 'UNKNOWN') return;
 
-              const targetStatus =
-                input.status === 'PAID'
-                  ? OrderStatus.PAID
-                  : OrderStatus.PAYMENT_FAILED;
               const order = await orders.transitionInTransaction(
                 tx,
                 input.orderId,
-                targetStatus,
+                input.status,
               );
 
               if (input.status === 'PAID') {
@@ -71,7 +77,7 @@ import {
 
                 if (pointsToEarn > 0) {
                   await tx.user.update({
-                    where: { id: input.userId },
+                    where: { id: order.userId },
                     data: {
                       loyaltyPoints: {
                         increment: pointsToEarn,
@@ -81,12 +87,8 @@ import {
                 }
               }
             };
-
-            if (transaction) {
-              await apply(transaction);
-              return;
-            }
-            await prisma.$transaction(apply);
+            if (transaction) await apply(transaction);
+            else await prisma.$transaction(apply);
           },
         }),
         inject: [OrdersService, PrismaService],

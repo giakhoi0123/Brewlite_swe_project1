@@ -1,5 +1,7 @@
 # Kiểm chứng bản sửa Payment status
 
+Đây là mốc kiểm chứng status ban đầu. Phần retry/replay/atomicity được tiếp tục trong [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md); số 80 tests/8 migration bên dưới không phải kết quả mới nhất.
+
 Ngày 2026-10-17; nhánh `feature/fix-payment-status`, nền `origin/main:c2d6922740284a59de06c001f6fa32b06c7fc232`. Trước khi đổi nhánh đã fetch và kiểm tra working tree. File audit và thư mục tmp chưa commit được giữ nguyên, không đưa vào PR.
 
 ## Lỗi và thay đổi

@@ -14,10 +14,9 @@ export type PayableOrder = {
 
 export interface PaymentOrderPort {
   findOwned(orderId: string, userId: string): Promise<PayableOrder | null>;
-  prepareRetry(
-    orderId: string,
-    userId: string,
-    tx?: Prisma.TransactionClient,
+  prepareAttempt(
+    input: { orderId: string; userId: string },
+    tx: Prisma.TransactionClient,
   ): Promise<PayableOrder>;
   applyPaymentResult(
     input: {
@@ -35,6 +34,8 @@ export interface PaymentGateway {
     orderId: string;
     amount: number;
     method: PaymentMethod;
+    // Stable provider key of the persisted attempt; never regenerated on replay.
+    idempotencyKey: string;
     demoOutcome?: PaymentResultStatus;
   }): Promise<PaymentResultStatus>;
 }

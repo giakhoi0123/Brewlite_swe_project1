@@ -1,5 +1,23 @@
 # Hợp đồng API BrewLite
 
+## Payment consistency — 2026-10-17, trạng thái mới nhất
+
+Đã tích hợp `origin/main:808077f` (PR #15/#17) trong lượt này. Giữ FK Payment→Order, trường paymentMethod và sandbox `demoOutcome` của main: chỉ gateway có `PAYMENT_DEMO_CONTROLS=true` sử dụng lựa chọn demo; replay cùng key luôn trả kết quả cũ dù client thay lựa chọn demo. `prepareAttempt` dùng lại `OrdersService.preparePaymentRetry` khi cần reserve, không nhân bản state machine.
+
+HTTP DTO/response không đổi. Bản sửa trạng thái `b6ca9ac` đã có trong nhánh nền `feature/fix-payment-status` trước lượt này; giữ nhánh hiện có; mở PR #18 sau khi PR #15 đã merge, không trộn Task 06 hoặc Loyalty mới.
+
+- Một user + idempotency key + order + method trả đúng Payment đã hoàn tất, kể cả đơn đã chuyển tiếp ở Barista; không gọi gateway, transition hoặc cấp điểm lại. Key đổi order/method trả 409; đơn không thuộc user trả 404.
+- PostgreSQL khóa hàng Order khi claim/settle. Unique `(user_id,idempotency_key)` và partial unique index trên `order_id` cho PROCESSING/UNKNOWN/PAID bảo vệ cả request khác key/instance. Request đang xử lý trả 409; client phải giữ key cũ, không tạo key mới để vượt khóa.
+- Retry chỉ sau PAYMENT_FAILED bằng **key mới**. Trong cùng transaction, `prepareAttempt` kiểm tra ownership, chuyển PAYMENT_FAILED → PENDING và reserve kho lại, rồi tạo Payment PROCESSING. Thiếu kho/xung đột trả 409 và rollback cả claim/kho/history; gateway chưa được gọi. Giá lấy snapshot Order, không lấy giá catalog mới.
+- Sau commit claim, gọi gateway **ngoài DB transaction**. Provider nhận `idempotencyKey = Payment.id` cố định theo attempt. Đây không phải cam kết rằng gateway hiện tại đã tích hợp ngân hàng thật.
+- Lưu `gatewayStatus` bền vững trước khi settle. Một transaction tiếp theo dùng chung `Prisma.TransactionClient` để áp dụng Order/kho/history/điểm và finalize Payment với `appliedAt`. Nếu transaction này lỗi, cùng key replay sẽ phục hồi từ journal, không gọi gateway lại. Hai instance tranh settle sẽ chỉ áp dụng một lần nhờ khóa Order.
+- UNKNOWN hoặc exception/timeout của gateway không tự thành PAID, không cộng điểm, giữ Order PENDING và kho đã reserve. Cùng key trả UNKNOWN, mọi key mới cho đơn này bị 409 cho đến khi đối soát xác định kết quả.
+- PROCESSING chưa có journal (crash trước/sau gateway hoặc lỗi lưu journal) không tự hết hạn và không được charge lại. Chưa có API đối soát tự động; cần tra cứu kết quả tại provider và quy trình vận hành riêng. Không suy đoán thành công/thất bại từ thời gian chờ.
+
+Migration `20261017000000_payment_consistency` thêm gateway_status/applied_at, CHECK và partial unique index trong transaction. Không gán điểm/timestamp giả cho bản ghi cũ. Nếu có nhiều live attempts cùng đơn, migration từ chối và rollback; phải audit/đối soát dữ liệu cũ trước deploy, không xóa Payment để ép migration qua. Replay final rows cũ trả kết quả cũ, không tự sửa các sai lệch Order/điểm từ trước.
+
+Kiểm chứng: 9 suites/111 tests PASS, 0 skipped; 40 ca PostgreSQL gồm 20 consistency, 2 migration, 15 status và 3 integration/FK. Hai AppModule độc lập, chỉ gateway bên ngoài được điều khiển trong test consistency; Auth/Prisma/Orders/Inventory/Payment adapter thật. Chi tiết: [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các đoạn bên dưới là mốc trước khi hoàn thiện consistency.
+
 ## Bản sửa hợp đồng trạng thái Payment — 2026-10-17
 
 `PaymentsModule` đã được đăng ký trong `AppModule` từ main `c2d6922`. Bản sửa trên `feature/fix-payment-status` dùng chung `PaymentResultStatus = Exclude<PaymentStatus, 'PROCESSING'>` cho gateway, service, repository và `PaymentOrderPort`; factory trong AppModule khai báo rõ kiểu trả về `PaymentOrderPort`. Không có trạng thái `SUCCESS`/`FAILED` trong hợp đồng nội bộ này.
@@ -29,7 +47,7 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
 | TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + PostgreSQL tests sau merge qua; browser API E2E chưa chạy |
-| TV5 | POST `/payments` | CUSTOMER | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 404, 409 | Xử lý/kết quả | Đã nối Orders port/bật module; unit+HTTP contract qua, PostgreSQL E2E chờ credential |
+| TV5 | POST `/payments` | JWT, chủ đơn | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 404, 409 | Xử lý/kết quả | Đã đăng ký AppModule; status/consistency qua PostgreSQL, browser E2E còn chờ |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 
 ### Giỏ hàng theo tài khoản (TV3, đã triển khai)

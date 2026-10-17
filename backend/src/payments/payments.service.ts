@@ -1,10 +1,5 @@
-import {
-  ConflictException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import type { Payment } from '@prisma/client';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import type { Payment, Prisma } from '@prisma/client';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import {
   PAYMENT_GATEWAY,
@@ -24,75 +19,109 @@ export class PaymentsService {
   ) {}
 
   async pay(userId: string, input: CreatePaymentDto) {
-    const existing = await this.payments.findByKey(
+    const started = await this.payments.withOrderLock(
+      input.orderId,
       userId,
-      input.idempotencyKey,
+      async (tx) => {
+        const existing = await this.payments.findByKey(
+          userId,
+          input.idempotencyKey,
+          tx,
+        );
+        if (existing) {
+          if (
+            existing.orderId !== input.orderId ||
+            existing.method !== input.method
+          ) {
+            throw new ConflictException(
+              'Idempotency key đã được dùng cho yêu cầu khác',
+            );
+          }
+          return {
+            kind: 'replay' as const,
+            payment: await this.settle(existing, tx),
+          };
+        }
+        if (await this.payments.findBlockingAttempt(input.orderId, tx)) {
+          throw new ConflictException(
+            'Đơn hàng đã thanh toán hoặc có lần thanh toán chưa được xác minh',
+          );
+        }
+        // Retry stock reservation and the new claim share this transaction.
+        const order = await this.orders.prepareAttempt(
+          { orderId: input.orderId, userId },
+          tx,
+        );
+        const payment = await this.payments.claim(
+          {
+            userId,
+            orderId: order.id,
+            amount: order.total,
+            method: input.method,
+            idempotencyKey: input.idempotencyKey,
+          },
+          tx,
+        );
+        return { kind: 'charge' as const, payment };
+      },
     );
-    if (existing) return this.replay(existing, input);
+    if (started.kind === 'replay') return this.toResponse(started.payment);
 
-    const order = await this.orders.findOwned(input.orderId, userId);
-    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    if (!['PENDING', 'PAYMENT_FAILED'].includes(order.status))
-      throw new ConflictException('Đơn hàng không thể thanh toán');
-
-    const retryingFailedOrder = order.status === 'PAYMENT_FAILED';
-
-    const claim = await this.payments.claim({
-      userId,
-      orderId: order.id,
-      amount: order.total,
-      method: input.method,
-      idempotencyKey: input.idempotencyKey,
-    });
-    if (!claim.created) return this.replay(claim.payment, input);
-
+    // No database transaction/lock is held during the external gateway call.
     let status: PaymentResultStatus;
     try {
       status = await this.gateway.charge({
-        orderId: order.id,
-        amount: order.total,
-        method: input.method,
+        orderId: started.payment.orderId,
+        amount: started.payment.amount,
+        method: started.payment.method,
+        idempotencyKey: started.payment.id,
         ...(input.demoOutcome ? { demoOutcome: input.demoOutcome } : {}),
       });
     } catch {
       status = 'UNKNOWN';
     }
-    const payment = await this.payments.transaction(async (tx) => {
-      if (retryingFailedOrder && status === 'PAID') {
-        await this.orders.prepareRetry(order.id, userId, tx);
-      }
-      const finalized = await this.payments.finalize(
-        tx,
-        claim.payment.id,
-        status,
-      );
-      if (
-        status !== 'UNKNOWN' &&
-        !(retryingFailedOrder && status === 'PAYMENT_FAILED')
-      ) {
-        await this.orders.applyPaymentResult(
-          {
-            orderId: order.id,
-            userId,
-            method: input.method,
-            status,
-          },
+    await this.payments.recordGatewayResult(started.payment.id, status);
+    const payment = await this.payments.withOrderLock(
+      input.orderId,
+      userId,
+      async (tx) => {
+        const current = await this.payments.findByKey(
+          userId,
+          input.idempotencyKey,
           tx,
         );
-      }
-      return finalized;
-    });
+        if (!current)
+          throw new ConflictException('Không tìm thấy lần thanh toán');
+        return this.settle(current, tx);
+      },
+    );
     return this.toResponse(payment);
   }
 
-  private async replay(payment: Payment, input: CreatePaymentDto) {
-    if (payment.orderId !== input.orderId || payment.method !== input.method)
+  private async settle(
+    payment: Payment,
+    tx: Prisma.TransactionClient,
+  ): Promise<Payment> {
+    // Final responses are immutable, including legacy rows; never replay points.
+    if (payment.status !== 'PROCESSING') return payment;
+    const status = payment.gatewayStatus;
+    if (!status || status === 'PROCESSING') {
       throw new ConflictException(
-        'Idempotency key đã được dùng cho yêu cầu khác',
+        'Yêu cầu thanh toán đang xử lý hoặc chờ đối soát',
       );
-    if (payment.status === 'PROCESSING')
-      throw new ConflictException('Yêu cầu thanh toán đang được xử lý');
-    return this.toResponse(payment);
+    }
+    await this.orders.applyPaymentResult(
+      {
+        orderId: payment.orderId,
+        userId: payment.userId,
+        method: payment.method,
+        status,
+      },
+      tx,
+    );
+    // Atomic with Order/stock/history/points. Rollback retains the committed
+    // journal so replay can recover with the same key and no gateway call.
+    return this.payments.finalize(payment.id, status, tx);
   }
 
   private toResponse(payment: Payment) {
