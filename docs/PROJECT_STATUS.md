@@ -1,5 +1,13 @@
 # Trạng thái dự án
 
+## Payment consistency — 2026-10-17, mới nhất
+
+Giữ nhánh `feature/fix-payment-status` (nền `faea93e` có bản sửa `b6ca9ac`), mở rộng PR #15 chưa merge. Hoàn thiện claim khóa theo Order, replay không gọi gateway/cộng điểm lại, chặn key mới khi PROCESSING/UNKNOWN/PAID, retry giữ kho lại trước gateway, journal bền vững và transaction chung Payment–Order–kho–history–điểm. Không giữ DB transaction khi gọi gateway, không sửa UI/đổi điểm.
+
+**READY_FOR_REVIEW trong phạm vi consistency**: 7 suites/105 tests PASS, 0 skipped, gồm 37 ca PostgreSQL thật (20 consistency chạy qua hai AppModule độc lập, 2 migration legacy, 15 status). Áp đủ 9 migration trên DB UUID riêng rồi xóa đúng DB đó. Backend build/lint, Payment typecheck và script syntax PASS. Full test typecheck vẫn 5 lỗi baseline Products/NoPromotionDiscount; không mở rộng sang sửa chúng.
+
+**T08/10B chưa VERIFIED_COMPLETE toàn bộ**: chưa browser E2E/Compose, chưa gateway ngân hàng hay quy trình đối soát tự động. PROCESSING không có journal và UNKNOWN phải giữ khóa để đối soát, không tự retry charge. Trước deploy cần audit dữ liệu Payment cũ/multiple live attempts; migration không tự xóa hoặc sửa bản ghi tài chính. Chi tiết/log: [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các mốc dưới là lịch sử.
+
 ## Bản sửa Payment status — 2026-10-17
 
 Nhánh `feature/fix-payment-status` từ `origin/main:c2d6922`. Đã thống nhất PAID/PAYMENT_FAILED/UNKNOWN giữa gateway, PaymentsService, repository, PaymentOrderPort và adapter AppModule; loại ánh xạ SUCCESS/FAILED sai, kiểm tra ownership trong transaction và chỉ cộng điểm theo chính sách có sẵn khi chuyển PAID thành công. Không sửa UI/đổi điểm, không thêm migration.
