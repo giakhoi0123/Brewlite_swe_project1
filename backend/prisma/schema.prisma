@@ -230,12 +230,16 @@ model Payment {
   amount         Int
   method         PaymentMethod
   status         PaymentStatus @default(PROCESSING)
+  // Journal commits before Order settlement; null means outcome is not safely known.
+  gatewayStatus  PaymentStatus? @map("gateway_status")
+  appliedAt      DateTime?      @map("applied_at")
   idempotencyKey String        @map("idempotency_key") @db.Uuid
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
+  // SQL migration also owns a partial unique order_id index for live attempts.
   @@index([orderId])
   @@map("payments")
 }
