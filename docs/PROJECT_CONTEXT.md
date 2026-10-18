@@ -1,5 +1,11 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## TV4 đối chiếu báo cáo và nghiệm thu — 2026-10-18, mới nhất
+
+Giữ nhánh `feature/orders-and-inventory`, nền `6851515`. Báo cáo `(2).docx` mục 12.1 giao Điệp T06/T10A/T10C/backend Barista; đã có đủ nghiệp vụ. Lượt này bổ sung hai bài race HTTP/PostgreSQL và `backend/scripts/verify-tv4-browser.cjs`; không đổi backend nghiệp vụ hoặc frontend. 272/272 backend tests, build/lint/full typecheck PASS. Browser hai phiên login thật, API mode, checkout/payment gateway mô phỏng và staff→customer sync PASS ở 1440/768/390. DB UUID riêng đã dọn.
+
+Xem [TV4_ACCEPTANCE.md](TV4_ACCEPTANCE.md). Backend READY_FOR_REVIEW; TV1 còn nối UI hủy/history/KPI và bỏ thông báo chờ TV4. Runner build lại `.next` cho URL thử nghiệm 33221; sau lượt này đã build lại với cấu hình local và PASS. Nếu chạy lại runner, nhớ trả build về cấu hình API ứng dụng. Kết quả này không xác nhận DB ứng dụng đã migrate hay thay đổi đã push. Các mô tả nhánh cũ dưới đây là lịch sử.
+
 ## Backend Barista TV4 — trạng thái được giữ khi nhập main 2026-10-18
 
 Nhánh `feature/orders-and-inventory` giữ API staff detail/cancel reason và terminal history từ commit `abd7343` khi nhập `origin/main:b87db13`. Order có `cancelReason`/`completedAt` qua migration `20261016000100_staff_order_details`; chỉ PENDING/PAID/PAYMENT_FAILED được hủy. Reason, trạng thái, hoàn kho và history nằm cùng transaction/CAS; completedAt ghi lúc READY→COMPLETED. Sau merge đã sửa một fixture Payment dùng lối hủy cũ, rồi backend build local/Docker, lint và **25 suites/270 tests PASS** trên PostgreSQL thật với đủ 11 migrations; DB tạm đã dọn.

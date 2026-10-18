@@ -1,5 +1,11 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Nghiệm thu phạm vi TV4 theo báo cáo — 2026-10-18, mới nhất
+
+T06/T10A/T10C và backend Barista **READY_FOR_REVIEW** trên `feature/orders-and-inventory`: đối chiếu US05/US10/US13–US16, UC14–17/UC28–32 với code. Đã bổ sung kiểm thử hai khách mua tồn kho cuối qua HTTP và hai lần bàn giao đồng thời; tổng 272/272 backend tests, 25 suites, 0 skipped, 11 migrations PostgreSQL PASS. Build/lint/typecheck backend PASS. Hai phiên browser thật chạy checkout→PAID→PREPARING→READY→COMPLETED tại 1440/768/390 PASS; hủy có lý do/lịch sử/detail được kiểm qua API thật.
+
+Không còn chức năng backend TV4 mới được xác định từ báo cáo. TV1 còn bật UI hủy/history/KPI trong API mode và nghiệm thu B05 trên giao diện; TV5 giữ phạm vi Payment/refund, TV6 phối hợp history. Không đánh dấu toàn bộ Barista VERIFIED_COMPLETE. [Ma trận và bằng chứng TV4](TV4_ACCEPTANCE.md) thay các ghi chú “TV4 chưa có endpoint” ở lịch sử bên dưới.
+
 ## Backend Barista TV4 — 2026-10-16
 
 Đã hoàn thành GET `/staff/orders/:id`, PATCH `/staff/orders/:id/cancel` bắt buộc lý do 1–300 ký tự, `cancelReason`/`completedAt` và danh sách staff gồm cả COMPLETED/CANCELLED. API status không chấp nhận CANCELLED để tránh bỏ qua lý do. Prisma generate, backend build local/Docker, lint và **19 suites/191 tests PASS**, gồm 22 bài PostgreSQL trên DB tạm riêng. Migration `20261016000100_staff_order_details` backfill thời điểm hoàn tất từ history thật. TV1 còn bật history/KPI/hủy trong API mode và chạy browser E2E; Payment/hoàn tiền thuộc TV5. Mốc này được giữ cùng các cập nhật Task 06/Payment mới hơn bên dưới.

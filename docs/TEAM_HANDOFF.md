@@ -1,5 +1,12 @@
 # Bàn giao nhóm
 
+## TV4 — nghiệm thu 2026-10-18 theo báo cáo hoàn chỉnh
+
+- Backend T06/T10A/T10C/Barista đã có đủ theo mục 12.1; bổ sung bằng chứng thay vì tạo endpoint trùng. 272 backend tests/25 suites PASS, không skipped; build/lint/typecheck PASS. Browser khách và Barista hai phiên thật PASS tại 1440/768/390. [Ma trận, ảnh và lệnh chạy](TV4_ACCEPTANCE.md).
+- TV1: queue/ba bước pha–giao đã chạy trên API thật. Bật nhánh hủy/history/KPI trong `barista-board.tsx` bằng adapter hiện có; GET staff detail, PATCH cancel reason và terminal list đã sẵn sàng. Bỏ placeholder/thông báo “còn chờ TV4”, hiển thị lý do/thời điểm và chạy B05 trên UI thật.
+- TV5/TV6: dùng state machine/transaction hiện có; hủy PAID không tự refund. Việc nghiệm thu này không thay quy tắc hoặc code của các owner khác.
+- Kiểm chứng dùng PostgreSQL mới có UUID; DB ứng dụng chưa được migrate trong lượt này. Các kết quả/việc chờ endpoint ở mốc cũ bên dưới là lịch sử.
+
 ## Bàn giao backend Barista TV4 — 2026-10-16
 
 - Staff detail và cancel đã có theo API_CONTRACT; status chỉ nhận PREPARING/READY/COMPLETED. Cancel dùng `{reason}` (trim, 1–300 ký tự), từ PENDING/PAID/PAYMENT_FAILED; sai bước/lặp/race trả 409, không hoàn kho lần hai.

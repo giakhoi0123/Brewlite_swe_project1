@@ -1,5 +1,13 @@
 # Kiểm thử và bằng chứng BrewLite
 
+## TV4 nghiệm thu theo báo cáo hoàn chỉnh — 2026-10-18
+
+**25 suites / 272 tests PASS, 0 skipped**, bật đầy đủ suite PostgreSQL trên database UUID riêng, đủ 11 migrations, tự dọn sau test. Hai bài mới trong `staff-orders.postgres.spec.ts` xác minh hai CUSTOMER tranh stock=1 qua HTTP và xác nhận COMPLETED đồng thời chỉ ghi một timestamp/history. Backend build local/Docker, lint và full TypeScript check PASS.
+
+`node backend/scripts/verify-tv4-browser.cjs`: build frontend Webpack/API mode, backend thật, hai BrowserContext login thật, checkout + gateway Payment mô phỏng → queue PAID → PREPARING → READY → COMPLETED; khách refresh kiểm tra từng trạng thái. **PASS tại 1440/768/390**. Hủy/terminal history/detail kiểm bằng cookie hai phiên qua API thật; không nhận là UI hủy/lịch sử đã chạy. DB riêng tự dọn, không thay DB ứng dụng. [Hướng dẫn, ma trận và ảnh/log](TV4_ACCEPTANCE.md).
+
+Lượt xác minh trước commit/push: chạy lại đầy đủ backend và browser trên, frontend service tests **14/14 PASS**, frontend build cấu hình local PASS. `npm.cmd --prefix frontend run lint` **FAIL 1 lỗi** `react-hooks/preserve-manual-memoization` ở `src/app/profile/page.tsx:21`, giống `origin/main`, không nằm trong diff TV4. Backend lint/full typecheck PASS. Runner browser ghi chung stdout/stderr an toàn và đối chiếu lịch sử theo `version`.
+
 ## Backend Barista TV4 — bằng chứng trước khi nhập main
 
 Commit `abd7343`: Prisma generate, backend build local/Docker và lint PASS; `verify-orders-postgres.cjs` chạy **19 suites/191 tests PASS, 0 skipped**, gồm 22 bài PostgreSQL và 9 migrations trên database UUID riêng đã dọn. Kiểm tra detail/role, hủy PENDING/PAID/PAYMENT_FAILED có lý do, reason validation, chặn status bypass, terminal immutability, completedAt, active + terminal list, cancel races, rollback và migration dữ liệu cũ.

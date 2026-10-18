@@ -1,0 +1,95 @@
+docker :  Container brewlite_swe_project1-backend-run-bc1e0b92982b Creating
+At line:2 char:1
++ docker compose run --rm --no-deps backend npm run test:postgres 2>&1  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( Container brew...2982b Creating :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+ Container brewlite_swe_project1-backend-run-bc1e0b92982b Created
+
+> backend@0.0.1 test:postgres
+> node scripts/verify-orders-postgres.cjs
+
+Created isolated test database: brewlite_orders_test_cf3c4e43c261464991610fd1abdb8319
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to
+a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "brewlite_orders_test_cf3c4e43c261464991610fd1abdb8319", schema "public" at "postgres:5432"
+
+11 migrations found in prisma/migrations
+
+Applying migration `0_baseline_users`
+Applying migration `20261006000100_add_products`
+Applying migration `20261014000000_add_rbac`
+Applying migration `20261014000100_product_customization`
+Applying migration `20261015000000_add_cart`
+Applying migration `20261015000000_add_payments`
+Applying migration `20261015000100_orders_inventory`
+Applying migration `20261016000000_session_version`
+Applying migration `20261016000100_staff_order_details`
+Applying migration `20261017000000_payment_consistency`
+Applying migration `20261017000000_payment_order_fk`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 0_baseline_users/
+    └─ migration.sql
+  └─ 20261006000100_add_products/
+    └─ migration.sql
+  └─ 20261014000000_add_rbac/
+    └─ migration.sql
+  └─ 20261014000100_product_customization/
+    └─ migration.sql
+  └─ 20261015000000_add_cart/
+    └─ migration.sql
+  └─ 20261015000000_add_payments/
+    └─ migration.sql
+  └─ 20261015000100_orders_inventory/
+    └─ migration.sql
+  └─ 20261016000000_session_version/
+    └─ migration.sql
+  └─ 20261016000100_staff_order_details/
+    └─ migration.sql
+  └─ 20261017000000_payment_consistency/
+    └─ migration.sql
+  └─ 20261017000000_payment_order_fk/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+(node:111) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/payments/payment-consistency.postgres.spec.ts (7.102 s)
+PASS src/orders/staff-orders.postgres.spec.ts
+PASS src/cart/cart.http.spec.ts
+PASS src/orders/orders.http.spec.ts
+PASS src/orders/orders-create.postgres.spec.ts
+PASS src/payments/payment-status.postgres.spec.ts
+PASS src/orders/orders.postgres.spec.ts
+PASS src/orders/orders.service.spec.ts
+PASS src/auth/auth.rbac.spec.ts
+PASS src/payments/payments.postgres.spec.ts
+PASS src/payments/payments.service.spec.ts
+PASS src/products/product-detail.http.spec.ts
+PASS src/products/products.http.spec.ts
+PASS src/payments/payments.http.spec.ts
+PASS src/payments/payment-migration.postgres.spec.ts
+PASS src/products/product-detail.service.spec.ts
+PASS prisma/seed-product-customization.spec.ts
+PASS src/inventory/inventory.service.spec.ts
+PASS src/auth/csrf.middleware.spec.ts
+PASS src/cart/cart-pricing.spec.ts
+PASS src/products/products.service.spec.ts
+PASS src/payments/mock-payment.gateway.spec.ts
+PASS src/orders/order-state-machine.spec.ts
+PASS src/app.controller.spec.ts
+PASS src/auth/auth.controller.spec.ts
+
+Test Suites: 25 passed, 25 total
+Tests:       272 passed, 272 total
+Snapshots:   0 total
+Time:        19.287 s
+Ran all test suites.
+Removed isolated test database: brewlite_orders_test_cf3c4e43c261464991610fd1abdb8319

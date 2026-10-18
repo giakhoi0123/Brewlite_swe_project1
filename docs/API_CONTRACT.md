@@ -1,5 +1,9 @@
 # Hợp đồng API BrewLite
 
+## TV4 kiểm chứng hợp đồng — 2026-10-18
+
+Không thay JSON/endpoint trong lượt đối chiếu báo cáo `(2).docx`. Staff list/detail/cancel/status, `cancelReason?`, `completedAt?` bên dưới đã được kiểm chứng cùng Orders/Inventory: 272 backend tests PASS và browser hai phiên API thật tại 1440/768/390. List vẫn gồm PAID/PREPARING/READY/COMPLETED/CANCELLED; UI lọc PAID cho hàng chờ và terminal cho history. Hủy chỉ PENDING/PAID/PAYMENT_FAILED, không phải refund. UI API mode hủy/history/KPI còn do TV1 bật. [Bằng chứng TV4](TV4_ACCEPTANCE.md).
+
 ## Task 06 review — 2026-10-17, mới nhất
 
 Kiểm chứng lại trên code `2c8adc2` sau khi nhập main `bacb7a6`, PR #16 chưa merge: toàn bộ backend 247/247 trên PostgreSQL thật (10 migration, 0 skipped); browser Orders API 4/4 tại 1440/768/390. Hợp đồng Task 06 giữ nguyên: POST 201 với UUID/PENDING, giá server, snapshot/history/reserve cùng transaction, giỏ chưa xóa và chưa cấp điểm/Payment. Browser chặn request Payment bằng route.abort, không giả kết quả thanh toán. Chi tiết [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Phần Task 06 ngày 16 dưới là bằng chứng cũ; Payment/Promotion/Staff được bảo toàn từ main.

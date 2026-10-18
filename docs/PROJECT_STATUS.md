@@ -1,5 +1,13 @@
 # Trạng thái dự án
 
+## TV4 đối chiếu báo cáo hoàn chỉnh — 2026-10-18, mới nhất
+
+Đã đọc `BrewLite_Assignment1_BaoCao_HoanChinh (2).docx`, mục 12.1: Điệp phụ trách T06/T10A/T10C/backend Barista. Backend nghiệp vụ đã có đủ; bổ sung hai bài HTTP/PostgreSQL về hai khách tranh món cuối và xác nhận giao đồng thời, cùng runner nghiệm thu hai phiên browser thật. **25 suites/272 tests PASS, 0 skipped**, 11 migrations; backend build local/Docker/lint/full typecheck PASS. Frontend Webpack/API build và luồng khách–Barista tại **1440/768/390 PASS**, dùng API/DB thật và gateway Payment mô phỏng. Các DB thử nghiệm tự dọn, không migrate DB ứng dụng.
+
+Backend TV4 **READY_FOR_REVIEW**. UI API mode còn ẩn hủy/lịch sử/KPI và thông báo “chờ TV4” đã lỗi thời; đây là việc TV1 nối interface đã có, không phải endpoint backend còn thiếu. Chưa kết luận toàn bộ Barista VERIFIED_COMPLETE hoặc đã triển khai lên môi trường nhóm. Ma trận yêu cầu, bằng chứng và lệnh chạy: [TV4_ACCEPTANCE.md](TV4_ACCEPTANCE.md). Những mốc phía dưới là lịch sử; các số test/nhánh cũ không mô tả cây làm việc hiện tại.
+
+Kiểm tra lại trước commit/push: backend 272/272, frontend service 14/14, browser 3 viewport và build PASS. Lint toàn frontend vẫn có đúng 1 lỗi memoization ở `profile/page.tsx:21`, file giống `origin/main`; đây là giới hạn ngoài thay đổi TV4, không coi toàn repo đã sạch lint.
+
 ## Backend Barista TV4 — giữ khi nhập main 2026-10-18
 
 API detail, hủy có lý do, terminal history, `cancelReason` và `completedAt` từ commit `abd7343` đã được giữ trong lần merge `origin/main:b87db13`. Sau merge, fixture Payment tạo đơn hủy được đổi sang `staffCancel(..., reason)` theo contract mới. Prisma generate, backend build local/Docker, lint và **25 suites/270 tests PASS**, 0 skipped trên PostgreSQL thật với đủ 11 migrations; DB UUID tạm đã dọn. Kết quả xác nhận backend tích hợp tại cây merge, không tự xác nhận browser/triển khai DB ứng dụng.

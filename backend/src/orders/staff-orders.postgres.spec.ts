@@ -126,7 +126,9 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
     await app.init();
   });
   beforeEach(async () => {
-    await db.order.deleteMany({ where: { userId: customerId } });
+    await db.order.deleteMany({
+      where: { userId: { in: [customerId, otherId] } },
+    });
     await db.product.update({
       where: { id: productId },
       data: { stock: 20, version: 1 },
@@ -134,7 +136,9 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
   });
   afterAll(async () => {
     if (!db) return;
-    await db.order.deleteMany({ where: { userId: customerId } });
+    await db.order.deleteMany({
+      where: { userId: { in: [customerId, otherId] } },
+    });
     await db.product.deleteMany({ where: { id: productId } });
     await db.topping.deleteMany({ where: { id: toppingId } });
     await db.user.deleteMany({
@@ -345,6 +349,67 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
       persisted.status === 'CANCELLED' ? 'Hết nguyên liệu' : null,
     );
     expect(await history(id)).toHaveLength(3);
+  });
+
+  it('UC16: two customers compete for the last unit through HTTP; only one order is persisted', async () => {
+    await db.product.update({ where: { id: productId }, data: { stock: 1 } });
+    const payload = {
+      items: [
+        {
+          productId,
+          size: 'M',
+          toppingIds: [toppingId],
+          quantity: 1,
+          ice: '70% đá',
+          sugar: '50% ít ngọt',
+        },
+      ],
+    };
+    const results = await Promise.all(
+      [customerId, otherId].map((id) =>
+        request(app.getHttpServer())
+          .post('/api/orders')
+          .set('Cookie', cookie(id))
+          .set('Origin', 'http://localhost:3000')
+          .send(payload),
+      ),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(results.find((r) => r.status === 409)!.body.message).toMatch(
+      /tồn kho|Tồn kho/,
+    );
+    const stored = await db.order.findMany({
+      where: { items: { some: { productId } } },
+      include: { items: true, statusHistory: true },
+    });
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({
+      status: 'PENDING',
+      total: 41000,
+      inventoryHeld: true,
+    });
+    expect(stored[0].items).toHaveLength(1);
+    expect(stored[0].statusHistory).toHaveLength(1);
+    expect(await stock()).toBe(0);
+  });
+
+  it('UC31: simultaneous handover writes one completion timestamp and one history event', async () => {
+    const id = await create('READY');
+    const responses = await Promise.all([
+      transition(id, 'COMPLETED'),
+      transition(id, 'COMPLETED'),
+    ]);
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+    const persisted = await row(id);
+    const events = (await history(id)).filter(
+      (h) => h.toStatus === 'COMPLETED',
+    );
+    expect(events).toHaveLength(1);
+    expect(persisted.completedAt).toEqual(events[0].createdAt);
+    expect(persisted.completedAt?.toISOString()).toBe(
+      responses.find((r) => r.status === 200)!.body.completedAt,
+    );
+    expect(await stock()).toBe(19);
   });
 
   it('rolls back the reason, state, inventory and history when the transaction fails', async () => {
