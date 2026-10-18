@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-16",
+  "baseCommit": "c2d6922",
+  "verificationCodeCommit": "535660e0d5461235d39cf32c98cadec0f3f4e21b",
+  "postgres": {
+    "version": "15.18",
+    "migrations": 8,
+    "backendSuitesPassed": 19,
+    "backendTestsPassed": 201,
+    "skipped": 0
+  },
+  "browser": {
+    "startedAt": "2026-10-16T14:11:17.710Z",
+    "channel": "msedge",
+    "dataMode": "api",
+    "viewports": [
+      1440,
+      768,
+      390
+    ],
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0
+  },
+  "checks": {
+    "backendBuild": "PASS",
+    "backendLint": "PASS",
+    "backendTestTypecheck": "PASS",
+    "frontendUnit": "13/13 PASS",
+    "frontendWebpackBuild": "PASS",
+    "changedFrontendLint": "PASS"
+  },
+  "scope": "Real Auth/Products/Cart/Orders/PostgreSQL. Later Payment request aborted at the Task 08 boundary; no fake payment result.",
+  "baselineIssues": [
+    "Frontend full lint: profile/page.tsx:21 preserve-manual-memoization from main c2d6922",
+    "Default Turbopack process/CSS error on this Windows environment; API build verified with --webpack",
+    "Docker CLI unavailable; Compose not verified by this Task 06 run"
+  ]
+}

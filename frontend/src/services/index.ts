@@ -29,6 +29,9 @@ const catalogApi = dataMode !== "mock",
   allApi = dataMode === "api";
 /** Thanh toán/đơn hàng còn giả lập: hiện lựa chọn kết quả demo và banner. */
 export const demoOrders = !allApi;
+/** Cho phép chọn phản hồi gateway sandbox mà vẫn dùng Orders/Payments API thật. */
+export const paymentDemoControls =
+  demoOrders || process.env.NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS === "true";
 export const services = {
   products: catalogApi ? apiProducts : mockProducts,
   cart: catalogApi ? apiCart : mockCart,

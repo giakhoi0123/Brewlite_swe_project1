@@ -1,19 +1,24 @@
 # Kế hoạch triển khai BrewLite 1.0
 
-## Hoàn thiện backend Barista TV4 — 2026-10-16
+## Backend Barista TV4 — 2026-10-16
 
-Trên `feature/orders-and-inventory`, sau khi cập nhật `main` a80e712:
+Đã hoàn thành GET `/staff/orders/:id`, PATCH `/staff/orders/:id/cancel` bắt buộc lý do 1–300 ký tự, `cancelReason`/`completedAt` và danh sách staff gồm cả COMPLETED/CANCELLED. API status không chấp nhận CANCELLED để tránh bỏ qua lý do. Prisma generate, backend build local/Docker, lint và **19 suites/191 tests PASS**, gồm 22 bài PostgreSQL trên DB tạm riêng. Migration `20261016000100_staff_order_details` backfill thời điểm hoàn tất từ history thật. TV1 còn bật history/KPI/hủy trong API mode và chạy browser E2E; Payment/hoàn tiền thuộc TV5. Mốc này được giữ cùng các cập nhật Task 06/Payment mới hơn bên dưới.
 
-- [x] GET `/staff/orders/:id` có guard BARISTA, validate UUID, 404 và chi tiết món snapshot.
-- [x] PATCH `/staff/orders/:id/cancel` bắt buộc lý do 1–300 ký tự sau trim; chặn bypass qua PATCH status.
-- [x] Migration `20261016000100_staff_order_details`: cancelReason/completedAt; backfill thời điểm hoàn tất từ history thật.
-- [x] GET staff list trả PAID/PREPARING/READY/COMPLETED/CANCELLED cho queue và lịch sử, giữ thứ tự createdAt/id tăng dần.
-- [x] Kiểm thử HTTP guards/DTO, customer visibility, cancellation/release một lần, race cancel/cancel và cancel/prepare, rollback, terminal states, completedAt và migration dữ liệu cũ.
-- [x] Prisma generate, backend build local/Docker, lint; full Jest PostgreSQL **19 suites/191 tests PASS**, 0 skipped (22 bài PostgreSQL).
-- [ ] TV1 bật UI API mode cho history/KPI/hủy và chạy browser E2E; migration DB dùng chung khi triển khai.
-- [ ] TV5/TV6 nối Payments/Promotion/Loyalty như bàn giao cũ; hủy PAID chưa thực hiện hoàn tiền.
+## Task 06 review — 2026-10-17, mới nhất
 
-Typecheck toàn bộ backend tests còn 3 lỗi fixture Products có sẵn (stock/description); build production và Jest PASS. Không nâng toàn bộ T06/T10 hoặc luồng Barista frontend lên VERIFIED_COMPLETE. Các bảng TV1 bên dưới giữ làm lịch sử trước phần mở rộng này.
+Đã xác minh 5 commit đến `03ff19b` đầy đủ, chưa có trong main; PR #13 đóng chưa merge, PR #16 đang mở trên `feature/task-06-orders` nên cập nhật PR hiện có. Merge main `bacb7a6` (đã nhận Payment consistency #18) thành code `2c8adc2`, giữ nguyên 5 commit và mã Payment/Promotion/Staff của main. **24 suites/247 backend tests PASS, 0 skipped; frontend unit 14/14; browser Orders API 4/4 tại 1440/768/390; backend build/lint/full typecheck và frontend API Webpack build PASS**. Frontend lint toàn repo vẫn FAIL do profile:21 có sẵn; scoped lint E2E/config PASS. T06 **READY_FOR_REVIEW**, chưa merge; Task 06 kết thúc PENDING, không chốt T08/09/10. Xem [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Các phần bên dưới là lịch sử.
+
+## Kết quả Task 06 — 2026-10-16
+
+Nhánh `codex/task-06-orders` tạo sau khi cập nhật `origin/main:c2d6922`. Phần triển khai và kiểm chứng kỹ thuật Task 06 đã xong, **READY_FOR_REVIEW** để nhóm review PR theo DoD. Backend 201/201 trên PostgreSQL thật, 0 skipped; browser API 4/4 ở 1440/768/390; build/lint/typecheck liên quan PASS. Chi tiết/commit/bằng chứng tại [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md). Không nâng Task 08/09/10 từ kết quả tạo PENDING. Các bảng workstream cũ bên dưới là lịch sử.
+
+## Payment consistency — 2026-10-17, mới nhất
+
+Trên nhánh hiện có `feature/fix-payment-status`, đã xác minh bản sửa trạng thái `b6ca9ac` là ancestor. Claim/settle dùng khóa Order; partial unique live-attempt index, retry reserve trước gateway, journal và atomic Payment/Order/points đã triển khai. **9 suites/111 tests PASS (40 PostgreSQL), build/lint/Payment typecheck PASS**; có script tái lập `test:payments:postgres` tạo/xóa DB riêng. Phạm vi consistency READY_FOR_REVIEW trong PR #18; T08/10B toàn bộ vẫn IN_PROGRESS vì browser/triển khai/đối soát provider còn thiếu. Xem [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các ghi chú retry/replay chưa làm ở mốc dưới đã được thay thế bằng kết quả này.
+
+## Payment status — 2026-10-17
+
+Nhánh `feature/fix-payment-status` từ main `c2d6922`: đã sửa hợp đồng trạng thái adapter AppModule theo PAID/PAYMENT_FAILED/UNKNOWN và kiểm tra ownership; 80/80 tests liên quan PASS, gồm 15 ca PostgreSQL qua AppModule thật, build/lint PASS. Xem [PAYMENT_STATUS_VERIFICATION.md](PAYMENT_STATUS_VERIFICATION.md). **T08/10B tiếp tục IN_PROGRESS** vì retry/replay/atomicity và E2E toàn luồng chưa hoàn tất. Không dùng bản sửa này để chốt toàn bộ Payment, Loyalty hoặc Task 06.
 
 ## Kiểm kê workstream TV1 ngày 2026-10-16
 
@@ -87,9 +92,9 @@ Chỉ đổi thành `VERIFIED_COMPLETE` khi toàn bộ tiêu chí của Task đ�
 | T03 | Menu | TV1+TV2 | VERIFIED_COMPLETE | T02 | frontend/src/app/page.tsx | API, loading, empty | Playwright API mode: 10 món, loading/empty/error/retry; DB thật | Không |
 | T04 | Tùy chỉnh | TV1+TV3 | VERIFIED_COMPLETE | T02 | frontend/src/app/products | Size, topping, giá | Playwright API mode: S/M/L, topping, giá động, thêm giỏ | Chính sách giá lâu dài cần TV3 xác nhận |
 | T05 | Giỏ | TV1+TV3 | VERIFIED_COMPLETE | T04 | frontend/src/stores, frontend/src/components/cart-sync.tsx, backend/src/cart | Thêm/sửa/xóa/tổng/badge; giỏ lưu theo tài khoản | Playwright: cấu hình riêng, tăng/giảm/xóa/clear, tổng, badge, refresh; 11 backend cart tests; HTTP PostgreSQL 12/12; luồng API mode khách→đăng ký→gộp→sửa→reload→đăng xuất/nhập 8/8 | TV4 nối `POST /orders` với `cart-pricing.ts` và xóa giỏ server khi đơn PAID |
-| T06 | Orders API | TV4 | IN_PROGRESS | Auth, products | backend/src/orders, backend/src/inventory | POST /orders PENDING | Sau merge: 18 suites/168 tests PASS trên PostgreSQL tạm gồm Orders HTTP, concurrency/rollback | Payment/Promotion và E2E trình duyệt API mode |
+| T06 | Orders API | TV4 | READY_FOR_REVIEW (kỹ thuật đã kiểm chứng) | Auth, products | backend/src/orders, backend/src/inventory, frontend/e2e/orders-api.spec.ts | POST /orders validate, giá server, lưu PENDING và trả mã đơn | PostgreSQL 15: 19 suites/201 tests, 0 skipped; browser API 4/4 tại 1440/768/390; build/lint/typecheck liên quan PASS | Review PR nhóm; Task 08/09/10 theo dõi riêng |
 | T07 | Auth | TV1 | VERIFIED_COMPLETE (module Auth TV1) | DB | backend/src/auth, frontend/src/app/login, frontend/src/app/register | Đăng ký/nhập/JWT/guard/logout | Sau merge: 168/168 backend tests; HTTP QA cookie cũ 401 sau logout; Playwright role/redirect trước merge qua | Áp migration Auth trên DB nhóm |
-| T08 | Payment | TV1+TV5 | IN_PROGRESS | T06 | frontend/src/services, frontend/src/app/payment, backend/src/payments, backend/prisma | Wallet/Card, PAID/FAILED/UNKNOWN, idempotency | Sau khi hợp nhất Cart + Payment: frontend 7/7 unit + build; backend 56/56 + build; Prisma Client generate qua | Chờ TV4 cung cấp Orders port, chạy migration DB và API E2E thật |
+| T08 | Payment | TV1+TV5 | IN_PROGRESS | T06 | frontend/src/services, frontend/src/app/payment, backend/src/payments, backend/prisma | Wallet/Card, PAID/FAILED/UNKNOWN, idempotency | Orders port/module/FK đã nối; PostgreSQL Payment 2 suite/18 test; browser API FAILED→quay lại checkout→retry PAID cùng order qua; Order trả phương thức PAID và màn success vẫn hiện đúng sau reload; checkout retry QA 1440/768/390 qua | Gateway production và browser E2E mở rộng UNKNOWN/Wallet |
 | T09 | Xác nhận/lịch sử/Docker | TV1+TV6 | BACKEND_PENDING | T06,T08 | frontend/src/app/orders, compose | GET /orders/me, demo E2E | Playwright history/timeline + Compose 3 dịch vụ qua | Orders history backend thật |
 | T10 | Logic nâng cao | TV4+TV5+TV6 | IN_PROGRESS | T06,T08 | backend/src/orders, backend/src/inventory, docs/API_CONTRACT.md | State machine, idempotency, stock, loyalty | 10A: đủ 49 cặp transition; 10C: unit race test qua; Payment idempotency core test qua | PostgreSQL race/rollback chưa chạy; 10B TV5, 10D TV6 |
 

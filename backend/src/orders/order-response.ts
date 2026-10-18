@@ -8,6 +8,12 @@ export const orderInclude = {
       toppings: { orderBy: { toppingId: 'asc' } },
     },
   },
+  payments: {
+    where: { status: 'PAID' },
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+    select: { method: true },
+  },
 } satisfies Prisma.OrderInclude;
 
 export type OrderRecord = Prisma.OrderGetPayload<{
@@ -24,6 +30,9 @@ export function orderResponse(order: OrderRecord) {
     discount: order.discountAmount,
     total: order.total,
     ...(order.promotionCode ? { promotionCode: order.promotionCode } : {}),
+    ...(order.payments?.[0]
+      ? { paymentMethod: order.payments[0].method }
+      : {}),
     createdAt: order.createdAt.toISOString(),
     ...(order.cancelReason ? { cancelReason: order.cancelReason } : {}),
     ...(order.completedAt

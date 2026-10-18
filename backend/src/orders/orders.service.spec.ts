@@ -3,13 +3,12 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { OrdersService } from './orders.service';
-import { NoPromotionDiscount } from './order-discount';
+import { PromotionDiscount } from './order-discount';
 import type { CreateOrderDto } from './dto/create-order.dto';
 
 describe('Orders service', () => {
@@ -91,7 +90,7 @@ describe('Orders service', () => {
     service = new OrdersService(
       prisma,
       new InventoryService(),
-      new NoPromotionDiscount(),
+      new PromotionDiscount(),
     );
   });
 
@@ -163,7 +162,7 @@ describe('Orders service', () => {
   it('does not silently accept demo promotion codes', async () => {
     dto.promotionCode = 'BREW10';
     await expect(service.create('customer', dto)).rejects.toThrow(
-      UnprocessableEntityException,
+      BadRequestException,
     );
     expect(stockUpdate).not.toHaveBeenCalled();
   });

@@ -1,25 +1,20 @@
-# Kiểm chứng backend Barista TV4 — 2026-10-16 (mới nhất)
+# Kiểm thử và bằng chứng BrewLite
 
-Nền `main` a80e712 trên nhánh `feature/orders-and-inventory`. Đã chạy:
+## Backend Barista TV4 — bằng chứng trước khi nhập main
 
-| Kiểm tra | Kết quả |
-|---|---|
-| `npm.cmd --prefix backend run prisma:generate` | PASS |
-| `npm.cmd --prefix backend run build` | PASS |
-| `npm.cmd --prefix backend run lint` | PASS |
-| `docker compose build backend` | PASS, Prisma generate + Nest build trên Linux |
-| `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs` | **19 suites / 191 tests PASS, 0 skipped**; đủ 9 migrations |
-| `cd backend` rồi `node node_modules/typescript/bin/tsc --project tsconfig.test.json --noEmit --incremental false` | 3 lỗi có sẵn: `products.http.spec.ts` hai fixture thiếu stock/description; `test/fixtures/product-detail.ts` thiếu stock. Không có lỗi typecheck TV4 mới |
+Commit `abd7343`: Prisma generate, backend build local/Docker và lint PASS; `verify-orders-postgres.cjs` chạy **19 suites/191 tests PASS, 0 skipped**, gồm 22 bài PostgreSQL và 9 migrations trên database UUID riêng đã dọn. Kiểm tra detail/role, hủy PENDING/PAID/PAYMENT_FAILED có lý do, reason validation, chặn status bypass, terminal immutability, completedAt, active + terminal list, cancel races, rollback và migration dữ liệu cũ.
 
-22 bài PostgreSQL gồm 8 Orders và 14 Staff mới trong `src/orders/staff-orders.postgres.spec.ts`. Staff tests dùng Nest/JWT/Origin/DTO/Prisma thật, kiểm tra detail và quyền khách, không lộ thông tin tài khoản, hủy PENDING/PAID/PAYMENT_FAILED có lý do, reason không hợp lệ, chặn bypass status, immutable terminal, PREPARING/READY không được hủy, completedAt đúng lúc bàn giao, list active + terminal và lọc unpaid. Kiểm chứng race cancel/cancel và cancel/prepare, rollback reason/state/stock/history, khách đọc cùng dữ liệu sau Barista cập nhật. Migration backfill được chạy trên bảng tạm chứa dữ liệu cũ để kiểm chứng chỉ lấy thời điểm từ sự kiện COMPLETED, không tạo reason hoặc timestamp giả.
+Sau khi nhập `origin/main:b87db13` ngày 2026-10-18, lần chạy đầu tìm thấy một fixture `payment-status.postgres.spec.ts` còn gọi `staffTransition(...,'CANCELLED')`; production API từ chối đúng vì thiếu reason. Fixture được đổi sang `staffCancel(...,'Khách yêu cầu hủy')`, không thay logic Payment. Chạy lại trên image mới: Prisma generate, backend build local/Docker, lint và **25 suites/270 tests PASS, 0 skipped**. Script áp đủ 11 migration trên PostgreSQL tạm `brewlite_orders_test_<uuid>` rồi xóa DB thành công. Frontend Webpack production build PASS và unit **14/14 PASS**; unit cần chạy ngoài sandbox trên máy Windows vì `tsx` trong sandbox báo `uv_os_get_passwd ENOMEM`. Đây là bằng chứng tích hợp sau merge; chưa chạy browser E2E ở lượt cập nhật này.
 
-Script tạo DB `brewlite_orders_test_<uuid>` riêng, apply migrations rồi chạy toàn bộ Jest; đã xóa đúng DB tạm sau thành công. Không thay đổi dữ liệu DB ứng dụng. Trên máy này đã khởi động Docker Desktop và service postgres để chạy test; build image chưa triển khai backend mới vào DB ứng dụng. Cần chạy migrate deploy khi triển khai backend.
+## Task 06 — 2026-10-16, main c2d6922 → codex/task-06-orders
 
-Giới hạn: chưa chạy browser E2E cho Staff API; UI TV1 hiện vẫn ẩn history/KPI/nút hủy trong API mode, cần TV1 bật các nhánh đó. Không kiểm chứng giao dịch hoàn tiền; Payment endpoint/port vẫn cần TV5. Không dùng kết quả 191 tests để đánh dấu toàn bộ dự án VERIFIED_COMPLETE.
+Backend `npm run test:postgres`: **19 suites, 201/201 tests PASS, 0 skipped**, PostgreSQL 15.18 thật, DB riêng tạo bằng UUID, đủ 8 migration rồi tự dọn. Trong đó hai suite Orders PostgreSQL có 31 bài thật (23 mới + 8 có sẵn). Backend build/lint và typecheck toàn bộ test PASS. Frontend unit **13/13 PASS**, build API mode `--webpack` PASS, lint hai file frontend thay đổi PASS. Browser Edge API/Auth/Cart/Orders thật: **4/4 PASS**, gồm tạo/lưu PENDING ở 1440/768/390, mở lại không tạo trùng và 409 thiếu hàng giữ giỏ.
 
----
+Frontend lint toàn repo FAIL có sẵn từ main mới tại profile/page.tsx:21 (`react-hooks/preserve-manual-memoization`). Turbopack có lỗi tạo tiến trình trên máy; không sửa script mặc định, dùng Webpack kiểm chứng. Docker CLI không có nên không xác nhận Compose. Không dùng các kết quả này để chốt Task 08/09/10.
 
-# Kiểm chứng tích hợp `origin/main` vào `feature/auth-and-base` — 2026-10-16 (mốc trước)
+[TASK06_VERIFICATION.md](TASK06_VERIFICATION.md) có cách chạy, ma trận AC, commit từng phần, log và ảnh thật. Lượt trước có audit 160 pass + 8 skip trên main cũ; con số đó không phải kết quả hiện tại. Các mốc bên dưới giữ làm lịch sử.
+
+## Lịch sử tích hợp origin/main vào feature/auth-and-base — 2026-10-16
 
 Sau fetch/merge main có Orders/Inventory, backend build lần đầu PASS nhưng full PostgreSQL suite có **24 lỗi HTTP Orders**: fixture user của TV4 thiếu `sessionVersion` nên JwtStrategy TV1 trả 401. Đã thêm version 0 vào fixture và JWT test. Chạy lại bằng `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs`: **18 suites, 168/168 tests PASS**, không skipped. Script tạo database `brewlite_orders_test_<uuid>` riêng, áp dụng đủ 8 migrations (gồm Orders và Auth session_version), rồi xóa đúng database tạm. Không thay đổi DB ứng dụng. Backend Docker build PASS; frontend build/lint PASS; `npm --prefix frontend test`: 13/13 PASS. Browser Orders/Staff API E2E chưa chạy; Playwright demo 4/4 là bằng chứng **trước merge** và dùng mock nghiệp vụ.
 
@@ -169,3 +164,32 @@ Sau lượt chỉnh UI theo Stitch: `npm --prefix frontend run build` PASS (13 r
 - `BREWLITE_RUN_API_E2E=1 npm --prefix frontend run test:e2e -- --grep "API mode"`: PASS 2/2 Chromium E2E khi Next chạy API mode trên origin 3000: 10 sản phẩm từ PostgreSQL, S/M/L, topping, giá động, loading/empty/error/retry.
 
 Orders API thật chưa có; Payment core đã có nhưng endpoint chưa thể bật nếu thiếu Orders port. Task 07/08/09/10 chưa thể VERIFIED_COMPLETE toàn bộ. `npm ci` backend báo 29 lỗ hổng audit (2 low, 21 moderate, 5 high, 1 critical); cần rà soát riêng trước production, không chạy `audit fix --force` tự động.
+
+---
+
+## Payment–Order integration — 2026-10-17
+
+Đã nối `PaymentsModule` với `OrdersService`, thêm foreign key `payments.order_id → orders.id`, và đưa finalize Payment + chuyển trạng thái Order/history/tồn kho/điểm vào cùng transaction. Replay idempotency không gọi gateway hoặc transition lần hai. Retry từ PAYMENT_FAILED chỉ giữ lại tồn kho và chuyển PENDING→PAID trong transaction finalize khi gateway trả PAID; PAYMENT_FAILED/UNKNOWN lặp lại giữ nguyên Order thất bại.
+
+- `npm --prefix backend run prisma:generate`: PASS.
+- `npm --prefix backend run build`: PASS.
+- `npm --prefix backend run lint`: PASS.
+- `npm --prefix backend test -- --runInBand`: PASS 18 suites/165 tests cho bộ không cần DB; 2 suite PostgreSQL opt-in được chạy riêng.
+- Khởi tạo PostgreSQL 18 test riêng tại cổng 55434, áp đủ 9 migration và seed products/Barista: PASS.
+- `backend/src/payments/payments.postgres.spec.ts` cùng `payment-status.postgres.spec.ts`: PASS 2 suite/18 test cho PAID persistence + replay, PAYMENT_FAILED→retry PAID + tồn kho, foreign key và adapter trạng thái/ownership.
+- HTTP smoke với cookie/Origin thật: đăng ký customer, tạo Order, POST Payment, GET Order đều thành công. Truy vấn DB cho order smoke trả `PAID|PAID|29000|2` tương ứng Order status, Payment status, amount và số status history.
+- Khôi phục “Kịch bản demo” trong API mode bằng hai cờ sandbox. Backend API thật xác nhận `PAYMENT_FAILED`, retry `PAID`, và Payment `UNKNOWN` trong khi Order giữ `PENDING`; dữ liệu vẫn ghi PostgreSQL.
+- Backend build/lint và 13 Payment unit tests PASS; frontend 14/14 unit PASS và production build PASS. Browser headless xác nhận selector hiển thị cùng ghi chú PostgreSQL ở 1440/768/390, mobile `scrollWidth=innerWidth=390`; luồng API mode chọn PAYMENT_FAILED → màn thất bại → retry PAID → màn thành công PASS.
+- Sau sửa luồng retry, Playwright riêng `failed payment retry returns to checkout and reuses the order` PASS: nút retry quay về checkout, hiện cảnh báo không tạo đơn mới, chọn lại outcome rồi thành công với cùng ID; kiểm tra 1440/768/390 không tràn ngang. Truy vấn PostgreSQL của order mới nhất trả một Order `PAID`, tổng 33.000 VND và đúng hai Payment `PAYMENT_FAILED → PAID`. Frontend unit 14/14, lint hai file thay đổi và production build PASS; lint toàn frontend còn bị chặn bởi lỗi memoization có sẵn tại `src/app/profile/page.tsx:21`.
+- Sửa Order response trả phương thức của Payment PAID mới nhất: backend build PASS, Orders/Payments không-DB 6 suites/105 tests PASS, PostgreSQL Payment 2 suite/18 test PASS và kiểm tra `GET /orders/:id` có `paymentMethod:CARD`. Playwright retry PASS sau khi reload trang success và xác nhận “Phương thức: Ví điện tử”.
+
+Chạy lại trên database kiểm thử riêng đã migrate:
+
+```powershell
+$env:DATABASE_URL='postgresql://USER:PASSWORD@localhost:5434/brewlite_payments_test?schema=public'
+npm run db:migrate
+$env:PAYMENTS_TEST_DATABASE_URL=$env:DATABASE_URL
+npm --prefix backend test -- --runInBand src/payments/payments.postgres.spec.ts
+```
+
+Không trỏ hai biến trên vào database demo/chung vì suite tạo và xóa fixture của riêng nó nhưng migration vẫn thay đổi schema. T08 giữ IN_PROGRESS cho đến khi browser API E2E đầy đủ và QA thủ công hoàn tất.

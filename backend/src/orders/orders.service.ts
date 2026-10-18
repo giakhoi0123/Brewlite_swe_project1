@@ -158,6 +158,22 @@ export class OrdersService {
     return orderResponse(order);
   }
 
+  /** Internal payment retry only. Re-reserves inventory atomically and verifies ownership. */
+  async preparePaymentRetry(
+    id: string,
+    userId: string,
+    transaction?: Prisma.TransactionClient,
+  ) {
+    const prepare = async (tx: Prisma.TransactionClient) => {
+      const owned = await tx.order.findFirst({ where: { id, userId } });
+      if (!owned) throw new NotFoundException('Không tìm thấy đơn hàng');
+      return orderResponse(
+        await this.transitionInTransaction(tx, id, OrderStatus.PENDING),
+      );
+    };
+    return transaction ? prepare(transaction) : this.transaction(prepare);
+  }
+
   async staffList() {
     return (
       await this.prisma.order.findMany({
