@@ -8,7 +8,7 @@ import { cookieOriginGuard } from '../auth/csrf.middleware';
 import { PrismaService } from '../prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { OrdersService } from './orders.service';
-import { NoPromotionDiscount } from './order-discount';
+import { PromotionDiscount } from './order-discount';
 import type { CreateOrderDto } from './dto/create-order.dto';
 
 // Opt in with a migrated, dedicated test database. Never fall back to DATABASE_URL.
@@ -37,7 +37,7 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
     service = new OrdersService(
       db,
       new InventoryService(),
-      new NoPromotionDiscount(),
+      new PromotionDiscount(),
     );
     await db.$connect();
     await db.user.create({
