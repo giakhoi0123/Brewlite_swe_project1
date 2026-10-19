@@ -40,7 +40,7 @@ const transitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "PAYMENT_FAILED", "CANCELLED"],
   PAYMENT_FAILED: ["PENDING", "CANCELLED"],
   PAID: ["PREPARING", "CANCELLED"],
-  PREPARING: ["READY"],
+  PREPARING: ["READY", "CANCELLED"],
   READY: ["COMPLETED"],
   COMPLETED: [],
   CANCELLED: [],
@@ -272,7 +272,7 @@ export const mockPayments: PaymentService = {
         paymentMethod: method,
         error:
           status === "PAYMENT_FAILED"
-            ? "Cổng thanh toán demo từ chối giao dịch"
+            ? "Giao dịch bị từ chối. Vui lòng thử lại."
             : undefined,
       });
     return payment;
@@ -335,7 +335,7 @@ export const mockBarista: BaristaOrderService = {
     const order = orders().find((o) => o.id === id);
     if (!order) throw new Error("Không tìm thấy đơn");
     if (!reason.trim()) throw new Error("Vui lòng ghi lý do hủy đơn");
-    if (!["PENDING", "PAID", "PAYMENT_FAILED"].includes(order.status))
+    if (!["PENDING", "PAID", "PAYMENT_FAILED", "PREPARING"].includes(order.status))
       throw new Error("Không thể hủy đơn ở trạng thái hiện tại");
     const next: Order = { ...order, status: "CANCELLED", cancelReason: reason.trim() };
     saveOrder(next);

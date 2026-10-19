@@ -175,7 +175,7 @@ export class OrdersService {
   async staffList() {
     return (
       await this.prisma.order.findMany({
-        where: { status: { in: ['PAID', 'PREPARING', 'READY'] } },
+        where: { status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] } },
         include: orderInclude,
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       })
@@ -195,6 +195,14 @@ export class OrdersService {
     );
   }
 
+  async staffCancel(id: string, reason: string) {
+    const trimmed = reason.trim();
+    if (!trimmed) throw new BadRequestException('Cần ghi lý do hủy đơn');
+    return this.transaction(async (tx) =>
+      orderResponse(await this.transitionInTransaction(tx, id, OrderStatus.CANCELLED, trimmed)),
+    );
+  }
+
   /** Internal TV5/TV6 integration only. Caller MUST propagate errors to roll back its transaction.
    * Verify ownership in PaymentsModule; persist payment/idempotency/loyalty in the same tx.
    * UNKNOWN must not call this method. Retry PAYMENT_FAILED -> PENDING before gateway attempt.
@@ -203,6 +211,7 @@ export class OrdersService {
     tx: Prisma.TransactionClient,
     id: string,
     to: OrderStatus,
+    cancelReason?: string,
   ) {
     const order = await tx.order.findUnique({
       where: { id },
@@ -221,6 +230,7 @@ export class OrdersService {
         status: to,
         version: { increment: 1 },
         inventoryHeld: release ? false : reserve ? true : order.inventoryHeld,
+        ...(to === OrderStatus.CANCELLED && cancelReason ? { cancelReason } : {}),
       },
     });
     if (changed.count !== 1)

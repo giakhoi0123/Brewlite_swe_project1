@@ -147,6 +147,7 @@ describeDatabase(
     });
 
     const cleanup = async () => {
+      await db.cartItem.deleteMany({ where: { cart: { userId } } });
       await db.payment.deleteMany({
         where: { userId: { in: [userId, otherId] } },
       });
@@ -373,6 +374,14 @@ describeDatabase(
     it.each(['PAID', 'PAYMENT_FAILED'] as const)(
       'rolls finalization back after writes then recovers journaled %s from another instance',
       async (outcome) => {
+        const cart = await db.cart.upsert({
+          where: { userId }, create: { userId }, update: {},
+        });
+        await db.cartItem.create({ data: {
+          cartId: cart.id, productId, size: 'M', toppingIds: [],
+          ice: '70% đá', sugar: '50% ít ngọt', note: '',
+          configKey: 'rollback-cart', quantity: 1,
+        } });
         charge.mockResolvedValueOnce(outcome);
         const original = repo.finalize.bind(repo);
         jest
@@ -400,6 +409,8 @@ describeDatabase(
         });
         expect((await state()).statusHistory).toHaveLength(1);
         expect(await points()).toBe(7);
+        expect(await db.loyaltyLog.count({ where: { orderId } })).toBe(0);
+        expect(await db.cartItem.count({ where: { cartId: cart.id } })).toBe(1);
         expect(await stock()).toBe(1);
         await expect(secondService.pay(userId, input())).rejects.toMatchObject({
           status: 409,
@@ -409,6 +420,8 @@ describeDatabase(
         expect(await service.pay(userId, payload)).toEqual(recovered);
         expect(charge).toHaveBeenCalledTimes(1);
         expect(await points()).toBe(outcome === 'PAID' ? 9 : 7);
+        expect(await db.loyaltyLog.count({ where: { orderId } })).toBe(outcome === 'PAID' ? 1 : 0);
+        expect(await db.cartItem.count({ where: { cartId: cart.id } })).toBe(outcome === 'PAID' ? 0 : 1);
         expect(await stock()).toBe(outcome === 'PAID' ? 1 : 2);
         expect((await state()).statusHistory).toHaveLength(2);
         expect(

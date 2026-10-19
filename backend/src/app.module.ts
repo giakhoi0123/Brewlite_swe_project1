@@ -76,6 +76,9 @@ import {
                 const pointsToEarn = Math.floor(order.total / 10000);
 
                 if (pointsToEarn > 0) {
+                  await tx.loyaltyLog.create({
+                    data: { userId: order.userId, orderId: order.id, points: pointsToEarn },
+                  });
                   await tx.user.update({
                     where: { id: order.userId },
                     data: {
@@ -85,6 +88,7 @@ import {
                     },
                   });
                 }
+                await tx.cartItem.deleteMany({ where: { cart: { userId: order.userId } } });
               }
             };
             if (transaction) await apply(transaction);

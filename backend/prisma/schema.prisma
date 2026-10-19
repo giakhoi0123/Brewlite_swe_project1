@@ -55,6 +55,7 @@ model User {
   orders        Order[]
   cart          Cart?
   payments      Payment[]
+  loyaltyLogs   LoyaltyLog[]
 
   @@map("users")
 }
@@ -126,6 +127,7 @@ model Order {
   discountAmount Int                  @default(0) @map("discount_amount")
   total          Int
   promotionCode  String?              @map("promotion_code")
+  cancelReason   String?              @map("cancel_reason")
   inventoryHeld  Boolean              @default(true) @map("inventory_held")
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
@@ -133,6 +135,7 @@ model Order {
   items          OrderItem[]
   statusHistory  OrderStatusHistory[]
   payments       Payment[]
+  loyaltyLog     LoyaltyLog?
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -244,4 +247,17 @@ model Payment {
   // SQL migration also owns a partial unique order_id index for live attempts.
   @@index([orderId])
   @@map("payments")
+}
+
+model LoyaltyLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  orderId   String   @unique @map("order_id") @db.Uuid
+  points    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("loyalty_logs")
 }

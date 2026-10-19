@@ -11,6 +11,7 @@ const allowed = new Set([
   'PAID:PREPARING',
   'PAID:CANCELLED',
   'PREPARING:READY',
+  'PREPARING:CANCELLED',
   'READY:COMPLETED',
 ]);
 
