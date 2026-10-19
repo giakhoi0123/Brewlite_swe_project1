@@ -11,8 +11,8 @@ export class ApiError extends Error {
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
   });
   const body = await response.json().catch(() => null);
   if (response.status === 401 && typeof window !== "undefined" && path !== "/auth/login")

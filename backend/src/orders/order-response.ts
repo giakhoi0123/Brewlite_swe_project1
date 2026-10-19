@@ -28,10 +28,14 @@ export function orderResponse(order: OrderRecord) {
     discount: order.discountAmount,
     total: order.total,
     ...(order.promotionCode ? { promotionCode: order.promotionCode } : {}),
+    ...(order.cancelReason ? { cancelReason: order.cancelReason } : {}),
     ...(order.payments?.[0]
       ? { paymentMethod: order.payments[0].method }
       : {}),
     createdAt: order.createdAt.toISOString(),
+    ...(order.status === 'COMPLETED'
+      ? { completedAt: order.updatedAt.toISOString() }
+      : {}),
     items: order.items.map((item) => ({
       key: item.id,
       productId: item.productId,

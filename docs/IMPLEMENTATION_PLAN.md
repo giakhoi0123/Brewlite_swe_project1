@@ -1,6 +1,16 @@
 # Kế hoạch triển khai BrewLite 1.0
 
-## Task 06 review — 2026-10-17, mới nhất
+## Bổ sung giao diện nghiệm thu 2026-10-19
+
+Đã thêm nút hiện/ẩn mật khẩu cho login và register, bỏ banner/ghi chú demo, chuyển mặc định frontend Compose sang API mode, thêm preview mã ưu đãi bằng cùng provider của Order và đọc điểm qua `/auth/me`. Barista API mode dùng lịch sử, hủy có lý do và KPI từ backend. Kiểm tra frontend unit 16/16, Playwright auth/API menu 4/4 tại các viewport 1440/768/390, backend unit promotion 2/2, build/lint hai phía PASS. Database Compose cục bộ đã áp đủ 11 migrations; gateway sản xuất vẫn chưa được kiểm chứng.
+
+Thẻ thành viên trang chủ theo tài khoản: khách chưa đăng nhập tới `/register`, CUSTOMER đã đăng nhập tới `/profile`, BARISTA không nhận lời mời tích điểm. Không thêm quy trình ghi danh Loyalty riêng vì tài khoản CUSTOMER tự động tham gia; điểm chỉ được cộng sau PAID theo `floor(Order.total / 10.000)`. Bài Playwright mới xác minh hai trạng thái khách/CUSTOMER.
+
+## Ghi nhận kiểm thử nghiệm thu 2026-10-19
+
+Sau khi pull/merge `b87db13`, đã bổ sung bộ SAT cho US-01 đến US-09, sửa năm tiêu chí sai khác và chạy PostgreSQL QA riêng với 11 migrations. Kết quả cuối: backend 301/301, E2E 185/185, frontend unit 15/15; chi tiết trong [`TEST_REPORT_BREWLITE.md`](../TEST_REPORT_BREWLITE.md). 9 US đạt nghiệm thu kỹ thuật; việc triển khai migration lên DB dùng chung và gateway/hoàn tiền thật chưa được kiểm chứng, nên không tự chuyển toàn bộ Task sản phẩm sang VERIFIED_COMPLETE.
+
+## Task 06 review — 2026-10-17, mốc lịch sử
 
 Đã xác minh 5 commit đến `03ff19b` đầy đủ, chưa có trong main; PR #13 đóng chưa merge, PR #16 đang mở trên `feature/task-06-orders` nên cập nhật PR hiện có. Merge main `bacb7a6` (đã nhận Payment consistency #18) thành code `2c8adc2`, giữ nguyên 5 commit và mã Payment/Promotion/Staff của main. **24 suites/247 backend tests PASS, 0 skipped; frontend unit 14/14; browser Orders API 4/4 tại 1440/768/390; backend build/lint/full typecheck và frontend API Webpack build PASS**. Frontend lint toàn repo vẫn FAIL do profile:21 có sẵn; scoped lint E2E/config PASS. T06 **READY_FOR_REVIEW**, chưa merge; Task 06 kết thúc PENDING, không chốt T08/09/10. Xem [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Các phần bên dưới là lịch sử.
 

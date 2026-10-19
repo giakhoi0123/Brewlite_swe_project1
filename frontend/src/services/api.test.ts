@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { apiOrders, apiPayments, apiBarista } from './api';
+import { apiOrders, apiPayments, apiBarista, apiPromotions, apiLoyalty } from './api';
 import { ApiError } from './http';
 import type { CartItem } from '../types/domain';
 
@@ -11,6 +11,20 @@ const item: CartItem = {
   size: 'M', toppingIds: ['topping'], toppingNames: ['Untrusted topping'], unitPrice: 1,
   quantity: 2, ice: '70% đá', sugar: '50% ít ngọt', note: 'Ít nóng',
 };
+
+test('promotion preview and loyalty points use available backend routes', async () => {
+  const calls: string[] = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return Response.json(calls.length === 1
+      ? { code: 'WELCOME10', discount: 10000 }
+      : { user: { loyaltyPoints: 12 } });
+  };
+  assert.deepEqual(await apiPromotions.validate('WELCOME10', 90000), { code: 'WELCOME10', discount: 10000 });
+  assert.deepEqual(await apiLoyalty.get('ignored'), { points: 12 });
+  assert.ok(calls[0].endsWith('/promotions/validate'));
+  assert.ok(calls[1].endsWith('/auth/me'));
+});
 
 test('orders adapter posts options and cookie credentials, never client price/owner/discount', async () => {
   let call: { url: string; init?: RequestInit } | undefined;
@@ -73,8 +87,10 @@ test('status adapter unwraps the JSON status response', async () => {
 
 test('payments adapter forwards the selected sandbox outcome to the API', async () => {
   let body: unknown;
+  let headers: HeadersInit | undefined;
   globalThis.fetch = async (_url, init) => {
     body = JSON.parse(String(init?.body));
+    headers = init?.headers;
     return Response.json({ status: 'PAYMENT_FAILED' }, { status: 201 });
   };
   await apiPayments.pay(
@@ -88,5 +104,9 @@ test('payments adapter forwards the selected sandbox outcome to the API', async 
     method: 'CARD',
     idempotencyKey: '41a650c7-8597-4a01-a8e2-000000000001',
     demoOutcome: 'PAYMENT_FAILED',
+  });
+  assert.deepEqual(headers, {
+    'Content-Type': 'application/json',
+    'Idempotency-Key': '41a650c7-8597-4a01-a8e2-000000000001',
   });
 });

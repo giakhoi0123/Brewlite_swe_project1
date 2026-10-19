@@ -2,7 +2,7 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { services, paymentDemoControls } from "@/services";
+import { services } from "@/services";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "@/components/auth-provider";
 import type { Order, PaymentMethod } from "@/types/domain";
@@ -115,7 +115,8 @@ export default function PaymentPage({
   };
   const retry = () => {
     if (!order) return;
-    router.push(`/checkout?retryOrder=${encodeURIComponent(id)}`);
+    const qa = readPaymentIntent(id)?.outcome ? "&qa=1" : "";
+    router.push(`/checkout?retryOrder=${encodeURIComponent(id)}${qa}`);
   };
   if (loading || authLoading)
     return (
@@ -188,7 +189,7 @@ export default function PaymentPage({
           <>
             <h1 className="error">Thanh toán chưa thành công</h1>
             <StatusBadge status={order.status} />
-            <p>{order.error || "Giao dịch demo bị từ chối."}</p>
+            <p>{order.error || "Giao dịch bị từ chối. Vui lòng thử lại."}</p>
             <p>Giỏ hàng vẫn được giữ nguyên.</p>
             <button className="btn btn-primary" onClick={retry}>
               Thử thanh toán lại
@@ -219,11 +220,6 @@ export default function PaymentPage({
                 Xem chi tiết đơn
               </Link>
             </div>
-            {paymentDemoControls && (
-              <p className="muted" style={{ fontSize: 12 }}>
-                Demo không tự chuyển trạng thái khi kết quả chưa rõ.
-              </p>
-            )}
           </>
         )}
       </div>

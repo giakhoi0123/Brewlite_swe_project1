@@ -24,14 +24,12 @@ import {
 export type DataMode = "mock" | "hybrid" | "api";
 const mode = process.env.NEXT_PUBLIC_DATA_MODE;
 export const dataMode: DataMode =
-  mode === "api" || mode === "hybrid" ? mode : "mock";
+  mode === "mock" || mode === "hybrid" ? mode : "api";
 const catalogApi = dataMode !== "mock",
   allApi = dataMode === "api";
-/** Thanh toán/đơn hàng còn giả lập: hiện lựa chọn kết quả demo và banner. */
-export const demoOrders = !allApi;
-/** Cho phép chọn phản hồi gateway sandbox mà vẫn dùng Orders/Payments API thật. */
+/** Chỉ hiện bộ chọn phản hồi gateway khi bật rõ ràng trong môi trường kiểm thử. */
 export const paymentDemoControls =
-  demoOrders || process.env.NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS === "true";
+  process.env.NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS === "true";
 export const services = {
   products: catalogApi ? apiProducts : mockProducts,
   cart: catalogApi ? apiCart : mockCart,

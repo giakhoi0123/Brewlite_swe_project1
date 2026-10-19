@@ -8,7 +8,7 @@ test.skip(!process.env.BREWLITE_RUN_ORDERS_E2E || !databaseUrl,
   'Opt in with API-mode frontend, real backend and a migrated dedicated ORDERS_TEST_DATABASE_URL');
 
 // Only fixtures owned by this run are removed. Auth, Cart, Products and Orders all use real APIs/DB.
-const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+const db = new PrismaClient({ datasources: { db: { url: databaseUrl || 'postgresql://unused:unused@localhost:1/unused' } } });
 let productId: string;
 let toppingId: string;
 let customerId: string | undefined;
@@ -62,7 +62,7 @@ async function checkout(page: import('@playwright/test').Page) {
   expect(registration.status()).toBe(201);
   customerId = (await registration.json()).user.id;
   await expect(page).toHaveURL(/\/checkout$/);
-  await expect(page.getByLabel('Kết quả thanh toán demo')).toHaveCount(0);
+  await expect(page.getByLabel('Kết quả thanh toán kiểm thử')).toHaveCount(0);
   await expect.poll(async () => db.cartItem.count({ where: { cart: { userId: customerId }, productId } })).toBe(1);
   await expect(page.getByRole('button', { name: 'Xác nhận thanh toán 90.000 ₫' })).toBeEnabled();
 }

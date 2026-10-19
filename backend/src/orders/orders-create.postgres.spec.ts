@@ -7,6 +7,7 @@ import { AppModule } from '../app.module';
 import { PrismaService } from '../prisma.service';
 import { cookieOriginGuard } from '../auth/csrf.middleware';
 import type { CreateOrderDto } from './dto/create-order.dto';
+import { OrdersService } from './orders.service';
 
 const databaseUrl = process.env.ORDERS_TEST_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -16,6 +17,7 @@ const origin = 'http://localhost:3000';
 describeDatabase('Task 06: authenticated order creation on PostgreSQL', () => {
   let app: INestApplication;
   let db: PrismaService;
+  let orders: OrdersService;
   let customer: string;
   let otherCustomer: string;
   let cookie: string;
@@ -40,6 +42,7 @@ describeDatabase('Task 06: authenticated order creation on PostgreSQL', () => {
     db = new PrismaService({ datasources: { db: { url: databaseUrl! } } });
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService).useValue(db).compile();
+    orders = module.get(OrdersService);
     app = module.createNestApplication({ logger: false });
     app.setGlobalPrefix('api');
     app.use(cookieOriginGuard);
@@ -185,5 +188,23 @@ describeDatabase('Task 06: authenticated order creation on PostgreSQL', () => {
     const response = await post({ items: [line()], promotionCode: 'WELCOME10' }).expect(201);
     expect(response.body).toMatchObject({ status: 'PENDING', subtotal: 90000, discount: 10000, total: 80000 });
     expect(await db.order.findUniqueOrThrow({ where: { id: response.body.id } })).toMatchObject({ discountAmount: 10000, total: 80000 });
+  });
+
+  it('lets BARISTA cancel a PREPARING order with a persisted reason over HTTP', async () => {
+    const created = await post({ items: [line()] }).expect(201);
+    await db.$transaction((tx) => orders.transitionInTransaction(tx, created.body.id, 'PAID'));
+    await request(app.getHttpServer())
+      .patch(`/api/staff/orders/${created.body.id}/status`)
+      .set('Cookie', staffCookie).set('Origin', origin)
+      .send({ status: 'PREPARING' }).expect(200);
+    const cancelled = await request(app.getHttpServer())
+      .patch(`/api/staff/orders/${created.body.id}/cancel`)
+      .set('Cookie', staffCookie).set('Origin', origin)
+      .send({ reason: ' Máy pha hỏng ' }).expect(200);
+    expect(cancelled.body).toMatchObject({ status: 'CANCELLED', cancelReason: 'Máy pha hỏng' });
+    expect(await db.order.findUniqueOrThrow({ where: { id: created.body.id } }))
+      .toMatchObject({ status: 'CANCELLED', inventoryHeld: false, cancelReason: 'Máy pha hỏng' });
+    expect(await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
+      .toMatchObject({ stock: 6 });
   });
 });
