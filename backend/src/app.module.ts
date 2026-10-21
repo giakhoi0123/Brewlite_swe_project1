@@ -14,6 +14,8 @@ import { OrdersModule } from './orders/orders.module';
 import { OrdersService } from './orders/orders.service';
 import { InventoryModule } from './inventory/inventory.module';
 import { PaymentsModule } from './payments/payments.module';
+import { LoyaltyModule } from './loyalty/loyalty.module'; 
+import { PromotionsModule } from './promotions/promotions.module';
 import {
   PAYMENT_ORDER_PORT,
   type PaymentOrderPort,
@@ -32,6 +34,8 @@ import {
     CartModule,
     InventoryModule,
     OrdersModule,
+    LoyaltyModule, 
+    PromotionsModule,
     PaymentsModule.register({
       imports: [OrdersModule, PrismaModule],
       orderProvider: {
@@ -57,16 +61,20 @@ import {
             return owned;
           },
           async applyPaymentResult(input, transaction) {
+            console.log('👉 [PAYMENT RESULT APPLIED]:', input);
+
             const apply = async (tx: Prisma.TransactionClient) => {
-              const owned = await tx.order.findFirst({
+              // Sửa: Đổi tên biến thành 'order' và lấy thêm các trường 'userId', 'total'
+              const order = await tx.order.findFirst({
                 where: { id: input.orderId, userId: input.userId },
-                select: { id: true },
+                select: { id: true, userId: true, total: true },
               });
-              if (!owned)
+              if (!order)
                 throw new NotFoundException('Không tìm thấy đơn hàng');
               if (input.status === 'UNKNOWN') return;
 
-              const order = await orders.transitionInTransaction(
+              // Chuyển trạng thái đơn hàng
+              await orders.transitionInTransaction(
                 tx,
                 input.orderId,
                 input.status,
@@ -77,7 +85,11 @@ import {
 
                 if (pointsToEarn > 0) {
                   await tx.loyaltyLog.create({
-                    data: { userId: order.userId, orderId: order.id, points: pointsToEarn },
+                    data: { 
+                      userId: order.userId, 
+                      orderId: order.id, 
+                      points: pointsToEarn 
+                    },
                   });
                   await tx.user.update({
                     where: { id: order.userId },
@@ -88,9 +100,12 @@ import {
                     },
                   });
                 }
-                await tx.cartItem.deleteMany({ where: { cart: { userId: order.userId } } });
+                await tx.cartItem.deleteMany({ 
+                  where: { cart: { userId: order.userId } } 
+                });
               }
             };
+
             if (transaction) await apply(transaction);
             else await prisma.$transaction(apply);
           },
