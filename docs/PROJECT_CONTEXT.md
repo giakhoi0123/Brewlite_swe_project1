@@ -1,5 +1,11 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## Task 06 review — 2026-10-17, mới nhất
+
+Nhánh hiện tại `feature/task-06-orders`, cập nhật PR #16 có sẵn thay vì tạo PR trùng. 5 commit gốc đến `03ff19b` giữ nguyên; PR #13 đã đóng chưa merge. Nền main `bacb7a6` đã có Payment consistency #18; merge commit `2c8adc2` giữ nguyên Payment/Promotion/Staff/main và chỉ giải quyết conflict tài liệu. Backend test:postgres giờ đặt cả ORDERS_TEST_DATABASE_URL và PAYMENTS_TEST_DATABASE_URL cho DB UUID riêng, tránh skipped suite Payment.
+
+247 backend tests PostgreSQL/0 skipped; frontend unit 14; browser Task 06 API 4 (1440/768/390 + stock409) PASS, cùng build/lint/typecheck backend và frontend Webpack build. Frontend lint toàn repo còn lỗi profile memoization; scoped lint E2E/config PASS. T06 READY_FOR_REVIEW, chưa merge. Browser chỉ PENDING, abort Payment, không suy ra T08 hoàn thành. Xem [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md) và evidence/task06-review. Các ghi chú nhánh/test phía dưới là lịch sử.
+
 ## Payment consistency — 2026-10-17, cập nhật mới nhất
 
 Đã merge `origin/main:808077f` vào nhánh làm việc sau khi PR #15/#17 được merge trong lúc thực hiện. Bảo toàn sandbox demoOutcome/FK/Orders.preparePaymentRetry và UI của main; consistency được review qua PR #18. Script test tự đặt cả ORDERS_TEST_DATABASE_URL và PAYMENTS_TEST_DATABASE_URL cho DB UUID riêng.

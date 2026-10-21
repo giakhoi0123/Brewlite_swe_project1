@@ -15,6 +15,7 @@ function CheckoutContent() {
   const router = useRouter(),
     searchParams = useSearchParams(),
     retryOrderId = searchParams.get("retryOrder"),
+    paymentTestControls = paymentDemoControls && searchParams.get("qa") === "1",
     items = useCart((s) => s.items),
     cartPromoCode = useCart((s) => s.promoCode),
     { user, loading } = useAuth(),
@@ -30,9 +31,18 @@ function CheckoutContent() {
     ),
     [error, setError] = useState("");
   const submitting = useRef(false);
+  const togglePaymentTest = () => {
+    const query = new URLSearchParams(searchParams.toString());
+    if (paymentTestControls) query.delete("qa");
+    else query.set("qa", "1");
+    router.replace(`/checkout${query.size ? `?${query.toString()}` : ""}`, { scroll: false });
+  };
   useEffect(() => {
-    if (!loading && !user) router.replace("/login?next=%2Fcheckout");
-  }, [loading, user, router]);
+    if (!loading && !user) {
+      const query = searchParams.toString();
+      router.replace(`/login?next=${encodeURIComponent(`/checkout${query ? `?${query}` : ""}`)}`);
+    }
+  }, [loading, user, router, searchParams]);
   useEffect(() => {
     if (!retryOrderId || !user) {
       setRetryLoading(false);
@@ -116,7 +126,7 @@ function CheckoutContent() {
       savePaymentIntent(order.id, {
         method,
         key: crypto.randomUUID(),
-        ...(paymentDemoControls ? { outcome } : {}),
+        ...(paymentTestControls ? { outcome } : {}),
       });
       router.push(`/payment/${encodeURIComponent(order.id)}/processing`);
     } catch (e) {
@@ -231,16 +241,29 @@ function CheckoutContent() {
                   Thẻ ngân hàng
                 </button>
               </div>
+              <p className="muted" style={{ fontSize: 12 }}>
+                Chọn một phương thức, sau đó bấm “Xác nhận thanh toán” trong tóm tắt đơn hàng. Cổng thanh toán hiện là môi trường thử nghiệm, không trừ tiền thật.
+              </p>
               {paymentDemoControls && (
-                <div className="notice">
-                  <strong>Kịch bản demo</strong>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  aria-expanded={paymentTestControls}
+                  aria-controls="payment-test-outcome"
+                  onClick={togglePaymentTest}
+                >
+                  {paymentTestControls ? "Ẩn kiểm thử thanh toán" : "Kiểm thử thanh toán"}
+                </button>
+              )}
+              {paymentTestControls && (
+                <div className="notice" id="payment-test-outcome" style={{ marginTop: 12 }}>
+                  <strong>Kiểm thử kết quả thanh toán</strong>
                   <p className="muted" style={{ fontSize: 12 }}>
-                    Chỉ mô phỏng phản hồi gateway; Order và Payment vẫn được lưu
-                    vào PostgreSQL.
+                    Chọn phản hồi cổng thanh toán cho lần thử này. Đơn và giao dịch vẫn được lưu vào PostgreSQL.
                   </p>
                   <select
                     className="field"
-                    aria-label="Kết quả thanh toán demo"
+                    aria-label="Kết quả thanh toán kiểm thử"
                     value={outcome}
                     onChange={(e) =>
                       setOutcome(e.target.value as typeof outcome)

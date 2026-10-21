@@ -1,5 +1,23 @@
 # Trạng thái dự án
 
+## QA nghiệm thu 9 US — 2026-10-19, sau pull/merge `b87db13`
+
+Biên bản hiện hành: [`TEST_REPORT_BREWLITE.md`](../TEST_REPORT_BREWLITE.md). Đã sửa năm tiêu chí sai khác của US-04/05/07/09 và bổ sung API Barista hủy có lý do. Trên PostgreSQL 15.19 QA riêng với 11 migrations: backend Jest 25 suites/301 tests PASS; E2E 6 suites/185 tests PASS; frontend unit 15/15 PASS; backend build/typecheck/lint và frontend scoped lint/build PASS. Coverage backend statements 91,69%, branches 77,47%, lines 92,06%. 9/9 US đạt nghiệm thu kỹ thuật theo phạm vi test; database QA đã xóa. Database Compose cục bộ đã áp dụng đủ 11 migrations trong lượt cập nhật giao diện; gateway thật/hoàn tiền thật chưa nằm trong phạm vi kiểm chứng. Các trạng thái lịch sử bên dưới là kết quả của mốc cũ.
+
+## Task 06 review — 2026-10-17, mốc lịch sử
+
+Nhánh hiện tại `feature/task-06-orders`; PR #16 đang mở, chưa merge. PR #13 đóng chưa merge; đủ 5 commit gốc đến `03ff19b` còn nguyên và chưa có trong main tại lúc audit. Đã nhập main `bacb7a6` qua `2c8adc2`; chỉ xung đột tài liệu, không ghi đè AppModule/Payment/Promotion/Staff/schema của main.
+
+Kiểm chứng code `2c8adc2`: **247/247 backend tests trên PostgreSQL 15.18 thật, 24 suites, 0 skipped**, đủ 10 migration; frontend unit **14/14**, browser Orders API **4/4 tại 1440/768/390**. Backend build/lint/full test typecheck, frontend API build Webpack và scoped lint frontend PASS. Frontend lint toàn repo **FAIL** ở `profile/page.tsx:21` (memoization) có sẵn từ main; không sửa UI ngoài Task 06. Prisma generate PASS sau khi chờ lượt DB test kết thúc để giải phóng DLL Windows.
+
+T06 READY_FOR_REVIEW. Browser chặn request Payment bằng route.abort, xác minh Order PENDING, giỏ còn, Payment=0; không dùng để chốt Payment. Log/ảnh/ma trận commit và lệnh chạy: [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). PostgreSQL/servers/DB test riêng, không reset DB nhóm. Compose/default Turbopack chưa chạy ở lượt này. Các mốc dưới là lịch sử.
+
+## Task 06 trên main mới — 2026-10-16
+
+Đã fetch/pull từ `a80e712` lên `origin/main:c2d6922` trước khi tạo nhánh `codex/task-06-orders`. **T06 READY_FOR_REVIEW**: API tạo PENDING, validation/UUID, giá server, transaction/snapshot, Auth và ownership đã kiểm chứng. Backend **201/201 trên PostgreSQL 15 thật, 0 skipped**; browser API **4/4 tại 1440/768/390**; frontend unit 13/13, backend build/lint/typecheck và frontend Webpack build PASS. Còn review PR của nhóm theo DoD.
+
+Bằng chứng, commit từng phần và cách chạy: [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md). Lint frontend toàn repo đang có lỗi memoization ở profile từ main mới; lint các file Task 06 thay đổi PASS. Docker Compose chưa chạy ở máy này; kết quả không xác nhận Task 08/09/10 hoàn thành. Main mới đã có PaymentsModule/PromotionDiscount, nên những đoạn “chưa bật/chưa có” phía dưới là lịch sử, không phải trạng thái mã mới.
+
 ## Payment consistency — 2026-10-17, mới nhất
 
 Đã tích hợp main `808077f` vừa nhận PR #15/#17, giữ nguyên sandbox/UI/FK của nhóm; bộ kiểm chứng cuối gồm cả Payment/Orders/FK và gateway sandbox từ main. Browser/Compose của PR #17 là bằng chứng lịch sử của nhánh đó, không coi là đã kiểm chứng lại consistency trong browser.
@@ -75,3 +93,10 @@ Ngày 2026-10-15 (nhánh `feature/cart_productDetail`):
 - Frontend: `CartService` (mock + REST), `components/cart-sync.tsx` gộp giỏ khách lên server khi đăng nhập, xóa bản sao khi đăng xuất. Khách vãng lai vẫn dùng Zustand như cũ.
 - Thêm `NEXT_PUBLIC_DATA_MODE=hybrid`: sản phẩm + giỏ hàng gọi backend thật, đơn/thanh toán/ưu đãi/điểm/Barista vẫn mock (`demoOrders` điều khiển phần UI demo). Kiểm tra trên trình duyệt Edge + PostgreSQL: thêm, thêm món thứ 2, tăng số lượng, đổi size, xóa món, thanh toán demo PAID (giỏ server được xóa), xóa tất cả — 8/8, mỗi bước đối chiếu trực tiếp bảng `cart_items`.
 - Sửa selector E2E mơ hồ `getByText('Tạm hết')` (trang chủ hiện có 2 chữ "Tạm hết" từ commit `0e669c8`).
+# Cập nhật giao diện nghiệm thu 19/10/2026
+
+- Login và register có nút hiện/ẩn mật khẩu độc lập; mặc định nhập ở trạng thái che.
+- Bỏ banner chế độ dữ liệu và ghi chú demo khỏi giao diện khách hàng/Barista. Bản sandbox có nút “Kiểm thử thanh toán” dưới phương thức thanh toán; bấm để mở bộ chọn PAID/FAILED/UNKNOWN (hoặc vào `/checkout?qa=1`). Bản production tắt cờ nên không hiện nút. Đã thêm hướng dẫn thao tác thanh toán và sửa header mobile khi tên thành viên dài.
+- Frontend mặc định `NEXT_PUBLIC_DATA_MODE=api` trong source, `.env.example`, Dockerfile và Compose; `.env` cục bộ đã chuyển sang `api`. Compose đã được build lại và PostgreSQL cục bộ có đủ 11 migrations. Cổng thanh toán vẫn là sandbox. Thêm `/promotions/validate` dùng chung chính sách giá của Order; điểm thành viên đọc từ `/auth/me`.
+- Barista API mode hiển thị lịch sử COMPLETED/CANCELLED, nút hủy có lý do và KPI đã giao hôm nay từ `completedAt` trong response Order.
+- Thẻ thành viên trên trang chủ nay phụ thuộc trạng thái Auth: khách chưa đăng nhập được dẫn tới `/register`; CUSTOMER đã đăng nhập được dẫn tới `/profile`; BARISTA không thấy lời mời tích điểm. Tài khoản CUSTOMER tự động tham gia Loyalty, không có bước ghi danh riêng. Điểm = `floor(Order.total / 10.000)` chỉ khi PAID.

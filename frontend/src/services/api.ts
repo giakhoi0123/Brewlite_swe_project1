@@ -16,7 +16,6 @@ import type {
   Payment,
   Product,
   Promotion,
-  LoyaltyPoints,
   OrderStatus,
   RewardOption,
 } from "@/types/domain";
@@ -163,6 +162,7 @@ export const apiPayments: PaymentService = {
   pay: (orderId, method, idempotencyKey, demoOutcome) =>
     request<Payment>("/payments", {
       method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
       body: JSON.stringify({
         orderId,
         method,
@@ -181,7 +181,14 @@ export const apiPromotions: PromotionService = {
 };
 
 export const apiLoyalty: LoyaltyService = {
-  get: () => request<LoyaltyPoints>("/loyalty/me"),
+  get: async (_userId?: string) => {
+    try {
+      return await request<{ points: number }>("/loyalty/me");
+    } catch {
+      const response = await request<{ user: { loyaltyPoints: number } }>("/auth/me");
+      return { points: response.user.loyaltyPoints };
+    }
+  },
   redeem: async (_userId, option: RewardOption) =>
     request<{ success: boolean; code: string; remainingPoints: number }>(
       "/loyalty/redeem",

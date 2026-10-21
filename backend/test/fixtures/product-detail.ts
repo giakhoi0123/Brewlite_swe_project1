@@ -7,6 +7,7 @@ export function productDetailFixture(): ProductDetailRecord {
     description: 'Cà phê và sữa, phục vụ lạnh.',
     imageUrl: '/images/products/sample-milk-coffee.svg',
     price: 29000,
+    stock: 40,
     sizes: [
       { id: 'c075421a-1160-4e94-84d4-000000000001', code: 'S', name: 'Nhỏ (S)', extraPrice: 0, available: true, isDefault: false },
       { id: 'c075421a-1160-4e94-84d4-000000000002', code: 'M', name: 'Vừa (M)', extraPrice: 4000, available: true, isDefault: true },

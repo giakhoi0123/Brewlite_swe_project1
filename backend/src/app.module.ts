@@ -64,21 +64,48 @@ import {
             console.log('👉 [PAYMENT RESULT APPLIED]:', input);
 
             const apply = async (tx: Prisma.TransactionClient) => {
-              const owned = await tx.order.findFirst({
+              // Sửa: Đổi tên biến thành 'order' và lấy thêm các trường 'userId', 'total'
+              const order = await tx.order.findFirst({
                 where: { id: input.orderId, userId: input.userId },
-                select: { id: true },
+                select: { id: true, userId: true, total: true },
               });
-              if (!owned)
+              if (!order)
                 throw new NotFoundException('Không tìm thấy đơn hàng');
               if (input.status === 'UNKNOWN') return;
 
-              // Chuyển trạng thái đơn hàng (Logic tích điểm tự động chạy inside OrdersService)
+              // Chuyển trạng thái đơn hàng
               await orders.transitionInTransaction(
                 tx,
                 input.orderId,
                 input.status,
               );
+
+              if (input.status === 'PAID') {
+                const pointsToEarn = Math.floor(order.total / 10000);
+
+                if (pointsToEarn > 0) {
+                  await tx.loyaltyLog.create({
+                    data: { 
+                      userId: order.userId, 
+                      orderId: order.id, 
+                      points: pointsToEarn 
+                    },
+                  });
+                  await tx.user.update({
+                    where: { id: order.userId },
+                    data: {
+                      loyaltyPoints: {
+                        increment: pointsToEarn,
+                      },
+                    },
+                  });
+                }
+                await tx.cartItem.deleteMany({ 
+                  where: { cart: { userId: order.userId } } 
+                });
+              }
             };
+
             if (transaction) await apply(transaction);
             else await prisma.$transaction(apply);
           },

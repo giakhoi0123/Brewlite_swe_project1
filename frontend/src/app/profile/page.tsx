@@ -28,6 +28,7 @@ export default function Profile() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const userId = user?.id;
+  const userPoints = user?.loyaltyPoints;
 
   const loadData = useCallback(async () => {
     if (!userId) return;
@@ -50,7 +51,7 @@ export default function Profile() {
       const sortedOrders = [...mine].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
       setOrders(sortedOrders);
 
-      // 💡 BƯỚC QUAN TRỌNG: Lấy tập hợp các mã đã sử dụng trong danh sách đơn hàng
+      // Lấy tập hợp các mã đã sử dụng trong danh sách đơn hàng
       const usedCodesSet = new Set(
         sortedOrders
           .filter((o) => o.status !== "CANCELLED" && o.status !== "PAYMENT_FAILED" && o.promotionCode)
@@ -74,7 +75,7 @@ export default function Profile() {
       // Lưu lại vào localStorage để đồng bộ
       localStorage.setItem(`vouchers_${userId}`, JSON.stringify(updatedVouchers));
 
-      // 💡 CHỈ GIỮ LẠI VOUCHER CHƯA SỬ DỤNG ĐỂ HIỂN THỊ
+      // Chỉ giữ lại voucher chưa sử dụng để hiển thị
       const activeVouchers = updatedVouchers.filter((v) => !v.isUsed);
       setVouchers(activeVouchers);
     } catch (e) {
@@ -82,7 +83,7 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
-  }, [userId, refresh, user?.loyaltyPoints]);
+  }, [userId, refresh, userPoints]);
 
   useEffect(() => {
     if (!authLoading && !userId) router.replace("/login?next=%2Fprofile");
@@ -301,6 +302,14 @@ export default function Profile() {
                   ))}
                 </div>
               )}
+
+              <span className="eyebrow mt-4 inline-block">Ưu đãi thành viên</span>
+              <p className="mt-1">
+                Các ưu đãi dành riêng cho bạn sẽ hiển thị tại đây khi đổi thành công. Bạn có thể nhập mã khuyến mãi ở bước thanh toán.
+              </p>
+              <Link className="btn btn-secondary mt-2 w-full text-center block" href="/cart">
+                Đi tới giỏ hàng
+              </Link>
             </section>
 
             <section className="card panel member-shortcuts">

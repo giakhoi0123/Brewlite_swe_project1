@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-17",
+  "recordedAt": "2026-10-17T14:21:16.674Z",
+  "branch": "feature/task-06-orders",
+  "pullRequest": "https://github.com/giakhoi0123/Brewlite_swe_project1/pull/16",
+  "baseCommit": "bacb7a66bef50b222d79ac86fa71fd7063ecda09",
+  "verificationCodeCommit": "2c8adc238844f3b6c7a3c3950b41adfaa2511ad9",
+  "originalTask06Head": "03ff19bcaa5853b238a50236b4a4b9c51e808d5c",
+  "allFiveOriginalCommitsPreserved": true,
+  "postgres": {
+    "version": "15.18",
+    "migrations": 10,
+    "backendSuitesPassed": 24,
+    "backendTestsPassed": 247,
+    "skipped": 0
+  },
+  "frontend": {
+    "unitPassed": 14,
+    "apiWebpackBuild": "PASS",
+    "scopedLint": "PASS",
+    "fullLint": "FAIL: profile/page.tsx:21 react-hooks/preserve-manual-memoization (baseline)"
+  },
+  "backend": {
+    "build": "PASS",
+    "lint": "PASS",
+    "fullTestTypecheck": "PASS",
+    "prismaGenerate": "PASS after sequential retry for Windows DLL lock"
+  },
+  "browser": {
+    "channel": "msedge",
+    "dataMode": "api",
+    "viewports": [
+      1440,
+      768,
+      390
+    ],
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "paymentRequest": "route.abort(blockedbyclient); no fake result",
+    "scope": "Real Auth/Products/Cart/Orders/PostgreSQL. Task 06 ends at PENDING."
+  },
+  "notRun": [
+    "Docker Compose",
+    "Default Turbopack build"
+  ],
+  "protectedModulesUnchangedFromMain": [
+    "AppModule",
+    "payments",
+    "OrdersService",
+    "StaffOrdersController",
+    "order-discount",
+    "schema.prisma"
+  ]
+}

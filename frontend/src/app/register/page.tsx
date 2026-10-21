@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { authService } from "@/services/auth";
 import { useAuth } from "@/components/auth-provider";
 import { AuthFeature } from "@/components/auth-feature";
+import { PasswordField } from "@/components/password-field";
 function Form() {
   const router = useRouter(),
     params = useSearchParams(),
@@ -81,30 +82,8 @@ function Form() {
               autoComplete="email"
             />
           </label>
-          <label>
-            Mật khẩu
-            <input
-              className="field"
-              type="password"
-              required
-              placeholder="Ít nhất 8 ký tự, có chữ hoa và số"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
-          <label>
-            Xác nhận mật khẩu
-            <input
-              className="field"
-              type="password"
-              required
-              placeholder="Nhập lại mật khẩu"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </label>
+          <PasswordField label="Mật khẩu" value={password} onChange={setPassword} placeholder="Nhập mật khẩu" autoComplete="new-password" hint="Ít nhất 8 ký tự, gồm chữ hoa và chữ số." />
+          <PasswordField label="Xác nhận mật khẩu" value={confirmPassword} onChange={setConfirmPassword} placeholder="Nhập lại mật khẩu" autoComplete="new-password" />
           {error && (
             <p role="alert" className="error">
               {error}

@@ -5,8 +5,10 @@ import { services } from "@/services";
 import type { Product } from "@/types/domain";
 import { money } from "@/types/domain";
 import { Empty, ErrorState, Loading, ProductImage } from "@/components/ui";
+import { useAuth } from "@/components/auth-provider";
 import heroImages from "@/services/demo-image-urls.json";
 export default function Home() {
+  const { user, loading: authLoading } = useAuth();
   const [products, setProducts] = useState<Product[]>([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -144,11 +146,20 @@ export default function Home() {
           </div>
         )}
       </section>
-      <section className="member-promo">
-        <div className="promo-icon" aria-hidden="true">✦</div>
-        <div><h2>Tích điểm cho mỗi ly yêu thích</h2><p>Đăng ký thành viên BrewLite để theo dõi đơn hàng và điểm thưởng.</p></div>
-        <Link className="btn btn-promo" href="/register">Đăng ký thành viên <span aria-hidden="true">→</span></Link>
-      </section>
+      {!authLoading && user?.role !== "BARISTA" && (
+        <section className="member-promo">
+          <div className="promo-icon" aria-hidden="true">✦</div>
+          <div>
+            <h2>Tích điểm từ đơn hàng</h2>
+            <p>{user
+              ? "Tài khoản của bạn đã là thành viên BrewLite. Mỗi 10.000 ₫ thanh toán thành công được 1 điểm."
+              : "Tạo tài khoản BrewLite để tích điểm và theo dõi đơn hàng. Mỗi 10.000 ₫ thanh toán thành công được 1 điểm."}</p>
+          </div>
+          <Link className="btn btn-promo" href={user ? "/profile" : "/register"}>
+            {user ? "Xem điểm của tôi" : "Tạo tài khoản"} <span aria-hidden="true">→</span>
+          </Link>
+        </section>
+      )}
     </main>
   );
 }

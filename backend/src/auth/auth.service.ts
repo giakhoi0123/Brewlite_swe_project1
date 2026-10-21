@@ -52,7 +52,7 @@ export class AuthService {
     }
     return {
       user: this.publicUser(user),
-      accessToken: await this.signToken(user.id, user.sessionVersion),
+      accessToken: await this.signToken(user.id, user.role, user.sessionVersion),
     };
   }
 
@@ -68,7 +68,7 @@ export class AuthService {
     }
     return {
       user: this.publicUser(user),
-      accessToken: await this.signToken(user.id, user.sessionVersion),
+      accessToken: await this.signToken(user.id, user.role, user.sessionVersion),
     };
   }
 
@@ -95,7 +95,8 @@ export class AuthService {
     });
   }
 
-  private signToken(sub: string, sessionVersion: number) {
-    return this.jwt.signAsync({ sub, sessionVersion });
+  private signToken(userId: string, role: Role, sessionVersion: number) {
+    // The strategy still loads the current role from the database on every request.
+    return this.jwt.signAsync({ sub: userId, userId, role, sessionVersion });
   }
 }

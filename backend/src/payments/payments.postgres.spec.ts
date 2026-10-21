@@ -156,6 +156,9 @@ describeDatabase('Payments and Orders PostgreSQL integration', () => {
       'PAID',
     ]);
     expect(persistedUser.loyaltyPoints).toBe(4);
+    expect(await db.loyaltyLog.findMany({ where: { orderId: order.id } })).toEqual([
+      expect.objectContaining({ userId, orderId: order.id, points: 4 }),
+    ]);
 
     const paidOrder = await request(app.getHttpServer())
       .get(`/api/orders/${order.id}`)
@@ -178,6 +181,20 @@ describeDatabase('Payments and Orders PostgreSQL integration', () => {
       (await db.user.findUniqueOrThrow({ where: { id: userId } }))
         .loyaltyPoints,
     ).toBe(4);
+    expect(await db.loyaltyLog.count({ where: { orderId: order.id } })).toBe(1);
+  });
+
+  it('accepts an HTTP Idempotency-Key header and replays its result', async () => {
+    const order = await createOrder();
+    const idempotencyKey = randomUUID();
+    const send = () => request(app.getHttpServer()).post('/api/payments')
+      .set('Cookie', cookie()).set('Origin', origin)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({ orderId: order.id, method: 'CARD' });
+    const first = await send().expect(201);
+    await send().expect(201, first.body);
+    expect(await db.payment.count({ where: { orderId: order.id } })).toBe(1);
+    expect(await db.loyaltyLog.count({ where: { orderId: order.id } })).toBe(1);
   });
 
   it('persists failure, restores stock, then reserves it again for a paid retry', async () => {
@@ -190,6 +207,7 @@ describeDatabase('Payments and Orders PostgreSQL integration', () => {
     expect(
       (await db.product.findUniqueOrThrow({ where: { id: productId } })).stock,
     ).toBe(5);
+    expect(await db.loyaltyLog.count({ where: { orderId: order.id } })).toBe(0);
 
     process.env.MOCK_PAYMENT_OUTCOME = 'PAID';
     await pay(order.id, randomUUID()).expect(201);
@@ -229,5 +247,19 @@ describeDatabase('Payments and Orders PostgreSQL integration', () => {
         },
       }),
     ).rejects.toMatchObject({ code: 'P2003' });
+  });
+
+  it('US-05: clears the paid customer cart after successful settlement', async () => {
+    const cart = await db.cart.upsert({
+      where: { userId }, create: { userId }, update: {},
+    });
+    await db.cartItem.create({ data: {
+      cartId: cart.id, productId, size: 'M', toppingIds: [],
+      ice: '70% đá', sugar: '50% ít ngọt', note: '',
+      configKey: 'acceptance-paid-cart', quantity: 1,
+    } });
+    const order = await createOrder();
+    await pay(order.id, randomUUID()).expect(201);
+    expect(await db.cartItem.count({ where: { cartId: cart.id } })).toBe(0);
   });
 });

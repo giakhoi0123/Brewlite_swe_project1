@@ -1,5 +1,26 @@
 # Hợp đồng API BrewLite
 
+## Cập nhật nghiệm thu 2026-10-19
+
+- JWT trong cookie sau register/login chứa `sub` và `userId` (cùng UUID), `role`, `sessionVersion`; AuthGuard vẫn tra role/status/version hiện hành từ DB để tránh tin claim cũ.
+- `POST /payments` nhận UUID `Idempotency-Key` qua header hoặc `idempotencyKey` trong JSON body để tương thích client cũ. Khi gửi cả hai, giá trị phải giống nhau; thiếu/sai/không khớp trả 400. API frontend mới gửi cả header và body. PAID xóa cart items của user, ghi `LoyaltyLog` (mỗi order tối đa một log) và tăng điểm trong cùng transaction settle; PAYMENT_FAILED/UNKNOWN không ghi log/xóa giỏ.
+- `PREPARING → CANCELLED` hợp lệ. `PATCH /staff/orders/:id/cancel` yêu cầu BARISTA và body `{ "reason": "..." }` không rỗng; lý do được lưu trong `orders.cancel_reason` và trả về bằng `cancelReason`. Hủy hoàn tồn kho một lần. `GET /staff/orders` gồm cả COMPLETED/CANCELLED để hiện lịch sử.
+- Migration `20261019000000_loyalty_log` phải được deploy trước backend mới. Không backfill log cho đơn lịch sử tự động. Lượt QA nghiệm thu 301/301 backend, 185/185 E2E trên PostgreSQL riêng; xem [`TEST_REPORT_BREWLITE.md`](../TEST_REPORT_BREWLITE.md). Các mục cũ bên dưới mô tả mốc trước cập nhật này.
+
+## Task 06 review — 2026-10-17, mốc lịch sử
+
+Kiểm chứng lại trên code `2c8adc2` sau khi nhập main `bacb7a6`, PR #16 chưa merge: toàn bộ backend 247/247 trên PostgreSQL thật (10 migration, 0 skipped); browser Orders API 4/4 tại 1440/768/390. Hợp đồng Task 06 giữ nguyên: POST 201 với UUID/PENDING, giá server, snapshot/history/reserve cùng transaction, giỏ chưa xóa và chưa cấp điểm/Payment. Browser chặn request Payment bằng route.abort, không giả kết quả thanh toán. Chi tiết [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Phần Task 06 ngày 16 dưới là bằng chứng cũ; Payment/Promotion/Staff được bảo toàn từ main.
+
+## Task 06 — cập nhật 2026-10-16
+
+`POST /orders` đã kiểm chứng trên PostgreSQL 15 và trình duyệt API mode (1440/768/390): HTTP 201, UUID mã đơn, PENDING, giá server và snapshot/history/kho lưu cùng transaction. Xem [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md).
+
+- `productId` và mỗi `toppingIds` được chuẩn hóa chữ thường trước lookup; topping trùng khác hoa/thường bị 400.
+- `ice` chỉ nhận `100% đá | 70% đá | 30% đá | Không đá`; `sugar` chỉ nhận `100% chuẩn | 70% ngọt vừa | 50% ít ngọt | Không đường`, dùng cùng danh sách Cart. Không còn nhận chuỗi bất kỳ 1–40 ký tự.
+- Giá/owner/status client tự gửi bị 400; cấu hình hoặc mã ưu đãi không hợp lệ trả 400 với provider PromotionDiscount trên main mới; thiếu kho/xung đột 409. Không cần migration cho thay đổi DTO này.
+- Tạo PENDING giữ nguyên Cart, không tự tạo Payment/cộng điểm. Browser test cô lập request Payment của Task 08, không suy ra thanh toán đã hoàn thành.
+- Main `c2d6922` đã đăng ký PaymentsModule và provider PromotionDiscount; trạng thái Payment/Promotion cũ bên dưới cần được owner cập nhật/kiểm chứng riêng.
+
 ## Payment consistency — 2026-10-17, trạng thái mới nhất
 
 Đã tích hợp `origin/main:808077f` (PR #15/#17) trong lượt này. Giữ FK Payment→Order, trường paymentMethod và sandbox `demoOutcome` của main: chỉ gateway có `PAYMENT_DEMO_CONTROLS=true` sử dụng lựa chọn demo; replay cùng key luôn trả kết quả cũ dù client thay lựa chọn demo. `prepareAttempt` dùng lại `OrdersService.preparePaymentRetry` khi cần reserve, không nhân bản state machine.
@@ -46,7 +67,7 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV2 | GET `/products/:id` | Không | UUID path | `ProductDetail` | 400 UUID, 404, 500 | Chi tiết | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
-| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + PostgreSQL tests sau merge qua; browser API E2E chưa chạy |
+| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự) | `Order` PENDING, UUID mã đơn | 400, 401, 403, 409 | Checkout | PostgreSQL 15 và browser API 1440/768/390 PASS, xem TASK06_VERIFICATION |
 | TV5 | POST `/payments` | JWT, chủ đơn | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 404, 409 | Xử lý/kết quả | Đã đăng ký AppModule; status/consistency qua PostgreSQL, browser E2E còn chờ |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 
@@ -142,3 +163,8 @@ Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie 
 `ORDER_DISCOUNT` là injection token cho interface `OrderDiscount.calculate(tx,{userId,subtotal,promotionCode?}): Promise<number>`. TV6 thay provider `NoPromotionDiscount` trong OrdersModule bằng implementation tính/giữ lượt dùng ưu đãi trong cùng tx. Giá trị giảm phải là số nguyên từ 0 đến subtotal. Hiện không có mã → giảm 0; có mã → 422, **không** áp dụng mã demo BREW10 trên backend.
 
 Các writer tồn kho khác (TV2) phải tăng Product.version mỗi lần đổi stock; thay đổi catalog liên quan khi đang nhận đơn cần thống nhất cùng cơ chế version. Không gọi InventoryService.restore độc lập với CAS Order, tránh hoàn kho nhiều lần. Migration mới: `20261015000100_orders_inventory`; có FK, index và CHECK giá/số lượng/version, được tạo bằng Prisma diff offline, chưa apply lên DB tại phiên này.
+# Giao diện nghiệm thu 19/10/2026
+
+- `POST /promotions/validate` nhận `{ "code": string, "subtotal": integer }`, trả `{ "code": string, "discount": integer }`; dùng cùng `ORDER_DISCOUNT` với `POST /orders`, nên server vẫn tính lại giá khi tạo đơn. Mã không hợp lệ hoặc chưa đạt giá trị tối thiểu trả 400.
+- Điểm thành viên trong API mode đọc `user.loyaltyPoints` từ `GET /auth/me` có JWT, không gọi endpoint loyalty chưa triển khai.
+- Response Order ở trạng thái `COMPLETED` trả `completedAt` lấy từ `orders.updated_at` tại transition cuối; Barista dùng trường này cho KPI giao hàng trong ngày. `GET /staff/orders` gồm COMPLETED/CANCELLED để hiển thị lịch sử và UI cho phép hủy theo các transition hợp lệ.
