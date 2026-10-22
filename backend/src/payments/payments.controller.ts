@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -13,6 +15,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { isUUID } from 'class-validator';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -36,10 +39,18 @@ export class PaymentsController {
   pay(
     @Req() request: Request & { user: { userId: string } },
     @Body() input: CreatePaymentDto,
+    @Headers('idempotency-key') headerKey?: string,
   ) {
+    if (headerKey && input.idempotencyKey && headerKey !== input.idempotencyKey) {
+      throw new BadRequestException('Idempotency-Key không khớp với body');
+    }
+    const idempotencyKey = headerKey || input.idempotencyKey;
+    if (!idempotencyKey || !isUUID(idempotencyKey)) {
+      throw new BadRequestException('Idempotency-Key không hợp lệ');
+    }
     return this.payments.pay(
       request.user.userId,
-      input,
+      { ...input, idempotencyKey },
       normalizeVnpayIp(request.ip || request.socket.remoteAddress),
     );
   }

@@ -1,4 +1,16 @@
-# Kiểm chứng VNPAY TEST — 2026-10-22
+# Kiểm chứng sau khi nhập `origin/main` — 2026-10-22
+
+- Prisma generate/validate, backend build và lint: PASS. Backend unit/integration không cần DB: **20 suite/253 test PASS**; backend E2E: **6 suite/126 test PASS**, 36 test DB opt-in skip đúng cấu hình.
+- Frontend: **20/20 unit PASS**, full lint PASS và production build PASS.
+- `npm --prefix backend run test:payments:postgres`: tạo database `brewlite_payments_test_<uuid>` riêng, áp đủ **13 migration**, PASS **7 suite/101 test**, rồi xóa database tạm. Không reset/truncate database ứng dụng.
+- Lượt PostgreSQL đầu bắt lỗi tích điểm hai lần khi VNPAY finalize `PAID`; sau khi bỏ increment trùng ở Payment adapter, lượt chạy lại PASS. Orders giữ ownership phép cộng điểm; Payment transaction vẫn ghi `LoyaltyLog` và xóa giỏ.
+- `docker compose config --quiet`: PASS; PostgreSQL/backend/frontend đang chạy, PostgreSQL healthy.
+- `prisma migrate status` trên database ứng dụng local: không có checksum drift, nhưng còn ba migration pending (`payment_consistency`, `loyalty_log`, `vnpay_consistency_compat`). Lượt này không áp dụng migration lên database ứng dụng; cần chạy `npm run db:migrate` trước khi dùng code sau merge.
+- Blocker còn lại: chưa cấu hình/xác nhận callback IPN HTTPS thật trong portal VNPAY, nên T08 vẫn IN_PROGRESS.
+
+---
+
+# Kiểm chứng VNPAY TEST trước merge — 2026-10-22
 
 - Prisma generate/validate: PASS với migration `20261021000000_vnpay_gateway`.
 - Backend build/lint: PASS. `npm test -- --runInBand`: **18 suite / 191 test PASS**, 2 suite/11 test PostgreSQL skip vì chưa cấu hình `PAYMENTS_TEST_DATABASE_URL` trỏ tới database test tách biệt.

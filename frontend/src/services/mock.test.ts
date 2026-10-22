@@ -34,6 +34,14 @@ test('Barista queues exclude unpaid orders, require cancellation reason, and sha
  assert.equal((await mockBarista.list())[0].status,'CANCELLED');
  await assert.rejects(()=>mockBarista.transition(paid.id,'PREPARING'),/không hợp lệ/);
 });
+test('Barista can cancel a PREPARING order with a reason',async()=>{
+ data.clear();const order=await mockOrders.create('customer-preparing',[item]);
+ await mockPayments.pay(order.id,'VNPAY_QR','preparing-paid');
+ await mockBarista.transition(order.id,'PREPARING');
+ const cancelled=await mockBarista.cancel(order.id,'Máy pha hỏng');
+ assert.equal(cancelled.status,'CANCELLED');
+ assert.equal(cancelled.cancelReason,'Máy pha hỏng');
+});
 test('account cart reprices on the server side, merges configs and enforces stock',async()=>{
  data.clear();const line={productId:'ca-phe-sua',size:'M' as const,toppingIds:['cream'],quantity:2,ice:'70% đá',sugar:'50% ít ngọt'};
  let cart=await mockCart.add('u1',line);assert.equal(cart.items[0].unitPrice,63000);assert.equal(cart.subtotal,126000);

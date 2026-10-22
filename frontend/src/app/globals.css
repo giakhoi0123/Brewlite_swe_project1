@@ -635,3 +635,21 @@ body { color: #27211e; }
   .payment-actions { flex-direction: column; }
   .payment-actions .btn { width: 100%; }
 }
+
+@media (max-width: 600px) {
+  .header-inner { grid-template-columns: minmax(0, 1fr); }
+  .header-inner .nav-tools {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    white-space: normal;
+  }
+  .header-inner .nav {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .header-inner .nav-tools > a:not(.cart-link) { overflow-wrap: anywhere; }
+}

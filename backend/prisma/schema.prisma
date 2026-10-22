@@ -56,6 +56,7 @@ model User {
   orders        Order[]
   cart          Cart?
   payments      Payment[]
+  loyaltyLogs   LoyaltyLog[]
 
   @@map("users")
 }
@@ -127,6 +128,7 @@ model Order {
   discountAmount Int                  @default(0) @map("discount_amount")
   total          Int
   promotionCode  String?              @map("promotion_code")
+  cancelReason   String?              @map("cancel_reason")
   inventoryHeld  Boolean              @default(true) @map("inventory_held")
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
@@ -134,6 +136,7 @@ model Order {
   items          OrderItem[]
   statusHistory  OrderStatusHistory[]
   payments       Payment[]
+  loyaltyLog     LoyaltyLog?
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -226,29 +229,46 @@ model CartItem {
 }
 
 model Payment {
-  id                   String        @id @default(uuid()) @db.Uuid
-  userId               String        @map("user_id") @db.Uuid
-  orderId              String        @map("order_id") @db.Uuid
+  id                   String         @id @default(uuid()) @db.Uuid
+  userId               String         @map("user_id") @db.Uuid
+  orderId              String         @map("order_id") @db.Uuid
   amount               Int
   method               PaymentMethod
-  status               PaymentStatus @default(PROCESSING)
-  idempotencyKey       String        @map("idempotency_key") @db.Uuid
-  vnpTxnRef             String?       @unique @map("vnp_txn_ref")
-  paymentUrl            String?       @map("payment_url") @db.Text
-  expiresAt             DateTime?     @map("expires_at")
-  vnpTransactionNo      String?       @map("vnp_transaction_no")
-  vnpResponseCode       String?       @map("vnp_response_code")
-  vnpTransactionStatus String?       @map("vnp_transaction_status")
-  vnpBankCode           String?       @map("vnp_bank_code")
-  vnpCardType           String?       @map("vnp_card_type")
-  vnpPayDate            String?       @map("vnp_pay_date")
-  processedAt           DateTime?     @map("processed_at")
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
-  user                  User          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  status               PaymentStatus  @default(PROCESSING)
+  // Legacy consistency journal fields remain mapped for migrated databases.
+  gatewayStatus        PaymentStatus? @map("gateway_status")
+  appliedAt            DateTime?      @map("applied_at")
+  idempotencyKey       String         @map("idempotency_key") @db.Uuid
+  vnpTxnRef             String?        @unique @map("vnp_txn_ref")
+  paymentUrl            String?        @map("payment_url") @db.Text
+  expiresAt             DateTime?      @map("expires_at")
+  vnpTransactionNo      String?        @map("vnp_transaction_no")
+  vnpResponseCode       String?        @map("vnp_response_code")
+  vnpTransactionStatus String?        @map("vnp_transaction_status")
+  vnpBankCode           String?        @map("vnp_bank_code")
+  vnpCardType           String?        @map("vnp_card_type")
+  vnpPayDate            String?        @map("vnp_pay_date")
+  processedAt           DateTime?      @map("processed_at")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order                 Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
+  // SQL migration also owns a partial unique order_id index for active attempts.
   @@index([orderId])
   @@map("payments")
+}
+
+model LoyaltyLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  orderId   String   @unique @map("order_id") @db.Uuid
+  points    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("loyalty_logs")
 }

@@ -1,6 +1,6 @@
 import { Module, NotFoundException } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { OrderStatus, type Prisma } from '@prisma/client';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma.module';
@@ -14,6 +14,8 @@ import { OrdersModule } from './orders/orders.module';
 import { OrdersService } from './orders/orders.service';
 import { InventoryModule } from './inventory/inventory.module';
 import { PaymentsModule } from './payments/payments.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import {
   PAYMENT_ORDER_PORT,
   type PaymentOrderPort,
@@ -32,6 +34,8 @@ import {
     CartModule,
     InventoryModule,
     OrdersModule,
+    LoyaltyModule,
+    PromotionsModule,
     PaymentsModule.register({
       imports: [OrdersModule, PrismaModule],
       orderProvider: {
@@ -44,12 +48,7 @@ import {
             if (transaction) {
               return transaction.order.findFirst({
                 where: { id, userId },
-                select: {
-                  id: true,
-                  userId: true,
-                  total: true,
-                  status: true,
-                },
+                select: { id: true, userId: true, total: true, status: true },
               });
             }
             return prisma.order.findFirst({
@@ -62,18 +61,18 @@ import {
           },
           async applyPaymentResult(input, transaction) {
             const apply = async (tx: Prisma.TransactionClient) => {
-              const owned = await tx.order.findFirst({
+              const order = await tx.order.findFirst({
                 where: { id: input.orderId, userId: input.userId },
-                select: { id: true },
+                select: { id: true, userId: true, total: true },
               });
-              if (!owned)
+              if (!order)
                 throw new NotFoundException('Không tìm thấy đơn hàng');
 
               const targetStatus =
                 input.status === 'PAID'
                   ? OrderStatus.PAID
                   : OrderStatus.PAYMENT_FAILED;
-              const order = await orders.transitionInTransaction(
+              await orders.transitionInTransaction(
                 tx,
                 input.orderId,
                 targetStatus,
@@ -83,23 +82,22 @@ import {
                 const pointsToEarn = Math.floor(order.total / 10000);
 
                 if (pointsToEarn > 0) {
-                  await tx.user.update({
-                    where: { id: input.userId },
+                  await tx.loyaltyLog.create({
                     data: {
-                      loyaltyPoints: {
-                        increment: pointsToEarn,
-                      },
+                      userId: order.userId,
+                      orderId: order.id,
+                      points: pointsToEarn,
                     },
                   });
                 }
+                await tx.cartItem.deleteMany({
+                  where: { cart: { userId: order.userId } },
+                });
               }
             };
 
-            if (transaction) {
-              await apply(transaction);
-              return;
-            }
-            await prisma.$transaction(apply);
+            if (transaction) await apply(transaction);
+            else await prisma.$transaction(apply);
           },
         }),
         inject: [OrdersService, PrismaService],

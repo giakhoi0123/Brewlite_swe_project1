@@ -1,5 +1,9 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Tích hợp main vào VNPAY — 2026-10-22
+
+Đã nhập `origin/main:cff6ff0`, giữ các module Auth/Orders/Promotions/Loyalty mới và giải xung đột theo contract VNPAY bất đồng bộ. Kiểm chứng hiện hành: backend build/lint, 20 suite/253 test không-DB, backend E2E 6 suite/126 test, frontend 20/20 unit + lint + build và Payment PostgreSQL 7 suite/101 test trên database tạm với đủ 13 migration đều PASS. Lỗi cộng Loyalty hai lần khi finalize `PAID` đã được bắt bằng PostgreSQL và sửa để Orders là owner duy nhất của increment. T08/10B vẫn **IN_PROGRESS** cho tới khi có bằng chứng callback IPN HTTPS thật.
+
 ## VNPAY-QR — 2026-10-21
 
 Đã thay gateway mock bằng VNPAY WebPay 2.1.0 cho môi trường TEST: backend tạo URL HMAC-SHA512, Return chỉ điều hướng, IPN public HTTPS là nguồn chốt Payment/Order chính và QueryDR có chữ ký là fallback khi IPN trễ/mất. `VNPAY_BANK_CODE` là biến backend tùy chọn và mặc định để trống trong file mẫu; ngày 2026-10-22 VNPAY đã xác nhận active QR cho terminal TEST hiện tại nên `.env` local dùng `VNPAYQR`. Frontend bỏ chọn kết quả demo, chuyển sang trang hosted của VNPAY và chờ trạng thái backend đã xác minh. Cấu hình secret chỉ nằm backend; Docker frontend không còn nhận root `.env`.

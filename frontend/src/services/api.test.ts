@@ -75,8 +75,10 @@ test('status adapter unwraps the JSON status response', async () => {
 
 test('payments adapter sends only the VNPAY initiation contract', async () => {
   let body: unknown;
+  let headers: HeadersInit | undefined;
   globalThis.fetch = async (_url, init) => {
     body = JSON.parse(String(init?.body));
+    headers = init?.headers;
     return Response.json({
       status: 'PROCESSING',
       paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
@@ -91,6 +93,10 @@ test('payments adapter sends only the VNPAY initiation contract', async () => {
     orderId: 'order-id',
     method: 'VNPAY_QR',
     idempotencyKey: '41a650c7-8597-4a01-a8e2-000000000001',
+  });
+  assert.deepEqual(headers, {
+    'Content-Type': 'application/json',
+    'Idempotency-Key': '41a650c7-8597-4a01-a8e2-000000000001',
   });
 });
 

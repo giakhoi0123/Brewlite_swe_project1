@@ -133,6 +133,43 @@ export class OrdersService {
         } satisfies Prisma.OrderUncheckedCreateInput,
         include: orderInclude,
       });
+
+      // 💡 BỔ SUNG: ĐÁNH DẤU MÃ VOUCHER ĐÃ ĐƯỢC SỬ DỤNG
+      if (promotionCode) {
+        try {
+          const db = tx as any;
+
+          // 1. Cập nhật bảng UserCoupon (nếu có)
+          if (db.userCoupon) {
+            await db.userCoupon.updateMany({
+              where: { code: promotionCode, userId },
+              data: { isUsed: true, status: 'USED' },
+            });
+          }
+
+          // 2. Tạo record trong CouponUsage (nếu có)
+          if (db.couponUsage) {
+            await db.couponUsage.create({
+              data: {
+                code: promotionCode,
+                userId,
+                orderId: order.id,
+              },
+            });
+          }
+
+          // 3. Cập nhật bảng LoyaltyTransaction (nếu có)
+          if (db.loyaltyTransaction) {
+            await db.loyaltyTransaction.updateMany({
+              where: { code: promotionCode, userId },
+              data: { isUsed: true, status: 'USED' },
+            });
+          }
+        } catch (e) {
+          // Bỏ qua nếu bảng phụ chưa có
+        }
+      }
+
       return orderResponse(order);
     });
   }
@@ -175,7 +212,7 @@ export class OrdersService {
   async staffList() {
     return (
       await this.prisma.order.findMany({
-        where: { status: { in: ['PAID', 'PREPARING', 'READY'] } },
+        where: { status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] } },
         include: orderInclude,
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       })
@@ -195,6 +232,14 @@ export class OrdersService {
     );
   }
 
+  async staffCancel(id: string, reason: string) {
+    const trimmed = reason.trim();
+    if (!trimmed) throw new BadRequestException('Cần ghi lý do hủy đơn');
+    return this.transaction(async (tx) =>
+      orderResponse(await this.transitionInTransaction(tx, id, OrderStatus.CANCELLED, trimmed)),
+    );
+  }
+
   /** Internal TV5/TV6 integration only. Caller MUST propagate errors to roll back its transaction.
    * Verify ownership in PaymentsModule; persist payment/idempotency/loyalty in the same tx.
    * UNKNOWN must not call this method. Retry PAYMENT_FAILED -> PENDING before gateway attempt.
@@ -203,6 +248,7 @@ export class OrdersService {
     tx: Prisma.TransactionClient,
     id: string,
     to: OrderStatus,
+    cancelReason?: string,
   ) {
     const order = await tx.order.findUnique({
       where: { id },
@@ -221,6 +267,7 @@ export class OrdersService {
         status: to,
         version: { increment: 1 },
         inventoryHeld: release ? false : reserve ? true : order.inventoryHeld,
+        ...(to === OrderStatus.CANCELLED && cancelReason ? { cancelReason } : {}),
       },
     });
     if (changed.count !== 1)
@@ -236,6 +283,25 @@ export class OrdersService {
         version: order.version + 1,
       },
     });
+
+    // TÍCH ĐIỂM TỰ ĐỘNG: Mỗi khi đơn chuyển sang PAID và trước đó chưa phải PAID
+    if (to === OrderStatus.PAID && order.status !== OrderStatus.PAID) {
+      const pointsToEarn = Math.floor(order.total / 10000);
+      if (pointsToEarn > 0) {
+        await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPoints: {
+              increment: pointsToEarn,
+            },
+          },
+        });
+        console.log(
+          `[LOYALTY] Đã cộng ${pointsToEarn} điểm cho user ${order.userId} từ đơn hàng ${order.id}`,
+        );
+      }
+    }
+
     return tx.order.findUniqueOrThrow({ where: { id }, include: orderInclude });
   }
 }

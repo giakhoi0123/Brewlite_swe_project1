@@ -10,11 +10,14 @@ import type {
   PaymentMethod,
   Product,
   Promotion,
+  RewardOption,
 } from "@/types/domain";
+
 export interface ProductService {
   list(): Promise<Product[]>;
   get(id: string): Promise<Product | null>;
 }
+
 /** Giỏ hàng của tài khoản đang đăng nhập; `itemId` là `CartItem.key` do server cấp. */
 export interface CartService {
   get(userId: string): Promise<CartView>;
@@ -32,6 +35,7 @@ export interface CartService {
     lines: CartLineInput[],
   ): Promise<CartView & { skipped: { productId: string; reason: string }[] }>;
 }
+
 export interface OrderService {
   create(
     userId: string,
@@ -42,6 +46,7 @@ export interface OrderService {
   get(id: string): Promise<Order | null>;
   status(id: string): Promise<OrderStatus | null>;
 }
+
 export interface PaymentService {
   pay(
     orderId: string,
@@ -50,12 +55,19 @@ export interface PaymentService {
   ): Promise<Payment>;
   reconcile(orderId: string): Promise<Payment>;
 }
+
 export interface PromotionService {
   validate(code: string, subtotal: number): Promise<Promotion>;
 }
+
 export interface LoyaltyService {
   get(userId: string): Promise<LoyaltyPoints>;
+  redeem?(
+    userId: string,
+    option: RewardOption,
+  ): Promise<{ success: boolean; code: string; remainingPoints: number }>;
 }
+
 export interface BaristaOrderService {
   list(): Promise<Order[]>;
   get(id: string): Promise<Order | null>;

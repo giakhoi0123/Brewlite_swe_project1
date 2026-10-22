@@ -1,6 +1,14 @@
 # Trạng thái dự án
 
-## VNPAY-QR — 2026-10-21
+## Tích hợp `origin/main` vào Payment — 2026-10-22
+
+Đã fetch và nhập `origin/main:cff6ff0` vào `feature/payment-demo-persistence`, giữ nguyên Auth/Orders/Inventory/Promotions/Loyalty/Barista mới trên `main` và thay mock gateway bằng VNPAY. Migration VNPAY chủ động bỏ partial index consistency cũ trước khi tạo index active attempt mới, nên legacy `UNKNOWN` không chặn attempt VNPAY hợp lệ. `POST /payments` nhận idempotency key từ body hoặc header `Idempotency-Key`; hai nguồn không khớp trả 400.
+
+Kiểm chứng sau merge: Prisma generate/validate, backend build/lint, **20 suite/253 test không-DB**, backend E2E **6 suite/126 test**, frontend **20/20 unit**, lint và production build đều PASS. Bộ `test:payments:postgres` tạo database riêng, áp đủ **13 migration**, PASS **7 suite/101 test** rồi xóa database tạm. Lượt PostgreSQL đầu phát hiện điểm Loyalty bị cộng hai lần do cả Orders và Payment adapter cùng increment; adapter đã được sửa để Orders là owner duy nhất của phép cộng, Payment chỉ ghi `LoyaltyLog` và xóa giỏ trong cùng transaction. Lượt chạy lại PASS. Compose config PASS; PostgreSQL/backend/frontend đang chạy và PostgreSQL healthy. Database ứng dụng local chưa được mutate trong lượt merge; `prisma migrate status` còn ba migration pending: `20261017000000_payment_consistency`, `20261019000000_loyalty_log`, `20261022000000_vnpay_consistency_compat`.
+
+T08 vẫn **IN_PROGRESS**: các kiểm tra trên xác nhận migration, persistence, state machine và QueryDR/IPN logic trong test, nhưng portal chưa có bằng chứng callback IPN HTTPS E2E thật.
+
+## VNPAY-QR trước merge — 2026-10-21
 
 Đã chuyển thiết kế Payment từ mock đồng bộ sang VNPAY WebPay 2.1.0 bất đồng bộ. Checkout chỉ còn phương thức thanh toán VNPAY; backend tạo URL HMAC-SHA512 với amount lấy từ Order. `VNPAY_BANK_CODE` là biến backend tùy chọn, mặc định để trống để trang hosted hiển thị các phương thức terminal được cấp; chỉ đặt `VNPAYQR` khi VNPAY đã bật kênh QR cho merchant TEST. Return URL chỉ xác minh/điều hướng. IPN là nguồn chính; QueryDR có chữ ký là fallback khi IPN trễ/mất. Cả hai đường xác nhận đều kiểm tra merchant, transaction reference và amount trước khi cập nhật Payment + Order/history/inventory/loyalty trong transaction. Các cờ chọn kết quả demo được gỡ khỏi UI/cấu hình API.
 

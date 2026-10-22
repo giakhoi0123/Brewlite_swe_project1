@@ -18,6 +18,7 @@ async function main() {
     ...process.env,
     DATABASE_URL: testUrl.toString(),
     ORDERS_TEST_DATABASE_URL: testUrl.toString(),
+    PAYMENTS_TEST_DATABASE_URL: testUrl.toString(),
   };
   let created = false;
   try {

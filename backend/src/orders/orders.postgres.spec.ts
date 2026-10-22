@@ -8,7 +8,7 @@ import { cookieOriginGuard } from '../auth/csrf.middleware';
 import { PrismaService } from '../prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { OrdersService } from './orders.service';
-import { NoPromotionDiscount } from './order-discount';
+import { PromotionDiscount } from './order-discount';
 import type { CreateOrderDto } from './dto/create-order.dto';
 
 // Opt in with a migrated, dedicated test database. Never fall back to DATABASE_URL.
@@ -37,7 +37,7 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
     service = new OrdersService(
       db,
       new InventoryService(),
-      new NoPromotionDiscount(),
+      new PromotionDiscount(),
     );
     await db.$connect();
     await db.user.create({
@@ -187,6 +187,18 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
     expect(
       await db.orderStatusHistory.count({ where: { orderId: order.id } }),
     ).toBe(1);
+  });
+
+  it('cancels PREPARING once and restores reserved stock', async () => {
+    const order = await service.create(userId, dto());
+    await db.$transaction((tx) => service.transitionInTransaction(tx, order.id, 'PAID'));
+    await service.staffTransition(order.id, 'PREPARING');
+    const cancelled = await service.staffCancel(order.id, ' Máy pha hỏng ');
+    expect(cancelled).toMatchObject({ status: 'CANCELLED', cancelReason: 'Máy pha hỏng' });
+    expect(await service.get(order.id, userId)).toMatchObject({ cancelReason: 'Máy pha hỏng' });
+    expect(await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
+      .toMatchObject({ stock: 1 });
+    expect(await db.orderStatusHistory.count({ where: { orderId: order.id } })).toBe(4);
   });
 
   it('retains original line names and prices after catalog edits', async () => {
