@@ -1,5 +1,9 @@
 # Trạng thái dự án
 
+## Hướng dẫn VNPAY Sandbox/ngrok — 2026-10-22
+
+README đã bổ sung quy trình đăng ký Merchant TEST tại `https://sandbox.vnpayment.vn/devreg`, nhận/cấu hình credential, tạo tunnel HTTPS ngrok tới backend cổng 3001, khai báo Return URL/IPN và kiểm thử QR bằng ứng dụng TEST iOS/Android do VNPAY cung cấp. Thay đổi này chỉ là tài liệu vận hành, không đổi mã nguồn, API contract hay trạng thái T08; callback IPN Sandbox E2E vẫn chưa được xác nhận.
+
 ## Tích hợp `origin/main` vào Payment — 2026-10-22
 
 Đã fetch và nhập `origin/main:cff6ff0` vào `feature/payment-demo-persistence`, giữ nguyên Auth/Orders/Inventory/Promotions/Loyalty/Barista mới trên `main` và thay mock gateway bằng VNPAY. Migration VNPAY chủ động bỏ partial index consistency cũ trước khi tạo index active attempt mới, nên legacy `UNKNOWN` không chặn attempt VNPAY hợp lệ. `POST /payments` nhận idempotency key từ body hoặc header `Idempotency-Key`; hai nguồn không khớp trả 400.

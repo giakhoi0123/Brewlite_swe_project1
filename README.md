@@ -38,7 +38,52 @@ Giữ `DATABASE_URL` trùng mật khẩu và cổng PostgreSQL trong `.env` (m�
 
 VNPAY cần `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_PAYMENT_URL`, `VNPAY_QUERY_URL`, `VNPAY_QUERY_IP_ADDRESS`, `VNPAY_RETURN_URL` và `FRONTEND_PUBLIC_URL`. `VNPAY_QUERY_URL` là API QueryDR tương ứng với môi trường VNPAY; `VNPAY_QUERY_IP_ADDRESS` là địa chỉ IP server gửi trong request truy vấn. `VNPAY_BANK_CODE` là biến backend tùy chọn: để trống theo mặc định để VNPAY hiển thị các phương thức mà terminal được cấp, chỉ đặt `VNPAYQR` sau khi VNPAY xác nhận đã bật kênh QR cho merchant TEST. `VNPAY_HASH_SECRET` chỉ được đặt ở backend, không dùng biến `NEXT_PUBLIC_*` và không commit. Với môi trường TEST có thể dùng URL sandbox trong `.env.example`; môi trường thật phải dùng đúng URL/credential VNPAY bàn giao, không tự suy đoán URL production.
 
-Trong cổng quản trị VNPAY, đăng ký IPN công khai dạng `https://<backend-domain>/api/payments/vnpay/ipn`. IPN phải dùng HTTPS và truy cập được từ Internet; `localhost` chỉ phù hợp cho Return URL chạy qua trình duyệt, không nhận được IPN server-to-server. IPN là nguồn xác nhận chính. Nếu IPN bị trễ/mất, endpoint owner-auth `POST /api/payments/:orderId/reconcile` gọi QueryDR và chỉ ghi trạng thái sau khi kiểm tra chữ ký, merchant, reference, loại giao dịch và số tiền. Return URL luôn read-only.
+### Đăng ký tài khoản Merchant VNPAY Sandbox
+
+1. Truy cập [Đăng ký Merchant môi trường TEST](https://sandbox.vnpayment.vn/devreg), nhập tên website, URL website, email, mật khẩu và mã xác nhận. Nếu dự án chưa deploy, có thể dùng URL HTTPS do ngrok tạo ở mục kế tiếp.
+2. Gửi biểu mẫu, kiểm tra email và lấy `vnp_TmnCode` cùng `vnp_HashSecret` VNPAY gửi cho tài khoản TEST. Tài khoản/credential này chỉ dùng cho Sandbox, không phải tài khoản production.
+3. Sao chép `.env.example` thành `.env`, rồi cấu hình các giá trị sau. Không commit `.env`, không gửi `VNPAY_HASH_SECRET` lên frontend và không đăng credential thật vào issue/log.
+
+```dotenv
+VNPAY_TMN_CODE=<TmnCode nhận từ VNPAY>
+VNPAY_HASH_SECRET=<HashSecret nhận từ VNPAY>
+VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+VNPAY_QUERY_URL=https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+VNPAY_QUERY_IP_ADDRESS=<IPv4 của máy/server gửi QueryDR>
+VNPAY_RETURN_URL=https://<ngrok-domain>/api/payments/vnpay/return
+VNPAY_BANK_CODE=
+FRONTEND_PUBLIC_URL=http://localhost:3000
+```
+
+`VNPAY_QUERY_IP_ADDRESS` là địa chỉ IP, không phải URL ngrok. Để `VNPAY_BANK_CODE` trống nếu terminal TEST chưa được VNPAY bật QR; chỉ đặt `VNPAY_BANK_CODE=VNPAYQR` sau khi VNPAY xác nhận đã cấp kênh này.
+
+### Tạo URL HTTPS bằng ngrok cho Return/IPN
+
+Backend phải đang chạy ở `http://localhost:3001` trước khi mở tunnel. Đăng ký/đăng nhập [tài khoản ngrok](https://dashboard.ngrok.com/signup) để lấy authtoken. Trên Windows có thể cài ngrok bằng WinGet; các hệ điều hành khác tải agent từ [trang cài đặt ngrok](https://ngrok.com/download):
+
+```powershell
+winget install ngrok -s msstore
+ngrok config add-authtoken "<NGROK_AUTHTOKEN>"
+ngrok http 3001
+```
+
+Lấy URL HTTPS trong dòng `Forwarding`, ví dụ `https://brewlite-example.ngrok-free.app`, rồi:
+
+1. Đặt `VNPAY_RETURN_URL=https://brewlite-example.ngrok-free.app/api/payments/vnpay/return` trong `.env`.
+2. Khai báo IPN trong cổng VNPAY/VSM là `https://brewlite-example.ngrok-free.app/api/payments/vnpay/ipn`.
+3. Khởi động lại backend để nạp `.env`; nếu chạy Compose, dùng `docker compose up -d --build backend`.
+4. Giữ cửa sổ `ngrok http 3001` mở trong suốt lúc test. Có thể xem request callback tại `http://localhost:4040` hoặc Traffic Inspector của ngrok.
+
+Nếu domain ngrok thay đổi, phải cập nhật cả `VNPAY_RETURN_URL` và IPN đã khai báo trên VNPAY/VSM. Không thêm lớp Basic Auth/OAuth trước endpoint IPN vì VNPAY cần gọi trực tiếp. IPN phải dùng HTTPS và truy cập được từ Internet; `localhost` không nhận được callback server-to-server. IPN là nguồn xác nhận chính. Nếu IPN bị trễ/mất, endpoint owner-auth `POST /api/payments/:orderId/reconcile` gọi QueryDR và chỉ ghi trạng thái sau khi kiểm tra chữ ký, merchant, reference, loại giao dịch và số tiền. Return URL luôn read-only.
+
+### Kiểm thử QR trên Sandbox
+
+QR Sandbox không quét bằng ứng dụng ngân hàng thông thường/LIVE. Dùng ứng dụng QR TEST do VNPAY cung cấp cho terminal:
+
+- iOS: [cài qua TestFlight](https://testflight.apple.com/join/cB9e74w7).
+- Android: [tải từ Google Drive](https://drive.google.com/drive/folders/134q6yKTW8Gwy2ctAC7AQ9WEPLH1M_bui?usp=sharing).
+
+Theo hướng dẫn VNPAY: đăng nhập bằng email, đăng ký số điện thoại để đăng nhập ứng dụng TEST, sau đó Merchant chủ động nạp số dư Sandbox vào ứng dụng trước khi quét QR. Tài khoản Merchant Sandbox và tài khoản ứng dụng QR TEST phục vụ hai bước khác nhau. Nếu link ứng dụng hết hạn, terminal chưa được bật QR hoặc chưa có quyền nạp tiền TEST, liên hệ đầu mối kỹ thuật VNPAY đã cấp merchant. Có thể dùng phương tiện/thẻ NCB TEST thay thế theo tài liệu VNPAY khi chưa kiểm thử QR được; không dùng tiền hoặc tài khoản ngân hàng thật.
 
 Nếu Next.js chạy ở cổng khác, thêm địa chỉ đó vào `FRONTEND_ORIGIN` trong `.env`, phân tách bằng dấu phẩy (ví dụ `http://localhost:3000,http://localhost:3002`), rồi khởi động lại backend. Với Compose, chạy `docker compose up -d --build backend` để áp dụng thay đổi mã và cấu hình. Nếu thiếu origin, trình duyệt sẽ chặn API đăng ký/đăng nhập và hiện `Failed to fetch`.
 
