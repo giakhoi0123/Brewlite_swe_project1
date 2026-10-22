@@ -264,8 +264,11 @@ export const mockOrders: OrderService = {
 };
 
 export const mockPayments: PaymentService = {
-  async pay(orderId, method, idempotencyKey, demoOutcome) {
+  async pay(orderId, method, idempotencyKey) {
     await pause();
+    if (method !== "VNPAY_QR") {
+      throw new Error("BrewLite chỉ hỗ trợ thanh toán VNPAY-QR");
+    }
     const existing = read<Payment[]>(PAYMENTS, []).find(
       (p) => p.idempotencyKey === idempotencyKey,
     );
@@ -275,36 +278,39 @@ export const mockPayments: PaymentService = {
     if (!["PENDING", "PAYMENT_FAILED"].includes(order.status))
       throw new Error("Đơn hàng không thể thanh toán");
     if (order.status === "PAYMENT_FAILED") saveOrder({ ...order, status: "PENDING" });
-    const status = demoOutcome || "PAID";
     const payment: Payment = {
       id: crypto.randomUUID(),
       orderId,
       method,
-      status,
+      status: "PAID",
       idempotencyKey,
     };
     write(PAYMENTS, [...read<Payment[]>(PAYMENTS, []), payment]);
-    if (status !== "UNKNOWN") {
-      saveOrder({
-        ...order,
-        status,
-        paymentMethod: method,
-        error:
-          status === "PAYMENT_FAILED"
-            ? "Giao dịch bị từ chối. Vui lòng thử lại."
-            : undefined,
-      });
+    saveOrder({
+      ...order,
+      status: "PAID",
+      paymentMethod: method,
+      error: undefined,
+    });
 
-      // ĐÁNH DẤU VOUCHER ĐÃ SỬ DỤNG KHI THANH TOÁN THÀNH CÔNG
-      if (status === "PAID" && order.promotionCode?.startsWith("REDEEM-")) {
-        const voucherKey = `vouchers_${order.userId}`;
-        const list = read<Array<{ code: string; isUsed?: boolean }>>(voucherKey, []);
-        const updated = list.map((v) =>
-          v.code === order.promotionCode ? { ...v, isUsed: true } : v,
-        );
-        write(voucherKey, updated);
-      }
+    if (order.promotionCode?.startsWith("REDEEM-")) {
+      const voucherKey = `vouchers_${order.userId}`;
+      const list = read<Array<{ code: string; isUsed?: boolean }>>(voucherKey, []);
+      const updated = list.map((voucher) =>
+        voucher.code === order.promotionCode
+          ? { ...voucher, isUsed: true }
+          : voucher,
+      );
+      write(voucherKey, updated);
     }
+    return payment;
+  },
+  async reconcile(orderId) {
+    await pause();
+    const payment = read<Payment[]>(PAYMENTS, [])
+      .filter((item) => item.orderId === orderId)
+      .at(-1);
+    if (!payment) throw new Error("Không tìm thấy giao dịch VNPAY");
     return payment;
   },
 };

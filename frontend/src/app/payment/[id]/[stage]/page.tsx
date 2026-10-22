@@ -1,228 +1,429 @@
 "use client";
+
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { services } from "@/services";
-import { useCart } from "@/stores/cart";
-import { useAuth } from "@/components/auth-provider";
-import type { Order, PaymentMethod } from "@/types/domain";
-import { money } from "@/types/domain";
 import { ErrorState, Loading, StatusBadge } from "@/components/ui";
+import { useAuth } from "@/components/auth-provider";
+import { services } from "@/services";
 import {
+  clearCartAfterPaidOrder,
+  parseHttpsPaymentUrl,
   readPaymentIntent,
   removePaymentIntent,
 } from "@/services/payment-intent";
+import { useCart } from "@/stores/cart";
+import { money } from "@/types/domain";
+import type { Order, OrderStatus } from "@/types/domain";
+
+const PAID_ORDER_STATUSES: OrderStatus[] = [
+  "PAID",
+  "PREPARING",
+  "READY",
+  "COMPLETED",
+];
+const VERIFY_ATTEMPTS = 10;
+const VERIFY_INTERVAL_MS = 2_000;
+
+const isPaidOrder = (status: OrderStatus) =>
+  PAID_ORDER_STATUSES.includes(status);
+
 export default function PaymentPage({
   params,
 }: {
   params: Promise<{ id: string; stage: string }>;
 }) {
-  const { id, stage } = use(params),
-    router = useRouter(),
-    { user, loading: authLoading } = useAuth(),
-    clear = useCart((s) => s.clear),
-    [order, setOrder] = useState<Order | null>(null),
-    [loading, setLoading] = useState(true),
-    [verifyBusy, setVerifyBusy] = useState(false),
-    [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null),
-    [error, setError] = useState("");
-  const started = useRef(false);
+  const { id, stage } = use(params);
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const clear = useCart((state) => state.clear);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [pollAttempt, setPollAttempt] = useState(0);
+  const [error, setError] = useState("");
+  const processingStarted = useRef(false);
+  const verificationStarted = useRef(false);
+  const paidCartCleared = useRef(false);
+
   const load = useCallback(async () => {
     try {
       setOrder(await services.orders.get(id));
       setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Không tải được đơn");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Không tải được đơn");
     } finally {
       setLoading(false);
     }
   }, [id]);
+
+  const clearPaidCart = useCallback(async () => {
+    if (paidCartCleared.current) return true;
+    paidCartCleared.current = true;
+    try {
+      const cleared = await clearCartAfterPaidOrder(id, clear);
+      if (!cleared) paidCartCleared.current = false;
+      return cleared;
+    } catch {
+      paidCartCleared.current = false;
+      return false;
+    }
+  }, [clear, id]);
+
+  const routeFromTrustedOrder = useCallback(
+    async (current: Order) => {
+      if (isPaidOrder(current.status)) {
+        await clearPaidCart();
+        router.replace(`/payment/${encodeURIComponent(id)}/success`);
+        return true;
+      }
+      if (
+        current.status === "PAYMENT_FAILED" ||
+        current.status === "CANCELLED"
+      ) {
+        removePaymentIntent(id);
+        router.replace(`/payment/${encodeURIComponent(id)}/failure`);
+        return true;
+      }
+      return false;
+    },
+    [clearPaidCart, id, router],
+  );
+
   useEffect(() => {
-    if (!authLoading && !user)
+    if (!authLoading && !user) {
       router.replace(
         `/login?next=${encodeURIComponent(`/payment/${id}/${stage}`)}`,
       );
-    else if (user) void load();
+    } else if (user) {
+      void load();
+    }
   }, [authLoading, user, load, router, id, stage]);
+
   useEffect(() => {
     if (
       stage !== "processing" ||
       !order ||
       !user ||
       order.userId !== user.id ||
-      started.current
-    )
-      return;
-    const intent = readPaymentIntent(id);
-    if (!intent) {
-      router.replace(`/payment/${id}/unknown`);
+      processingStarted.current
+    ) {
       return;
     }
-    setPaymentMethod(intent.method);
-    started.current = true;
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      router.replace(`/payment/${id}/unknown`);
-    }, 15000);
-    services.payments
-      .pay(id, intent.method, intent.key, intent.outcome)
-      .then(async (p) => {
-        clearTimeout(timer);
-        if (timedOut) return;
-        if (p.status === "PAID") {
-          removePaymentIntent(id);
-          clear();
-          router.replace(`/payment/${id}/success`);
-        } else
-          router.replace(
-            `/payment/${id}/${p.status === "PAYMENT_FAILED" ? "failure" : "unknown"}`,
-          );
+
+    const intent = readPaymentIntent(id);
+    if (!intent) {
+      router.replace(`/payment/error?orderId=${encodeURIComponent(id)}`);
+      return;
+    }
+
+    processingStarted.current = true;
+    let active = true;
+
+    void services.payments
+      .pay(id, "VNPAY_QR", intent.key)
+      .then(async (payment) => {
+        if (!active) return;
+
+        // Mock mode may finish immediately. Always confirm against the owned
+        // Order before clearing the cart or showing a terminal result.
+        if (payment.status !== "PROCESSING") {
+          const current = await services.orders.get(id);
+          if (!active) return;
+          if (current && current.userId === user.id) {
+            const terminal = await routeFromTrustedOrder(current);
+            if (terminal) return;
+          }
+          router.replace(`/payment/${encodeURIComponent(id)}/unknown`);
+          return;
+        }
+
+        const paymentUrl = parseHttpsPaymentUrl(payment.paymentUrl);
+        if (!paymentUrl) {
+          router.replace(`/payment/error?orderId=${encodeURIComponent(id)}`);
+          return;
+        }
+
+        window.location.assign(paymentUrl);
       })
-      .catch((e) => {
-        clearTimeout(timer);
-        if (timedOut) return;
-        setError(
-          e instanceof Error ? e.message : "Không xác minh được thanh toán",
-        );
-        router.replace(`/payment/${id}/unknown`);
+      .catch(() => {
+        if (active)
+          router.replace(`/payment/error?orderId=${encodeURIComponent(id)}`);
       });
-    return () => clearTimeout(timer);
-  }, [stage, id, order, user, router, clear]);
+
+    return () => {
+      active = false;
+    };
+  }, [stage, id, order, user, router, routeFromTrustedOrder]);
+
+  useEffect(() => {
+    if (
+      stage !== "verifying" ||
+      !order ||
+      !user ||
+      order.userId !== user.id ||
+      verificationStarted.current
+    ) {
+      return;
+    }
+
+    verificationStarted.current = true;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const wait = () =>
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, VERIFY_INTERVAL_MS);
+      });
+
+    void (async () => {
+      try {
+        // QueryDR is called once when the customer returns. It recovers a
+        // signed VNPAY result if the server-to-server IPN was delayed/lost.
+        await services.payments.reconcile(id);
+      } catch {
+        // Keep polling the trusted Order because IPN may still arrive.
+      }
+      for (let attempt = 1; attempt <= VERIFY_ATTEMPTS && active; attempt += 1) {
+        setPollAttempt(attempt);
+        try {
+          const current = await services.orders.get(id);
+          if (!active) return;
+          if (!current || current.userId !== user.id) {
+            router.replace("/payment/error");
+            return;
+          }
+          if (await routeFromTrustedOrder(current)) return;
+        } catch {
+          // IPN và Order có thể chưa đồng bộ hoặc mạng có thể chập chờn; thử
+          // lại trong giới hạn bên dưới rồi chuyển sang trạng thái chưa rõ.
+        }
+        if (attempt < VERIFY_ATTEMPTS) await wait();
+      }
+      if (active)
+        router.replace(`/payment/${encodeURIComponent(id)}/unknown`);
+    })();
+
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [stage, id, order, user, router, routeFromTrustedOrder]);
+
+  useEffect(() => {
+    if (
+      stage === "success" &&
+      order &&
+      user &&
+      order.userId === user.id &&
+      isPaidOrder(order.status)
+    ) {
+      void clearPaidCart();
+    }
+  }, [stage, order, user, clearPaidCart]);
+
   const verify = async () => {
     if (verifyBusy) return;
     setVerifyBusy(true);
     setError("");
     try {
+      try {
+        await services.payments.reconcile(id);
+      } catch {
+        // A throttled/unavailable QueryDR must not hide an IPN result that may
+        // already have reached the Order endpoint.
+      }
       const current = await services.orders.get(id);
-      setOrder(current);
-      if (
-        current &&
-        ["PAID", "PREPARING", "READY", "COMPLETED"].includes(current.status)
-      ) {
-        removePaymentIntent(id);
-        clear();
-        router.replace(`/payment/${id}/success`);
-      } else if (current?.status === "PAYMENT_FAILED")
-        router.replace(`/payment/${id}/failure`);
-    } catch (e) {
+      if (!current || current.userId !== user?.id) {
+        setError("Không tìm thấy đơn hàng");
+        return;
+      }
+      const terminal = await routeFromTrustedOrder(current);
+      if (!terminal) setOrder(current);
+    } catch (cause) {
       setError(
-        e instanceof Error ? e.message : "Không kiểm tra được trạng thái đơn",
+        cause instanceof Error
+          ? cause.message
+          : "Không kiểm tra được trạng thái đơn",
       );
     } finally {
       setVerifyBusy(false);
     }
   };
+
   const retry = () => {
-    if (!order) return;
-    const qa = readPaymentIntent(id)?.outcome ? "&qa=1" : "";
-    router.push(`/checkout?retryOrder=${encodeURIComponent(id)}${qa}`);
+    if (order?.status !== "PAYMENT_FAILED") return;
+    router.push(`/checkout?retryOrder=${encodeURIComponent(id)}`);
   };
+
+  const resume = () => {
+    if (order?.status !== "PENDING") return;
+    router.push(`/checkout?resumeOrder=${encodeURIComponent(id)}`);
+  };
+
   if (loading || authLoading)
     return (
       <main className="container main">
         <Loading />
       </main>
     );
+
   if (error && stage !== "unknown")
     return (
       <main className="container main">
         <ErrorState message={error} retry={load} />
       </main>
     );
+
   if (!order || order.userId !== user?.id)
     return (
       <main className="container main">
         <ErrorState message="Không tìm thấy đơn hàng" />
       </main>
     );
+
+  const paid = isPaidOrder(order.status);
+  const failed = ["PAYMENT_FAILED", "CANCELLED"].includes(order.status);
+
   return (
-    <main className="container main">
-      <div
-        className="card panel"
-        style={{ maxWidth: 680, margin: "auto", textAlign: "center" }}
-      >
+    <main className="container main payment-main">
+      <section className="card payment-state-card" aria-live="polite">
         {stage === "processing" ? (
           <>
-            <div className="spinner" />
-            <h1>Đang xử lý thanh toán...</h1>
-            <p>Vui lòng chờ kết quả từ cổng thanh toán.</p>
-            <p className="muted">Mã đơn #{order.id}</p>
-            <strong>{money(order.total)}</strong>
+            <div className="payment-orbit" aria-hidden="true">
+              <span className="spinner" />
+            </div>
+            <p className="payment-eyebrow">Kết nối cổng thanh toán</p>
+            <h1>Đang chuyển đến VNPAY...</h1>
+            <p className="payment-lead">
+              BrewLite đang tạo giao dịch bảo mật. Mã QR sẽ được hiển thị trên
+              trang thanh toán chính thức của VNPAY.
+            </p>
+            <div className="payment-order-chip">
+              <span>Mã đơn #{order.id}</span>
+              <strong>{money(order.total)}</strong>
+            </div>
           </>
-        ) : stage === "success" &&
-          ["PAID", "PREPARING", "READY", "COMPLETED"].includes(order.status) ? (
+        ) : stage === "verifying" ? (
           <>
-            <div style={{ fontSize: 50 }}>✓</div>
+            <div className="payment-orbit" aria-hidden="true">
+              <span className="spinner" />
+            </div>
+            <p className="payment-eyebrow">Xác thực giao dịch</p>
+            <h1>Đang xác minh thanh toán</h1>
+            <p className="payment-lead">
+              Chúng tôi đang chờ xác nhận an toàn từ máy chủ VNPAY. Vui lòng
+              không đóng trang này hoặc thanh toán lại.
+            </p>
+            <div className="payment-order-chip">
+              <span>Mã đơn #{order.id}</span>
+              <strong>{money(order.total)}</strong>
+            </div>
+            <p className="payment-poll-copy">
+              Lần kiểm tra {Math.max(1, pollAttempt)}/{VERIFY_ATTEMPTS}
+            </p>
+          </>
+        ) : stage === "success" && paid ? (
+          <>
+            <div className="payment-result-icon is-success" aria-hidden="true">
+              ✓
+            </div>
+            <p className="payment-eyebrow">Giao dịch đã xác thực</p>
             <h1>Đặt hàng thành công!</h1>
             <StatusBadge status={order.status} />
-            <p>
-              Mã đơn <strong>#{order.id}</strong>
+            <p className="payment-lead">
+              Cảm ơn bạn đã lựa chọn BrewLite. Đơn hàng đã được gửi đến quầy
+              pha chế.
             </p>
-            <div style={{ textAlign: "left" }}>
-              {order.items.map((i) => (
-                <div className="summary-line" key={i.key}>
+            <div className="payment-receipt">
+              <div className="payment-receipt-heading">
+                <span>Mã đơn #{order.id}</span>
+                <strong>Đã thanh toán</strong>
+              </div>
+              {order.items.map((item) => (
+                <div className="summary-line" key={item.key}>
                   <span>
-                    {i.quantity} × {i.name} ({i.size})
+                    {item.quantity} × {item.name} ({item.size})
                   </span>
-                  <span>{money(i.quantity * i.unitPrice)}</span>
+                  <span>{money(item.quantity * item.unitPrice)}</span>
                 </div>
               ))}
               <div className="summary-line total">
                 <span>Tổng cộng</span>
                 <span>{money(order.total)}</span>
               </div>
+              <p>Phương thức: VNPAY-QR</p>
             </div>
-            <p>
-              Phương thức:{" "}
-              {(order.paymentMethod || paymentMethod) === "CARD"
-                ? "Thẻ ngân hàng"
-                : (order.paymentMethod || paymentMethod) === "WALLET"
-                  ? "Ví điện tử"
-                  : "Chưa xác định"}
-            </p>
-            <Link className="btn btn-primary" href="/orders">
-              Xem đơn hàng
-            </Link>
+            <div className="payment-actions">
+              <Link className="btn btn-primary" href="/orders">
+                Theo dõi đơn hàng
+              </Link>
+              <Link className="btn btn-secondary" href="/">
+                Tiếp tục đặt món
+              </Link>
+            </div>
           </>
-        ) : stage === "failure" && order.status === "PAYMENT_FAILED" ? (
+        ) : stage === "failure" && failed ? (
           <>
-            <h1 className="error">Thanh toán chưa thành công</h1>
+            <div className="payment-result-icon is-failure" aria-hidden="true">
+              ×
+            </div>
+            <p className="payment-eyebrow">Giao dịch chưa hoàn tất</p>
+            <h1>Thanh toán chưa thành công</h1>
             <StatusBadge status={order.status} />
-            <p>{order.error || "Giao dịch bị từ chối. Vui lòng thử lại."}</p>
-            <p>Giỏ hàng vẫn được giữ nguyên.</p>
-            <button className="btn btn-primary" onClick={retry}>
-              Thử thanh toán lại
-            </button>{" "}
-            <Link className="btn btn-secondary" href="/cart">
-              Về giỏ hàng
-            </Link>
+            <p className="payment-lead">
+              {order.status === "CANCELLED"
+                ? "Đơn hàng này đã bị hủy."
+                : order.error ||
+                  "VNPAY chưa thể hoàn tất giao dịch. Giỏ hàng của bạn vẫn được giữ nguyên."}
+            </p>
+            <div className="payment-actions">
+              {order.status === "PAYMENT_FAILED" && (
+                <button className="btn btn-primary" onClick={retry}>
+                  Thử thanh toán lại
+                </button>
+              )}
+              <Link className="btn btn-secondary" href="/cart">
+                Về giỏ hàng
+              </Link>
+            </div>
           </>
         ) : (
           <>
-            <h1>Đang xác minh kết quả thanh toán</h1>
-            <p>
-              Chưa thể kết luận giao dịch. Kiểm tra trạng thái đơn trước khi thử
-              lại.
+            <div className="payment-result-icon is-unknown" aria-hidden="true">
+              ?
+            </div>
+            <p className="payment-eyebrow">Cần thêm thời gian xác minh</p>
+            <h1>Chưa xác định kết quả thanh toán</h1>
+            <p className="payment-lead">
+              Giao dịch chưa được VNPAY xác nhận. Bạn có thể kiểm tra lại trạng
+              thái hoặc quay về bước chọn phương thức để tiếp tục đúng giao
+              dịch hiện tại.
             </p>
             {error && <p className="error">{error}</p>}
-            <p>Mã đơn #{order.id}</p>
-            <StatusBadge status={order.status} />
-            <div style={{ marginTop: 22 }}>
+            <div className="payment-order-chip">
+              <span>Mã đơn #{order.id}</span>
+              <StatusBadge status={order.status} />
+            </div>
+            <div className="payment-actions">
+              {order.status === "PENDING" && (
+                <button className="btn btn-primary" onClick={resume}>
+                  Thử lại
+                </button>
+              )}
               <button
                 className="btn btn-secondary"
                 disabled={verifyBusy}
                 onClick={verify}
               >
                 {verifyBusy ? "Đang kiểm tra..." : "Kiểm tra trạng thái đơn"}
-              </button>{" "}
+              </button>
               <Link className="btn btn-outline" href={`/orders/${id}`}>
                 Xem chi tiết đơn
               </Link>
             </div>
           </>
         )}
-      </div>
+      </section>
     </main>
   );
 }

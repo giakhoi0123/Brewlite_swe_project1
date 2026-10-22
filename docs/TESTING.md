@@ -1,14 +1,33 @@
-# Kiểm thử và bằng chứng BrewLite
+# Kiểm chứng sau khi nhập `origin/main` — 2026-10-22
 
-## Task 06 — 2026-10-16, main c2d6922 → codex/task-06-orders
+- Prisma generate/validate, backend build và lint: PASS. Backend unit/integration không cần DB: **20 suite/253 test PASS**; backend E2E: **6 suite/126 test PASS**, 36 test DB opt-in skip đúng cấu hình.
+- Frontend: **20/20 unit PASS**, full lint PASS và production build PASS.
+- `npm --prefix backend run test:payments:postgres`: tạo database `brewlite_payments_test_<uuid>` riêng, áp đủ **13 migration**, PASS **7 suite/101 test**, rồi xóa database tạm. Không reset/truncate database ứng dụng.
+- Lượt PostgreSQL đầu bắt lỗi tích điểm hai lần khi VNPAY finalize `PAID`; sau khi bỏ increment trùng ở Payment adapter, lượt chạy lại PASS. Orders giữ ownership phép cộng điểm; Payment transaction vẫn ghi `LoyaltyLog` và xóa giỏ.
+- `docker compose config --quiet`: PASS; PostgreSQL/backend/frontend đang chạy, PostgreSQL healthy.
+- `prisma migrate status` trên database ứng dụng local: không có checksum drift, nhưng còn ba migration pending (`payment_consistency`, `loyalty_log`, `vnpay_consistency_compat`). Lượt này không áp dụng migration lên database ứng dụng; cần chạy `npm run db:migrate` trước khi dùng code sau merge.
+- Blocker còn lại: chưa cấu hình/xác nhận callback IPN HTTPS thật trong portal VNPAY, nên T08 vẫn IN_PROGRESS.
 
-Backend `npm run test:postgres`: **19 suites, 201/201 tests PASS, 0 skipped**, PostgreSQL 15.18 thật, DB riêng tạo bằng UUID, đủ 8 migration rồi tự dọn. Trong đó hai suite Orders PostgreSQL có 31 bài thật (23 mới + 8 có sẵn). Backend build/lint và typecheck toàn bộ test PASS. Frontend unit **13/13 PASS**, build API mode `--webpack` PASS, lint hai file frontend thay đổi PASS. Browser Edge API/Auth/Cart/Orders thật: **4/4 PASS**, gồm tạo/lưu PENDING ở 1440/768/390, mở lại không tạo trùng và 409 thiếu hàng giữ giỏ.
+---
 
-Frontend lint toàn repo FAIL có sẵn từ main mới tại profile/page.tsx:21 (`react-hooks/preserve-manual-memoization`). Turbopack có lỗi tạo tiến trình trên máy; không sửa script mặc định, dùng Webpack kiểm chứng. Docker CLI không có nên không xác nhận Compose. Không dùng các kết quả này để chốt Task 08/09/10.
+# Kiểm chứng VNPAY TEST trước merge — 2026-10-22
 
-[TASK06_VERIFICATION.md](TASK06_VERIFICATION.md) có cách chạy, ma trận AC, commit từng phần, log và ảnh thật. Lượt trước có audit 160 pass + 8 skip trên main cũ; con số đó không phải kết quả hiện tại. Các mốc bên dưới giữ làm lịch sử.
+- Prisma generate/validate: PASS với migration `20261021000000_vnpay_gateway`.
+- Backend build/lint: PASS. `npm test -- --runInBand`: **18 suite / 191 test PASS**, 2 suite/11 test PostgreSQL skip vì chưa cấu hình `PAYMENTS_TEST_DATABASE_URL` trỏ tới database test tách biệt.
+- Frontend: **19/19 unit PASS**, `tsc --noEmit` PASS, production build PASS, lint các file checkout/payment/service/E2E liên quan PASS.
+- Full frontend lint còn một lỗi có sẵn ngoài phạm vi tại `frontend/src/app/profile/page.tsx:21` (`react-hooks/preserve-manual-memoization`); file này không bị sửa trong lượt VNPAY.
+- Browser QA mock chỉ dùng để kiểm bố cục: checkout tại 1440/768/390 không tràn ngang, có đúng một radio VNPAY-QR, không có selector kết quả demo/Ví/Thẻ. Đây không phải bằng chứng giao dịch VNPAY.
+- `docker compose config --quiet`: PASS. Compose đang chạy đủ PostgreSQL/backend/frontend; PostgreSQL healthy, backend HTTP 200 và migration `20261021000000_vnpay_gateway` đã được áp dụng thành công.
+- Thử hosted Sandbox ngày 2026-10-22 ban đầu nhận “Ngân hàng thanh toán không được hỗ trợ” khi ép `vnp_BankCode=VNPAYQR`. Bộ phận kỹ thuật VNPAY sau đó xác nhận đã active QR cho terminal TEST; `.env` local đã đặt `VNPAY_BANK_CODE=VNPAYQR`, backend đã recreate, và kiểm tra URL ký trả `bankCode=VNPAYQR`, `command=pay`, `version=2.1.0`, có secure hash.
+- Sau khi Sandbox hiển thị QR, quét bằng ứng dụng ngân hàng LIVE có thể nhận “QR không tồn tại” do TEST/LIVE tách biệt. VNPAY đã cấp ứng dụng QR TEST iOS/Android và công cụ VSM Sandbox qua email. Bước E2E còn lại: cấu hình IPN HTTPS trong VSM, dùng app/NCB TEST hoàn tất giao dịch mới và xác nhận IPN làm DB chuyển `PROCESSING → PAID`; không ghi credential công cụ vào repo/log.
+- Contract/UI: Return mã không thành công chuyển `/payment/:id/unknown` và không mutate; `resumeOrder` replay đúng idempotency key/Payment PROCESSING, không tăng số Order/Payment; chỉ `PAYMENT_FAILED` đã được IPN/QueryDR chốt mới dùng `retryOrder` với key mới và tạo attempt mới trên cùng Order. Frontend gọi owner-auth `POST /payments/:orderId/reconcile` một lần khi vào `verifying` và gọi lại khi bấm “Kiểm tra trạng thái đơn”.
+- QueryDR Sandbox + DB PASS: thanh toán bằng tài khoản TEST `NGUYEN VAN A` cho Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` được response QueryDR có chữ ký xác minh. Truy vấn PostgreSQL trả `Payment.status=PAID`, `Order.status=PAID`, `vnp_transaction_no=15711511`, `vnp_bank_code=NCB`, `vnp_pay_date=20261022114118`, `idempotency_key=3998d99e-ff66-4ee6-a204-0a22cc35b60c`, response/transaction status đều `00`.
+- Regression an toàn trạng thái PASS: IPN/QueryDR không finalize các mã chưa hoàn tất, đảo giao dịch, nghi ngờ gian lận hoặc lifecycle `10/20`; response IPN `07` không mở retry dù transaction status là `02`. QueryDR có chữ ký với `02/08/11` mới chốt thất bại, ngăn URL hết hạn mắc kẹt nhưng vẫn tránh nguy cơ thu tiền hai lần ở mã mơ hồ.
+- T08 vẫn IN_PROGRESS: QueryDR đã chứng minh fallback và persistence, nhưng IPN trong portal chưa được cấu hình nên callback IPN HTTPS E2E chưa được xác nhận. Không dùng Return hoặc QueryDR thành công để tuyên bố IPN đã chạy.
 
-## Lịch sử tích hợp origin/main vào feature/auth-and-base — 2026-10-16
+---
+
+# Kiểm chứng tích hợp `origin/main` vào `feature/auth-and-base` — 2026-10-16
 
 Sau fetch/merge main có Orders/Inventory, backend build lần đầu PASS nhưng full PostgreSQL suite có **24 lỗi HTTP Orders**: fixture user của TV4 thiếu `sessionVersion` nên JwtStrategy TV1 trả 401. Đã thêm version 0 vào fixture và JWT test. Chạy lại bằng `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs`: **18 suites, 168/168 tests PASS**, không skipped. Script tạo database `brewlite_orders_test_<uuid>` riêng, áp dụng đủ 8 migrations (gồm Orders và Auth session_version), rồi xóa đúng database tạm. Không thay đổi DB ứng dụng. Backend Docker build PASS; frontend build/lint PASS; `npm --prefix frontend test`: 13/13 PASS. Browser Orders/Staff API E2E chưa chạy; Playwright demo 4/4 là bằng chứng **trước merge** và dùng mock nghiệp vụ.
 

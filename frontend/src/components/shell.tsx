@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/stores/cart";
 import { useAuth } from "./auth-provider";
+import { dataMode } from "@/services";
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   if (pathname.startsWith("/barista/")) return <>{children}</>;
@@ -61,6 +62,18 @@ export function Header() {
           </div>
         </div>
       </header>
+      {dataMode === "mock" && (
+        <div className="demo">
+          Dữ liệu nghiệp vụ cục bộ đang được sử dụng. Đăng nhập dùng máy chủ
+          thật.
+        </div>
+      )}
+      {dataMode === "hybrid" && (
+        <div className="demo">
+          Sản phẩm, giỏ hàng và đăng nhập dùng máy chủ thật; một số dữ liệu khác
+          được lưu cục bộ.
+        </div>
+      )}
     </>
   );
 }

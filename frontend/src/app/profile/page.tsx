@@ -37,17 +37,17 @@ export default function Profile() {
     try {
       await refresh();
       const [loyalty, mine] = await Promise.all([
-        services.loyalty.get(userId).catch(() => ({ points: user?.loyaltyPoints ?? 0 })),
+        services.loyalty.get(userId).catch(() => ({ points: userPoints ?? 0 })),
         services.orders.mine(userId).catch(() => []),
       ]);
 
       // Cập nhật điểm chuẩn xác từ CSDL backend
-      const currentPoints = loyalty.points !== undefined 
-        ? loyalty.points 
-        : (user?.loyaltyPoints ?? 0);
+      const currentPoints = loyalty.points !== undefined
+        ? loyalty.points
+        : (userPoints ?? 0);
 
       setPoints(currentPoints);
-      
+
       const sortedOrders = [...mine].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
       setOrders(sortedOrders);
 
@@ -106,14 +106,13 @@ export default function Profile() {
 
       // 1. Gọi API Backend để trừ điểm thật trong PostgreSQL
       if (typeof services.loyalty.redeem === "function") {
-        const res: any = await services.loyalty.redeem(userId, option as any);
-        voucherCode = res?.code || res?.couponCode || res?.voucher?.code || "";
-        if (res?.remainingPoints !== undefined) {
+        const res = await services.loyalty.redeem(userId, option);
+        voucherCode = res.code;
+        if (res.remainingPoints !== undefined) {
           remainingPoints = res.remainingPoints;
         }
       } else {
-        const kilo = Math.round(option.discountAmount / 1000);
-        voucherCode = `REDEEM${kilo}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        throw new Error("Tính năng đổi điểm chưa sẵn sàng.");
       }
 
       if (!voucherCode) {

@@ -152,14 +152,18 @@ export const apiOrders: OrderService = {
       }),
     }),
   mine: () => request<Order[]>("/orders/me"),
-  get: (id) => request<Order>(`/orders/${encodeURIComponent(id)}`),
+  get: (id) =>
+    request<Order>(`/orders/${encodeURIComponent(id)}`, { cache: "no-store" }),
   status: (id) =>
-    request<{ status: OrderStatus }>(`/orders/${encodeURIComponent(id)}/status`)
+    request<{ status: OrderStatus }>(
+      `/orders/${encodeURIComponent(id)}/status`,
+      { cache: "no-store" },
+    )
       .then((result) => result.status),
 };
 
 export const apiPayments: PaymentService = {
-  pay: (orderId, method, idempotencyKey, demoOutcome) =>
+  pay: (orderId, method, idempotencyKey) =>
     request<Payment>("/payments", {
       method: "POST",
       headers: { "Idempotency-Key": idempotencyKey },
@@ -167,9 +171,13 @@ export const apiPayments: PaymentService = {
         orderId,
         method,
         idempotencyKey,
-        ...(demoOutcome ? { demoOutcome } : {}),
       }),
     }),
+  reconcile: (orderId) =>
+    request<Payment>(
+      `/payments/${encodeURIComponent(orderId)}/reconcile`,
+      { method: "POST" },
+    ),
 };
 
 export const apiPromotions: PromotionService = {
@@ -181,7 +189,7 @@ export const apiPromotions: PromotionService = {
 };
 
 export const apiLoyalty: LoyaltyService = {
-  get: async (_userId?: string) => {
+  get: async () => {
     try {
       return await request<{ points: number }>("/loyalty/me");
     } catch {

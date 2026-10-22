@@ -1,7 +1,7 @@
 # Biên bản kiểm thử nghiệm thu BrewLite Coffee Ordering System
 
-**Ngày kiểm thử:** 19/10/2026 (Asia/Ho_Chi_Minh)  
-**Mã nguồn nền:** `b87db13` sau pull/merge, cùng các thay đổi trong cây làm việc hiện tại  
+**Ngày kiểm thử:** 19/10/2026 (Asia/Ho_Chi_Minh)
+**Mã nguồn nền:** `b87db13` sau pull/merge, cùng các thay đổi trong cây làm việc hiện tại
 **Kết luận:** **ĐẠT nghiệm thu kỹ thuật cho 9 user stories đã nêu**, trên PostgreSQL QA riêng và gateway thanh toán mock.
 
 ## I. Môi trường kiểm thử
@@ -81,5 +81,5 @@ Lượt browser đầu phát hiện fixture sản phẩm thiếu cấu hình S/M
 
 **Thao tác nghiệm thu thanh toán:** Trên checkout sandbox, nút “Kiểm thử thanh toán” hiện ngay dưới hai phương thức Ví điện tử/Thẻ ngân hàng. Playwright bấm nút từ `/checkout` thường, chọn PAID/PAYMENT_FAILED/UNKNOWN và xác nhận trạng thái trong PostgreSQL: **1/1 browser test PASS**, frontend lint và Docker build PASS. Bản triển khai tắt cờ sandbox không hiển thị nút.
 
-**Người ký xác nhận kỹ thuật:** Senior QA / Test Automation Engineer — 19/10/2026.  
+**Người ký xác nhận kỹ thuật:** Senior QA / Test Automation Engineer — 19/10/2026.
 **Chủ dự án/người phê duyệt phát hành:** Chưa ký.

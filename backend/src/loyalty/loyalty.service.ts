@@ -59,7 +59,7 @@ export class LoyaltyService {
     // 💡 TỰ ĐỘNG CHÈN TIỀN TỐ MỆNH GIÁ (10000 -> 10, 20000 -> 20, 50000 -> 50)
     const kiloValue = Math.round(reward.discountAmount / 1000);
     const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
+
     // Sinh mã dạng: REDEEM10-A8B9C0, REDEEM20-X1Y2Z3, REDEEM50-P9Q8R7
     const code = `REDEEM${kiloValue}-${randomSuffix}`;
 

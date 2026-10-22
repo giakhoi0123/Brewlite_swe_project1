@@ -1,18 +1,14 @@
 # BrewLite 1.0
 
-> QA sau pull/merge `b87db13` ngày 19/10/2026: 9/9 user stories đạt nghiệm thu kỹ thuật trên PostgreSQL QA riêng; backend 301/301, E2E 185/185. Lượt cập nhật giao diện sau đó: frontend unit 16/16, Playwright auth/API menu 4/4. Xem [biên bản nghiệm thu](TEST_REPORT_BREWLITE.md). Compose cục bộ đã áp đủ 11 migrations; môi trường khác cần deploy migration `20261019000000_loyalty_log`. Gateway thật/hoàn tiền thật chưa được kiểm chứng.
-
-> Mốc lịch sử Task 06 trước merge: code `2c8adc2` trên nhánh `feature/task-06-orders` đạt 247/247 backend tests và browser Orders API 4/4. Xem [bằng chứng cũ](docs/TASK06_REVIEW_VERIFICATION.md).
-
 Ứng dụng đặt cà phê Việt và thanh toán không tiền mặt cho bài tập Công nghệ phần mềm nhóm 6 người. Gồm Next.js frontend, NestJS backend, PostgreSQL/Prisma và Docker Compose. Mã nguồn tập trung trong **`BrewLite_swe-project_1`**; `stitch/` chứa HTML và design tokens gốc cùng ảnh tham chiếu WebP đã nén.
 
 ## Phạm vi và hiện trạng
 
 - Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
 - Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout vô hiệu JWT cũ bằng `users.session_version`, bcrypt, cookie HttpOnly JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
-- Orders/Inventory và Staff Orders đã có backend; API staff hỗ trợ danh sách, chuyển trạng thái và hủy có lý do. Payment đã nối Orders port và bật `POST /payments`. Mã ưu đãi mặc định được xác minh qua API và tính lại trong Order; phát hành voucher cá nhân chưa có. Gateway thanh toán vẫn là sandbox, không phải giao dịch tiền thật.
+- Orders/Inventory và Staff Orders đã có backend TV4 trên `main`; API staff hỗ trợ danh sách, chuyển trạng thái và hủy có lý do. Payment dùng VNPAY WebPay 2.1.0: backend ký HMAC-SHA512, ưu tiên IPN và dùng QueryDR có chữ ký làm fallback khi IPN bị trễ/mất; kết quả hợp lệ cập nhật Payment/Order trong transaction. `VNPAY_BANK_CODE` là cấu hình backend tùy chọn; mặc định để trống để trang hosted hiển thị các phương thức terminal được cấp. Promotions/Loyalty đã có endpoint backend và migration `LoyaltyLog`; các giới hạn còn lại được ghi trong `docs/PROJECT_STATUS.md`.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
-- Barista KDS theo Stitch có 5 màn: `/barista/dashboard`, `/barista/orders`, `/barista/preparing`, `/barista/ready`, `/barista/history`. API mode lấy queue và lịch sử từ backend, chuyển trạng thái và hủy có lý do. Hồ sơ thành viên hiển thị điểm trong tài khoản; phát hành voucher cá nhân và chính sách đổi điểm chưa có.
+- Barista KDS theo Stitch có 5 màn: `/barista/dashboard`, `/barista/orders`, `/barista/preparing`, `/barista/ready`, `/barista/history`. Mock chia sẻ dữ liệu với lịch sử khách hàng; API mode dùng backend TV4 cho queue/transition nhưng history và hủy có lý do còn chờ endpoint. Hồ sơ thành viên chưa phát hành voucher hoặc chính sách đổi điểm.
 
 ## Cấu trúc
 
@@ -33,12 +29,61 @@ Cần Node.js 24, npm 11, Docker + Docker Compose (hoặc PostgreSQL 15 cài s�
 
 ```bash
 cp .env.example .env
-# Sửa POSTGRES_PASSWORD, DATABASE_URL và JWT_SECRET trong .env
+# Sửa POSTGRES_PASSWORD, DATABASE_URL, JWT_SECRET và cấu hình VNPAY trong .env
 npm --prefix frontend ci
 npm --prefix backend ci
 ```
 
 Giữ `DATABASE_URL` trùng mật khẩu và cổng PostgreSQL trong `.env` (mặc định 5434 để không xung đột dự án BrewLite khác trên 5433). `.env` không được commit. `BARISTA_PASSWORD` là mật khẩu tự đặt, không dùng giá trị mẫu khi chia sẻ môi trường. Khi chạy local, đặt `PORT=3001`, frontend mặc định cổng 3000.
+
+VNPAY cần `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_PAYMENT_URL`, `VNPAY_QUERY_URL`, `VNPAY_QUERY_IP_ADDRESS`, `VNPAY_RETURN_URL` và `FRONTEND_PUBLIC_URL`. `VNPAY_QUERY_URL` là API QueryDR tương ứng với môi trường VNPAY; `VNPAY_QUERY_IP_ADDRESS` là địa chỉ IP server gửi trong request truy vấn. `VNPAY_BANK_CODE` là biến backend tùy chọn: để trống theo mặc định để VNPAY hiển thị các phương thức mà terminal được cấp, chỉ đặt `VNPAYQR` sau khi VNPAY xác nhận đã bật kênh QR cho merchant TEST. `VNPAY_HASH_SECRET` chỉ được đặt ở backend, không dùng biến `NEXT_PUBLIC_*` và không commit. Với môi trường TEST có thể dùng URL sandbox trong `.env.example`; môi trường thật phải dùng đúng URL/credential VNPAY bàn giao, không tự suy đoán URL production.
+
+### Đăng ký tài khoản Merchant VNPAY Sandbox
+
+1. Truy cập [Đăng ký Merchant môi trường TEST](https://sandbox.vnpayment.vn/devreg), nhập tên website, URL website, email, mật khẩu và mã xác nhận. Nếu dự án chưa deploy, có thể dùng URL HTTPS do ngrok tạo ở mục kế tiếp.
+2. Gửi biểu mẫu, kiểm tra email và lấy `vnp_TmnCode` cùng `vnp_HashSecret` VNPAY gửi cho tài khoản TEST. Tài khoản/credential này chỉ dùng cho Sandbox, không phải tài khoản production.
+3. Sao chép `.env.example` thành `.env`, rồi cấu hình các giá trị sau. Không commit `.env`, không gửi `VNPAY_HASH_SECRET` lên frontend và không đăng credential thật vào issue/log.
+
+```dotenv
+VNPAY_TMN_CODE=<TmnCode nhận từ VNPAY>
+VNPAY_HASH_SECRET=<HashSecret nhận từ VNPAY>
+VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+VNPAY_QUERY_URL=https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+VNPAY_QUERY_IP_ADDRESS=<IPv4 của máy/server gửi QueryDR>
+VNPAY_RETURN_URL=https://<ngrok-domain>/api/payments/vnpay/return
+VNPAY_BANK_CODE=
+FRONTEND_PUBLIC_URL=http://localhost:3000
+```
+
+`VNPAY_QUERY_IP_ADDRESS` là địa chỉ IP, không phải URL ngrok. Để `VNPAY_BANK_CODE` trống nếu terminal TEST chưa được VNPAY bật QR; chỉ đặt `VNPAY_BANK_CODE=VNPAYQR` sau khi VNPAY xác nhận đã cấp kênh này.
+
+### Tạo URL HTTPS bằng ngrok cho Return/IPN
+
+Backend phải đang chạy ở `http://localhost:3001` trước khi mở tunnel. Đăng ký/đăng nhập [tài khoản ngrok](https://dashboard.ngrok.com/signup) để lấy authtoken. Trên Windows có thể cài ngrok bằng WinGet; các hệ điều hành khác tải agent từ [trang cài đặt ngrok](https://ngrok.com/download):
+
+```powershell
+winget install ngrok -s msstore
+ngrok config add-authtoken "<NGROK_AUTHTOKEN>"
+ngrok http 3001
+```
+
+Lấy URL HTTPS trong dòng `Forwarding`, ví dụ `https://brewlite-example.ngrok-free.app`, rồi:
+
+1. Đặt `VNPAY_RETURN_URL=https://brewlite-example.ngrok-free.app/api/payments/vnpay/return` trong `.env`.
+2. Khai báo IPN trong cổng VNPAY/VSM là `https://brewlite-example.ngrok-free.app/api/payments/vnpay/ipn`.
+3. Khởi động lại backend để nạp `.env`; nếu chạy Compose, dùng `docker compose up -d --build backend`.
+4. Giữ cửa sổ `ngrok http 3001` mở trong suốt lúc test. Có thể xem request callback tại `http://localhost:4040` hoặc Traffic Inspector của ngrok.
+
+Nếu domain ngrok thay đổi, phải cập nhật cả `VNPAY_RETURN_URL` và IPN đã khai báo trên VNPAY/VSM. Không thêm lớp Basic Auth/OAuth trước endpoint IPN vì VNPAY cần gọi trực tiếp. IPN phải dùng HTTPS và truy cập được từ Internet; `localhost` không nhận được callback server-to-server. IPN là nguồn xác nhận chính. Nếu IPN bị trễ/mất, endpoint owner-auth `POST /api/payments/:orderId/reconcile` gọi QueryDR và chỉ ghi trạng thái sau khi kiểm tra chữ ký, merchant, reference, loại giao dịch và số tiền. Return URL luôn read-only.
+
+### Kiểm thử QR trên Sandbox
+
+QR Sandbox không quét bằng ứng dụng ngân hàng thông thường/LIVE. Dùng ứng dụng QR TEST do VNPAY cung cấp cho terminal:
+
+- iOS: [cài qua TestFlight](https://testflight.apple.com/join/cB9e74w7).
+- Android: [tải từ Google Drive](https://drive.google.com/drive/folders/134q6yKTW8Gwy2ctAC7AQ9WEPLH1M_bui?usp=sharing).
+
+Theo hướng dẫn VNPAY: đăng nhập bằng email, đăng ký số điện thoại để đăng nhập ứng dụng TEST, sau đó Merchant chủ động nạp số dư Sandbox vào ứng dụng trước khi quét QR. Tài khoản Merchant Sandbox và tài khoản ứng dụng QR TEST phục vụ hai bước khác nhau. Nếu link ứng dụng hết hạn, terminal chưa được bật QR hoặc chưa có quyền nạp tiền TEST, liên hệ đầu mối kỹ thuật VNPAY đã cấp merchant. Có thể dùng phương tiện/thẻ NCB TEST thay thế theo tài liệu VNPAY khi chưa kiểm thử QR được; không dùng tiền hoặc tài khoản ngân hàng thật.
 
 Nếu Next.js chạy ở cổng khác, thêm địa chỉ đó vào `FRONTEND_ORIGIN` trong `.env`, phân tách bằng dấu phẩy (ví dụ `http://localhost:3000,http://localhost:3002`), rồi khởi động lại backend. Với Compose, chạy `docker compose up -d --build backend` để áp dụng thay đổi mã và cấu hình. Nếu thiếu origin, trình duyệt sẽ chặn API đăng ký/đăng nhập và hiện `Failed to fetch`.
 
@@ -67,36 +112,30 @@ docker compose up --build
 set -a; source .env; set +a; npm --prefix backend run prisma:seed
 ```
 
-Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Frontend chạy cổng 3000, backend 3001, DB 5434. Frontend build mặc định ở API mode; khi đổi `NEXT_PUBLIC_*` cần build lại image.
+Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Frontend chạy cổng 3000, backend 3001, DB 5434. Dockerfile frontend build mặc định mode API để dùng Orders/Payment/VNPAY thật; khi đổi `NEXT_PUBLIC_*` cần build lại image.
 
 ## Chế độ dữ liệu
 
-`NEXT_PUBLIC_DATA_MODE=api` là mặc định cho bản trình bày/nghiệm thu: sản phẩm, giỏ, đơn hàng, mã ưu đãi và thanh toán gọi REST/PostgreSQL; lỗi API không tự chuyển sang mock. Auth cũng luôn gọi NestJS/PostgreSQL; điểm thành viên được đọc từ `/auth/me`. Cổng thanh toán backend hiện là sandbox, chưa phải giao dịch tiền thật.
+`NEXT_PUBLIC_DATA_MODE=api` là mặc định và là chế độ bắt buộc cho thanh toán VNPAY. Orders/Inventory/Payments gọi REST thật; lỗi API không tự fallback sang mock. `POST /payments` chỉ khởi tạo giao dịch PROCESSING và trả URL hosted; Order chỉ chuyển PAID/PAYMENT_FAILED sau IPN hợp lệ hoặc phản hồi QueryDR đã kiểm chữ ký. Frontend gọi QueryDR một lần khi vào màn `verifying` và gọi lại khi người dùng bấm “Kiểm tra trạng thái đơn”, sau đó luôn đọc trạng thái Order tin cậy từ backend.
 
-### Thành viên và tích điểm
+`NEXT_PUBLIC_DATA_MODE=mock` và `hybrid` vẫn dành cho phát triển các module chưa hoàn thiện; dữ liệu mock nằm riêng trong `frontend/src/services/mock.ts` và không phải bằng chứng tích hợp VNPAY. Auth luôn gọi backend thật. Không dùng hai mode này khi nghiệm thu thanh toán.
 
-Tài khoản CUSTOMER đăng ký ở `/register` **tự động là thành viên BrewLite**; hiện không có bước đăng ký Loyalty riêng. Khi đã đăng nhập, thẻ trên trang chủ dẫn đến `/profile` để xem điểm và lịch sử đơn. Điểm được cộng khi đơn chuyển sang `PAID`: `floor(tổng tiền sau giảm giá / 10.000)`, ghi trong PostgreSQL cùng `LoyaltyLog`; gửi lại cùng khóa thanh toán không cộng thêm lần nữa. Đơn chưa thanh toán hoặc thanh toán thất bại không nhận điểm. Hiện chưa có chức năng đổi điểm hay phát hành voucher cá nhân.
+Áp migration mới trước khi chạy backend VNPAY. Checkout không còn bộ chọn kết quả demo: người dùng được chuyển sang trang hosted của VNPAY rồi quay lại BrewLite trong lúc frontend chờ IPN xác nhận. Backend chỉ gửi `vnp_BankCode` khi `VNPAY_BANK_CODE` có giá trị; để trống cho merchant TEST chưa được cấp QR để tránh lỗi “Ngân hàng thanh toán không được hỗ trợ”. Nếu merchant đã được VNPAY bật QR, đặt `VNPAY_BANK_CODE=VNPAYQR` để ưu tiên luồng QR.
 
-`NEXT_PUBLIC_DATA_MODE=mock` chỉ dùng khi chủ động kiểm thử giao diện, đặt trong `frontend/.env.local` hoặc `.env` rồi khởi động/build lại frontend. Mock lưu đơn và payment trong localStorage. Nếu cần bộ chọn kết quả PAID/FAILED/UNKNOWN khi kiểm thử, đặt thêm `NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS=true`; mặc định giao diện không hiển thị bộ chọn. Mã `BREW10` chỉ áp dụng trong mock mode.
+Ngày 2026-10-22, bộ phận kỹ thuật VNPAY xác nhận đã active VNPAYQR cho terminal TEST của dự án. Cấu hình local hiện dùng `VNPAY_BANK_CODE=VNPAYQR`; URL thanh toán sinh ra đã được kiểm tra có bank code này và chữ ký HMAC-SHA512. Đây là cấu hình riêng của terminal hiện tại, không đổi giá trị mặc định trống trong file mẫu.
 
-Bộ Playwright `frontend/e2e/flow.spec.ts` cần mock mode và bộ chọn kết quả thanh toán; bật thêm `BREWLITE_RUN_MOCK_E2E=1` khi chạy riêng bộ đó. Bộ kiểm thử API mode dùng `BREWLITE_RUN_API_E2E=1`.
+QR do VNPAY Sandbox tạo có thể báo “QR không tồn tại” khi quét bằng ứng dụng ngân hàng LIVE vì hạ tầng TEST và LIVE tách biệt. Đây không tự động là lỗi chữ ký của BrewLite và không phải bằng chứng giao dịch thành công. Khi kiểm thử, dùng thẻ/NCB test hoặc ứng dụng QR TEST iOS/Android mà VNPAY đã cấp cho terminal, không dùng ứng dụng ngân hàng LIVE.
 
-`NEXT_PUBLIC_DATA_MODE=hybrid` dành cho kiểm thử tích hợp từng phần: sản phẩm và giỏ hàng gọi backend thật, đơn hàng/thanh toán/ưu đãi/điểm/Barista dùng mock. Đặt trong `frontend/.env.local` cùng `NEXT_PUBLIC_API_URL=http://localhost:3001/api`, cần backend + DB đã chạy `npm run db:migrate`. Khách chưa đăng nhập giữ giỏ trong trình duyệt và được gộp lên server khi đăng nhập.
+VNPAY đã cung cấp ứng dụng QR TEST (iOS TestFlight/Android) và công cụ VSM Sandbox qua email. Không ghi credential VSM vào repository hoặc log; cấu hình IPN HTTPS trong công cụ rồi dùng phương tiện TEST/NCB test theo hướng dẫn VNPAY, không dùng ứng dụng ngân hàng LIVE.
 
-Orders/Inventory/Payments cần áp dụng đủ migration trước khi chạy API mode. Nếu thay `NEXT_PUBLIC_*`, khởi động lại hoặc build lại frontend. Tạo đơn PENDING chưa đồng nghĩa thanh toán thành công: chỉ `POST /payments` PAID mới chuyển Order sang PAID; UNKNOWN giữ Order hiện tại.
-
-Để kiểm thử ba phản hồi gateway qua giao diện API mode, đặt đồng thời `PAYMENT_DEMO_CONTROLS=true` cho backend và `NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS=true` khi build frontend. Sau khi thêm món và đăng nhập, tới checkout rồi bấm **Kiểm thử thanh toán** dưới lựa chọn Ví điện tử/Thẻ ngân hàng. Chọn *Thành công*, *Thất bại* hoặc *Chưa xác định*, sau đó bấm **Xác nhận thanh toán** trong tóm tắt đơn hàng. Có thể mở trực tiếp `http://localhost:3000/checkout?qa=1`; nút ẩn lại phần kiểm thử khi bấm lần nữa. Bản cục bộ hiện đã bật hai cờ trong `.env` chỉ để nghiệm thu; khi triển khai thật phải để cả hai `false`, khi đó nút không xuất hiện. Backend bỏ qua `demoOutcome` khi cờ backend tắt. Ví điện tử/thẻ ngân hàng hiện chỉ là hai phương thức ghi nhận trong mock gateway; không có QR, nhập thẻ hoặc trừ tiền thật.
-
-Kết quả PAID chuyển đơn sang PAID, xóa giỏ và cộng điểm một lần; PAYMENT_FAILED giữ giỏ và cho thanh toán lại **cùng đơn**; UNKNOWN giữ đơn ở PENDING để chờ đối soát, không được tự thử thanh toán mới vì chưa biết giao dịch đã trừ tiền hay chưa. Cả ba trạng thái có bài browser API `frontend/e2e/payment-outcomes-api.spec.ts` và PostgreSQL/Jest trong biên bản nghiệm thu.
+Return URL không cập nhật trạng thái. Return có mã không thành công chuyển người dùng tới `/payment/:id/unknown`; nút “Thử lại” từ màn này quay về `/checkout?resumeOrder=<id>` và replay đúng `idempotencyKey`/Payment `PROCESSING` hiện có, không tạo Order hoặc Payment mới. Chỉ khi IPN hoặc QueryDR đã xác minh `PAYMENT_FAILED`, luồng mới dùng `/checkout?retryOrder=<id>` với key mới để tạo Payment attempt mới trên cùng Order.
 
 
-Để chạy hai bài E2E API mode: `docker compose stop frontend`, chạy `NEXT_PUBLIC_DATA_MODE=api NEXT_PUBLIC_API_URL=http://localhost:3001/api npm --prefix frontend run dev -- --port 3000` ở terminal riêng; sau đó chạy `BREWLITE_RUN_API_E2E=1 npm --prefix frontend run test:e2e -- --grep "API mode"`. Dừng Next dev và chạy `docker compose start frontend` để trả lại demo mode.
+Để chạy E2E API mode: `docker compose stop frontend`, chạy `NEXT_PUBLIC_DATA_MODE=api NEXT_PUBLIC_API_URL=http://localhost:3001/api npm --prefix frontend run dev -- --port 3000` ở terminal riêng; sau đó chạy nhóm test API phù hợp. Sandbox VNPAY thật cần một backend HTTPS công khai để VNPAY gọi IPN.
 
 ## Auth và Barista
 
 Đăng ký công khai luôn tạo CUSTOMER. Đăng nhập dùng chung; BARISTA được chuyển tới `/barista/dashboard`; CUSTOMER bị chặn khỏi màn đó. Trình duyệt giữ cookie HttpOnly, SameSite=Lax, Secure ở production; không lưu JWT ở localStorage. Logout tăng `session_version` trong PostgreSQL rồi xóa cookie, làm hết hiệu lực **mọi** phiên của tài khoản. Migration `20261016000000_session_version` phải được áp dụng bằng `npm run db:migrate` trước khi khởi động backend mới. Staff Orders API của TV4 đã có list/transition với guard role; phần còn thiếu ghi trong `docs/API_CONTRACT.md`.
-
-Để thử Customer và Barista đồng thời, dùng **hai hồ sơ trình duyệt độc lập** (ví dụ cửa sổ thường và cửa sổ riêng tư, hoặc hai trình duyệt). Hai tab cùng hồ sơ chia sẻ cookie `brewlite_session`; đăng nhập vai trò thứ hai sẽ thay phiên của tab đầu. Hiện chưa có chức năng khôi phục mật khẩu qua email. Bài browser `auth-session-api.spec.ts` xác minh đăng ký → đăng xuất → đăng nhập lại và hai browser context riêng.
 
 Để tạo tài khoản Barista cục bộ, đặt `BARISTA_EMAIL` và `BARISTA_PASSWORD` trong `.env`, rồi nạp `.env` vào shell và chạy:
 
@@ -120,11 +159,14 @@ npm --prefix backend run build
 npm --prefix backend test -- --runInBand
 # Khi đã chạy Compose và cài Chromium:
 npm --prefix frontend exec -- playwright install chromium
-npm --prefix frontend run test:e2e -- auth-presentation.spec.ts
-BREWLITE_RUN_API_E2E=1 npm --prefix frontend run test:e2e -- --grep "API mode"
+npm --prefix frontend run test:e2e -- --grep-invert "API mode"
 ```
 
-Lượt nối Payment–Order 2026-10-17: Prisma generate, backend build/lint và **18 suites/165 tests PASS** cho bộ không cần DB; **2 suite/18 test PostgreSQL Payment PASS** trên DB tạm đã áp đủ 9 migration. HTTP smoke tạo Order→Payment trả PAID và truy vấn trực tiếp xác nhận bản ghi Order/Payment cùng hai dòng status history. Browser API đã kiểm tra PAYMENT_FAILED → quay lại checkout → PAID trên cùng order; DB có một Order và hai Payment theo đúng thứ tự. Browser API E2E mở rộng vẫn còn chờ.
+Lượt VNPAY TEST 2026-10-22: Prisma generate/validate, backend build/lint và **18 suite/191 test PASS**; frontend **19/19 unit**, typecheck, production build và lint phạm vi VNPAY PASS; checkout không tràn ở 1440/768/390. Compose hiện chạy đủ PostgreSQL/backend/frontend và migration `20261021000000_vnpay_gateway` đã được áp dụng; 2 suite/11 test PostgreSQL chuyên biệt vẫn skip vì chưa cấu hình database test riêng. Thanh toán Sandbox bằng tài khoản test `NGUYEN VAN A` đã được QueryDR xác minh và lưu DB: Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` cùng Payment đều `PAID`, `vnp_TransactionNo=15711511`, ngân hàng `NCB`, `vnp_PayDate=20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`. T08 vẫn IN_PROGRESS vì IPN trên portal chưa được cấu hình và chưa có bằng chứng E2E callback IPN thật.
+
+Sau khi nhập `origin/main` ngày 2026-10-22: backend build/lint, **20 suite/253 test không-DB**, backend E2E **6 suite/126 test**, frontend **20/20 unit + lint + production build** đều PASS. Bộ Payment PostgreSQL tạo database tạm, áp đủ **13 migration** và PASS **7 suite/101 test**; database tạm đã được xóa. Lượt này cũng sửa lỗi tích điểm hai lần khi VNPAY chuyển Order sang `PAID`. `docker compose config --quiet` PASS và ba service đang chạy, PostgreSQL healthy.
+
+Lượt nối Payment–Order 2026-10-17 phía dưới là bằng chứng lịch sử của mock gateway, không xác nhận VNPAY: Prisma generate, backend build/lint và 18 suite/165 test không-DB đã PASS; 2 suite/18 test PostgreSQL Payment cũ đã PASS trên DB tạm.
 
 ## Nhóm, branch và PR
 
@@ -134,4 +176,4 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 
 ## Đọc tiếp
 
-Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế sản phẩm còn lại: gateway thanh toán thật, hoàn tiền thật, phát hành voucher cá nhân và đổi điểm chưa triển khai; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). Các đoạn bàn giao Task cũ trong tài liệu là mốc lịch sử.
+Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: QueryDR Sandbox đã xác minh và lưu một giao dịch test, nhưng IPN HTTPS trên portal chưa được cấu hình nên E2E callback IPN thật chưa được xác nhận; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). Các bằng chứng mock cũ không xác nhận tích hợp VNPAY.
