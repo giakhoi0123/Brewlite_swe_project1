@@ -143,22 +143,30 @@ export const apiOrders: OrderService = {
       }),
     }),
   mine: () => request<Order[]>("/orders/me"),
-  get: (id) => request<Order>(`/orders/${encodeURIComponent(id)}`),
+  get: (id) =>
+    request<Order>(`/orders/${encodeURIComponent(id)}`, { cache: "no-store" }),
   status: (id) =>
-    request<{ status: OrderStatus }>(`/orders/${encodeURIComponent(id)}/status`)
+    request<{ status: OrderStatus }>(
+      `/orders/${encodeURIComponent(id)}/status`,
+      { cache: "no-store" },
+    )
       .then((result) => result.status),
 };
 export const apiPayments: PaymentService = {
-  pay: (orderId, method, idempotencyKey, demoOutcome) =>
+  pay: (orderId, method, idempotencyKey) =>
     request<Payment>("/payments", {
       method: "POST",
       body: JSON.stringify({
         orderId,
         method,
         idempotencyKey,
-        ...(demoOutcome ? { demoOutcome } : {}),
       }),
     }),
+  reconcile: (orderId) =>
+    request<Payment>(
+      `/payments/${encodeURIComponent(orderId)}/reconcile`,
+      { method: "POST" },
+    ),
 };
 export const apiPromotions: PromotionService = {
   validate: (code, subtotal) =>

@@ -1,6 +1,12 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
-## Cập nhật sau khi nhập origin/main ngày 2026-10-16
+## Cập nhật VNPAY — 2026-10-21
+
+Làm việc trên nhánh hiện có `feature/payment-demo-persistence`. Payment đang được chuyển từ mock đồng bộ sang VNPAY WebPay 2.1.0: checkout chỉ chọn `VNPAY_QR`, `POST /payments` tạo Payment PROCESSING và URL HMAC-SHA512, trang hosted của VNPAY hiển thị QR, IPN là nguồn xác nhận chính và QueryDR có chữ ký là fallback khi IPN trễ/mất; Return chỉ điều hướng về màn hình frontend poll Order. Không đưa `VNPAY_HASH_SECRET` vào frontend và không tự mã hóa payment URL thành QR.
+
+Migration mới là `20261021000000_vnpay_gateway`. Chế độ nghiệm thu là `NEXT_PUBLIC_DATA_MODE=api`; mock/hybrid chỉ còn phục vụ phát triển module khác. Workspace đã có cấu hình VNPAY TEST trong `.env` ignored; ngày 2026-10-22 VNPAY xác nhận đã active `VNPAYQR` cho terminal, backend local đã bật bank code và tunnel IPN HTTPS đang hoạt động. Chưa đánh dấu sandbox/production VERIFIED_COMPLETE vì URL IPN còn phải được cấu hình trong VSM và chưa quan sát callback IPN thật cho một giao dịch QR TEST mới. Xem contract hiện hành tại `API_CONTRACT.md` và cấu hình tại `INTEGRATION_GUIDE.md`.
+
+## Lịch sử: cập nhật sau khi nhập origin/main ngày 2026-10-16
 
 Làm việc trên **nhánh hiện có** `feature/auth-and-base`. Không tạo nhánh mới. Nguồn thiết kế vẫn là toàn bộ 9 export `stitch/`; trang hồ sơ và Barista KDS đã được chỉnh theo ảnh, với 5 route Barista. `frontend/src/components/barista-board.tsx` là UI chính, `barista-board.css` là CSS; `frontend/src/app/barista/[view]/page.tsx` dùng cho orders/preparing/ready/history. Customer shell được ẩn trên staff route.
 
@@ -12,8 +18,8 @@ Bằng chứng sau merge: Docker backend build PASS; 18 suites/168 tests PASS tr
 
 BrewLite 1.0 là bài tập nhóm 6 người, yêu cầu 10 Task trong `docs/IMPLEMENTATION_PLAN.md`. **Chỉ sửa repo `BrewLite_swe-project_1`**. Repo này ban đầu chỉ có 9 export Stitch; đã thêm Next.js frontend và NestJS backend (backend auth/products được lấy làm nền từ dự án BrewLite bên cạnh, sau đó sửa trong repo này). Không sửa `BrewLite_swe_project_2`.
 
-Nguồn giao diện: `stitch/*/code.html`, ảnh tham chiếu `screen.webp` đã nén từ PNG, và `stitch/artisanal_vietnamese_coffee_ordering/DESIGN.md`. Frontend `frontend/src/app`; state giỏ Zustand `frontend/src/stores/cart.ts`; domain model `frontend/src/types/domain.ts`; service interface/adapters `frontend/src/services`. Auth là API thật; Payment đã nối Orders port và bật endpoint trong AppModule, có migration foreign key Payment→Order. Promotions vẫn chưa hoàn chỉnh; Staff API còn thiếu detail/hủy/history. `NEXT_PUBLIC_DATA_MODE` có `mock`, `hybrid`, `api`, không fallback ngầm.
+Nguồn giao diện: `stitch/*/code.html`, ảnh tham chiếu `screen.webp` đã nén từ PNG, và `stitch/artisanal_vietnamese_coffee_ordering/DESIGN.md`. Frontend `frontend/src/app`; state giỏ Zustand `frontend/src/stores/cart.ts`; domain model `frontend/src/types/domain.ts`; service interface/adapters `frontend/src/services`. Auth là API thật; Payment đã nối Orders port và đang dùng VNPAY WebPay/IPN. Promotions vẫn chưa hoàn chỉnh; Staff API còn thiếu detail/hủy/history. `NEXT_PUBLIC_DATA_MODE` có `mock`, `hybrid`, `api`, không fallback ngầm; thanh toán VNPAY chỉ dùng `api`.
 
 Backend Prisma `backend/prisma/schema.prisma`, migration `backend/prisma/migrations`, auth `backend/src/auth`, products `backend/src/products`, seed Barista qua biến môi trường. Role CUSTOMER/BARISTA. Mọi đơn mới PENDING, thanh toán xác nhận mới PAID; PAYMENT_FAILED giữ giỏ; UNKNOWN không tự thành công; PAID → PREPARING → READY → COMPLETED. Hủy chỉ từ PENDING/PAID/PAYMENT_FAILED. Giá tiền số nguyên VND. Backend tương lai tính giá và tồn kho lại.
 
-Kiểm tra hiện tại 2026-10-17: backend Prisma generate/build/lint và 18 suites/165 tests không cần DB qua. Hai suite/18 test PostgreSQL Payment qua trên database tạm riêng với đủ 9 migration; HTTP smoke Order→Payment và truy vấn DB trực tiếp xác nhận PAID/PAID, amount 29.000 và hai status history. Browser API E2E riêng xác nhận PAYMENT_FAILED→checkout→PAID trên cùng order; ưu tiên tiếp theo là mở rộng UNKNOWN/Wallet.
+Baseline 2026-10-17: backend Prisma generate/build/lint và 18 suites/165 tests không cần DB qua; hai suite/18 test PostgreSQL Payment mock qua trên database tạm riêng với đủ 9 migration. Đây là bằng chứng lịch sử trước VNPAY, không xác nhận gateway/IPN mới. Kết quả kiểm tra hiện hành được ghi ở `PROJECT_STATUS.md` và `TESTING.md`.

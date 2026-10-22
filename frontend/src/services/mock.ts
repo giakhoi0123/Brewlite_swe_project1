@@ -244,8 +244,10 @@ export const mockOrders: OrderService = {
   },
 };
 export const mockPayments: PaymentService = {
-  async pay(orderId, method, idempotencyKey, demoOutcome) {
+  async pay(orderId, method, idempotencyKey) {
     await pause();
+    if (method !== "VNPAY_QR")
+      throw new Error("BrewLite chỉ hỗ trợ thanh toán VNPAY-QR");
     const existing = read<Payment[]>(PAYMENTS, []).find(
       (p) => p.idempotencyKey === idempotencyKey,
     );
@@ -255,26 +257,28 @@ export const mockPayments: PaymentService = {
     if (!["PENDING", "PAYMENT_FAILED"].includes(order.status))
       throw new Error("Đơn hàng không thể thanh toán");
     if (order.status === "PAYMENT_FAILED") saveOrder({ ...order, status: "PENDING" });
-    // Kết quả được chọn trong màn demo; khóa ngẫu nhiên vẫn idempotent.
-    const status = demoOutcome || "PAID";
     const payment: Payment = {
       id: crypto.randomUUID(),
       orderId,
       method,
-      status,
+      status: "PAID",
       idempotencyKey,
     };
     write(PAYMENTS, [...read<Payment[]>(PAYMENTS, []), payment]);
-    if (status !== "UNKNOWN")
-      saveOrder({
-        ...order,
-        status,
-        paymentMethod: method,
-        error:
-          status === "PAYMENT_FAILED"
-            ? "Cổng thanh toán demo từ chối giao dịch"
-            : undefined,
-      });
+    saveOrder({
+      ...order,
+      status: "PAID",
+      paymentMethod: method,
+      error: undefined,
+    });
+    return payment;
+  },
+  async reconcile(orderId) {
+    await pause();
+    const payment = read<Payment[]>(PAYMENTS, [])
+      .filter((item) => item.orderId === orderId)
+      .at(-1);
+    if (!payment) throw new Error("Khong tim thay giao dich VNPAY");
     return payment;
   },
 };

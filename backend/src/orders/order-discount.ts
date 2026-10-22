@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 export const ORDER_DISCOUNT = Symbol('ORDER_DISCOUNT');
@@ -12,6 +12,21 @@ export interface OrderDiscount {
       promotionCode?: string;
     },
   ): Promise<number>;
+}
+
+// Deterministic provider used by Orders unit/PostgreSQL tests. The runtime
+// module continues to use PromotionDiscount below.
+@Injectable()
+export class NoPromotionDiscount implements OrderDiscount {
+  async calculate(
+    _tx: Prisma.TransactionClient,
+    input: { promotionCode?: string },
+  ) {
+    if (input.promotionCode) {
+      throw new UnprocessableEntityException('Mã ưu đãi chưa được hỗ trợ');
+    }
+    return 0;
+  }
 }
 
 // Danh sách các mã ưu đãi mặc định hỗ trợ sẵn
@@ -77,7 +92,9 @@ export class PromotionDiscount implements OrderDiscount {
     // 2. Kiểm tra danh sách mã mặc định hệ thống
     const defaultPromo = DEFAULT_PROMOTIONS[code];
     if (!defaultPromo) {
-      throw new BadRequestException(`Mã ưu đãi "${code}" không hợp lệ hoặc không tồn tại`);
+      throw new BadRequestException(
+        `Mã ưu đãi "${code}" không hợp lệ hoặc không tồn tại`,
+      );
     }
 
     if (input.subtotal < defaultPromo.minSubtotal) {

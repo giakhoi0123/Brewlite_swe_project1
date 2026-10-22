@@ -1,5 +1,19 @@
 # Trạng thái dự án
 
+## VNPAY-QR — 2026-10-21
+
+Đã chuyển thiết kế Payment từ mock đồng bộ sang VNPAY WebPay 2.1.0 bất đồng bộ. Checkout chỉ còn phương thức thanh toán VNPAY; backend tạo URL HMAC-SHA512 với amount lấy từ Order. `VNPAY_BANK_CODE` là biến backend tùy chọn, mặc định để trống để trang hosted hiển thị các phương thức terminal được cấp; chỉ đặt `VNPAYQR` khi VNPAY đã bật kênh QR cho merchant TEST. Return URL chỉ xác minh/điều hướng. IPN là nguồn chính; QueryDR có chữ ký là fallback khi IPN trễ/mất. Cả hai đường xác nhận đều kiểm tra merchant, transaction reference và amount trước khi cập nhật Payment + Order/history/inventory/loyalty trong transaction. Các cờ chọn kết quả demo được gỡ khỏi UI/cấu hình API.
+
+Phương thức thanh toán trên trang hosted phụ thuộc quyền được cấp cho terminal VNPAY; repo không tự mã hóa payment URL thành QR giả. Ngày 2026-10-22, request ép `VNPAYQR` ban đầu bị VNPAY trả “Ngân hàng thanh toán không được hỗ trợ”; bộ phận kỹ thuật VNPAY sau đó xác nhận đã active VNPAYQR cho terminal TEST. Cấu hình local hiện dùng `VNPAY_BANK_CODE=VNPAYQR`, backend đã được recreate và URL ký thử chứa đúng bank code. File mẫu vẫn để trống vì quyền QR phụ thuộc terminal.
+
+Sau khi Sandbox hiển thị QR, quét bằng ứng dụng ngân hàng LIVE có thể báo “QR không tồn tại” vì hệ thống TEST và LIVE tách biệt. VNPAY đã cấp liên kết ứng dụng QR TEST iOS/Android và công cụ VSM Sandbox qua email; bước tiếp theo là cấu hình IPN HTTPS trong VSM và chạy một giao dịch QR TEST mới. Hiện chưa có bằng chứng QR/IPN end-to-end thành công.
+
+Return có mã không thành công hiện chỉ điều hướng tới `/payment/:id/unknown`, không mutate Payment/Order. “Thử lại” từ UNKNOWN dùng `/checkout?resumeOrder=id`, giữ nguyên payment intent, idempotency key và Payment `PROCESSING`, nên không tạo Order/Payment mới. Nhánh `PAYMENT_FAILED` đã được IPN hoặc QueryDR chốt vẫn dùng `/checkout?retryOrder=id` với key mới để tạo attempt mới trên cùng Order. Endpoint owner-auth `POST /payments/:orderId/reconcile` được frontend gọi một lần khi vào `verifying` và khi người dùng bấm “Kiểm tra trạng thái đơn”.
+
+Kiểm chứng ngày 2026-10-22: Prisma generate/validate, backend build/lint và **18 suite / 191 test PASS**; 2 suite/11 test PostgreSQL bị skip vì chưa cấu hình database test tách biệt. Frontend **19/19 unit**, typecheck, production build và lint phạm vi VNPAY PASS. Browser QA checkout tại **1440/768/390** không tràn ngang, chỉ có một lựa chọn VNPAY và không còn selector kết quả demo/Ví/Thẻ. Compose đang chạy đủ PostgreSQL/backend/frontend; PostgreSQL healthy, backend HTTP 200 và migration VNPAY đã áp dụng. Full frontend lint còn đúng một lỗi có sẵn ngoài phạm vi tại `profile/page.tsx:21`.
+
+Giao dịch Sandbox bằng tài khoản TEST `NGUYEN VAN A` đã thành công và được QueryDR lưu xuống PostgreSQL: Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` cùng Payment đều `PAID`; `vnp_TransactionNo=15711511`, bank `NCB`, pay date `20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`. T08 vẫn **IN_PROGRESS** vì IPN trong portal chưa được cấu hình và chưa có bằng chứng callback IPN E2E thật. Các bằng chứng mock/PostgreSQL ngày 2026-10-17 phía dưới chỉ là lịch sử baseline.
+
 ## Tích hợp Payment–Order — 2026-10-17
 
 Payment đã có foreign key tới Order, finalize Payment/Order trong cùng transaction, replay idempotent và retry cùng order. Retry chỉ giữ lại tồn kho khi gateway trả PAID; PAYMENT_FAILED/UNKNOWN lặp lại không đổi Order hoặc tồn kho. Backend Prisma generate/build/lint và 18 suite/165 test không-DB qua; 2 suite/18 test PostgreSQL Payment qua; frontend 14/14 unit, production build và browser API FAILED→checkout→PAID cùng order qua. Dockerfile/Compose đã truyền cờ `NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS` vào lúc build; bản Docker API mode đã build, áp đủ 9 migration và chạy lại E2E FAILED→retry→PAID thành công. Gateway production và browser UNKNOWN/Wallet mở rộng vẫn còn chờ nên T08 giữ IN_PROGRESS.
@@ -45,7 +59,7 @@ Payment frontend đã bổ sung payment intent có kiểm tra dữ liệu, xử 
 | Giỏ | VERIFIED_COMPLETE (làm lại theo Stitch 2026-10-15) | Cart API VERIFIED_COMPLETE (`/cart`, PostgreSQL) | 11 backend tests; smoke HTTP DB thật 12/12; luồng trình duyệt API mode 8/8; unit mock cart | TV1/TV3 | Khách: Zustand persist; đăng nhập: giỏ lưu server |
 | Auth | UI_COMPLETED | Code đầy đủ | 37 backend tests; PostgreSQL HTTP; Playwright đăng ký/role qua | TV1 | Cookie JWT và role |
 | Checkout / Orders | UI_COMPLETED | IN_PROGRESS (code TV4 đã có) | Unit/HTTP giá, DTO, guard, stock/state qua; PostgreSQL/E2E thật chưa chạy | TV1/TV4 | Có POST PENDING, GET mine/detail/status; bật api mode để dùng backend |
-| Payment | UI_COMPLETED | IN_PROGRESS | PostgreSQL 2 suite/18 test; API sandbox PAID/FAILED/UNKNOWN; browser FAILED→checkout→retry PAID cùng order; checkout retry QA 1440/768/390 | TV1/TV5 | Đã nối Orders/FK; còn browser UNKNOWN/Wallet mở rộng và gateway production |
+| Payment | UI_COMPLETED | IN_PROGRESS | VNPAY TEST + QueryDR đã lưu PAID thật trong DB; 18 suite/191 backend, 19/19 frontend; checkout QA 1440/768/390 | TV1/TV5 | IPN là nguồn chính nhưng portal/callback IPN E2E chưa cấu hình/xác nhận |
 | Lịch sử/tracking | UI_COMPLETED | IN_PROGRESS | GET orders/me/detail/status có backend TV4; DB/E2E chưa xác minh | TV1/TV4/TV6 | Snapshot item giữ nguyên giá/tên cũ; TV6 tiếp tục history integration |
 | Promotion/Loyalty | UI_COMPLETED | BACKEND_PENDING | Playwright mã sai/đúng, điểm sau PAID qua | TV1/TV6 | BREW10 chỉ demo |
 | Barista | UI_COMPLETED | IN_PROGRESS | HTTP role/DTO tests qua; state machine đủ 49 cặp | TV1/TV4 | Có GET/PATCH staff orders; chưa xác minh DB/browser |

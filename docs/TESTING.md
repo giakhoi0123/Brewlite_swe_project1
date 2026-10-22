@@ -1,3 +1,20 @@
+# Kiểm chứng VNPAY TEST — 2026-10-22
+
+- Prisma generate/validate: PASS với migration `20261021000000_vnpay_gateway`.
+- Backend build/lint: PASS. `npm test -- --runInBand`: **18 suite / 191 test PASS**, 2 suite/11 test PostgreSQL skip vì chưa cấu hình `PAYMENTS_TEST_DATABASE_URL` trỏ tới database test tách biệt.
+- Frontend: **19/19 unit PASS**, `tsc --noEmit` PASS, production build PASS, lint các file checkout/payment/service/E2E liên quan PASS.
+- Full frontend lint còn một lỗi có sẵn ngoài phạm vi tại `frontend/src/app/profile/page.tsx:21` (`react-hooks/preserve-manual-memoization`); file này không bị sửa trong lượt VNPAY.
+- Browser QA mock chỉ dùng để kiểm bố cục: checkout tại 1440/768/390 không tràn ngang, có đúng một radio VNPAY-QR, không có selector kết quả demo/Ví/Thẻ. Đây không phải bằng chứng giao dịch VNPAY.
+- `docker compose config --quiet`: PASS. Compose đang chạy đủ PostgreSQL/backend/frontend; PostgreSQL healthy, backend HTTP 200 và migration `20261021000000_vnpay_gateway` đã được áp dụng thành công.
+- Thử hosted Sandbox ngày 2026-10-22 ban đầu nhận “Ngân hàng thanh toán không được hỗ trợ” khi ép `vnp_BankCode=VNPAYQR`. Bộ phận kỹ thuật VNPAY sau đó xác nhận đã active QR cho terminal TEST; `.env` local đã đặt `VNPAY_BANK_CODE=VNPAYQR`, backend đã recreate, và kiểm tra URL ký trả `bankCode=VNPAYQR`, `command=pay`, `version=2.1.0`, có secure hash.
+- Sau khi Sandbox hiển thị QR, quét bằng ứng dụng ngân hàng LIVE có thể nhận “QR không tồn tại” do TEST/LIVE tách biệt. VNPAY đã cấp ứng dụng QR TEST iOS/Android và công cụ VSM Sandbox qua email. Bước E2E còn lại: cấu hình IPN HTTPS trong VSM, dùng app/NCB TEST hoàn tất giao dịch mới và xác nhận IPN làm DB chuyển `PROCESSING → PAID`; không ghi credential công cụ vào repo/log.
+- Contract/UI: Return mã không thành công chuyển `/payment/:id/unknown` và không mutate; `resumeOrder` replay đúng idempotency key/Payment PROCESSING, không tăng số Order/Payment; chỉ `PAYMENT_FAILED` đã được IPN/QueryDR chốt mới dùng `retryOrder` với key mới và tạo attempt mới trên cùng Order. Frontend gọi owner-auth `POST /payments/:orderId/reconcile` một lần khi vào `verifying` và gọi lại khi bấm “Kiểm tra trạng thái đơn”.
+- QueryDR Sandbox + DB PASS: thanh toán bằng tài khoản TEST `NGUYEN VAN A` cho Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` được response QueryDR có chữ ký xác minh. Truy vấn PostgreSQL trả `Payment.status=PAID`, `Order.status=PAID`, `vnp_transaction_no=15711511`, `vnp_bank_code=NCB`, `vnp_pay_date=20261022114118`, `idempotency_key=3998d99e-ff66-4ee6-a204-0a22cc35b60c`, response/transaction status đều `00`.
+- Regression an toàn trạng thái PASS: IPN/QueryDR không finalize các mã chưa hoàn tất, đảo giao dịch, nghi ngờ gian lận hoặc lifecycle `10/20`; response IPN `07` không mở retry dù transaction status là `02`. QueryDR có chữ ký với `02/08/11` mới chốt thất bại, ngăn URL hết hạn mắc kẹt nhưng vẫn tránh nguy cơ thu tiền hai lần ở mã mơ hồ.
+- T08 vẫn IN_PROGRESS: QueryDR đã chứng minh fallback và persistence, nhưng IPN trong portal chưa được cấu hình nên callback IPN HTTPS E2E chưa được xác nhận. Không dùng Return hoặc QueryDR thành công để tuyên bố IPN đã chạy.
+
+---
+
 # Kiểm chứng tích hợp `origin/main` vào `feature/auth-and-base` — 2026-10-16
 
 Sau fetch/merge main có Orders/Inventory, backend build lần đầu PASS nhưng full PostgreSQL suite có **24 lỗi HTTP Orders**: fixture user của TV4 thiếu `sessionVersion` nên JwtStrategy TV1 trả 401. Đã thêm version 0 vào fixture và JWT test. Chạy lại bằng `docker compose run --rm --no-deps --entrypoint node backend scripts/verify-orders-postgres.cjs`: **18 suites, 168/168 tests PASS**, không skipped. Script tạo database `brewlite_orders_test_<uuid>` riêng, áp dụng đủ 8 migrations (gồm Orders và Auth session_version), rồi xóa đúng database tạm. Không thay đổi DB ứng dụng. Backend Docker build PASS; frontend build/lint PASS; `npm --prefix frontend test`: 13/13 PASS. Browser Orders/Staff API E2E chưa chạy; Playwright demo 4/4 là bằng chứng **trước merge** và dùng mock nghiệp vụ.

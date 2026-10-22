@@ -39,35 +39,31 @@ async function registerFromCheckout(page: import('@playwright/test').Page) {
   await expect(page).toHaveURL(/\/checkout$/);
   return email;
 }
-test('failed payment retry returns to checkout and reuses the order', async ({page}) => {
+test('checkout exposes only VNPAY-QR and completes the local payment flow', async ({page}) => {
   await addSeededCoffee(page);
   await registerFromCheckout(page);
-  await page.getByLabel('Kết quả thanh toán demo').selectOption('PAYMENT_FAILED');
-  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
-  await expect(page.getByRole('heading',{name:'Thanh toán chưa thành công'})).toBeVisible();
-  const orderId = new URL(page.url()).pathname.split('/')[2];
-  await page.getByRole('button',{name:'Thử thanh toán lại'}).click();
-  await expect(page).toHaveURL(new RegExp(`/checkout\\?retryOrder=${orderId}$`));
-  await expect(page.getByText(`Thanh toán lại đơn #${orderId}`)).toBeVisible();
-  await expect(page.getByText('hệ thống sẽ không tạo thêm đơn mới')).toBeVisible();
+  await expect(page.getByRole('radio',{name:/VNPAY-QR/})).toBeChecked();
+  await expect(page.getByLabel('Kết quả thanh toán demo')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Ví điện tử'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Thẻ ngân hàng'})).toHaveCount(0);
   for (const viewport of [
     {width:1440,height:900},
     {width:768,height:1024},
     {width:390,height:844},
   ]) {
     await page.setViewportSize(viewport);
-    await expect(page.getByLabel('Kết quả thanh toán demo')).toBeVisible();
+    await expect(page.getByRole('radio',{name:/VNPAY-QR/})).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
-  await page.getByLabel('Kết quả thanh toán demo').selectOption('PAID');
-  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
-  await expect(page).toHaveURL(new RegExp(`/payment/${orderId}/success$`));
+  await page.getByRole('button',{name:/Thanh toán qua VNPAY/}).click();
   await expect(page.getByRole('heading',{name:'Đặt hàng thành công!'})).toBeVisible();
+  const orderId = new URL(page.url()).pathname.split('/')[2];
+  await expect(page).toHaveURL(new RegExp(`/payment/${orderId}/success$`));
   await page.reload();
   await expect(page.getByRole('heading',{name:'Đặt hàng thành công!'})).toBeVisible();
-  await expect(page.getByText('Phương thức: Ví điện tử')).toBeVisible();
+  await expect(page.getByText('Phương thức: VNPAY-QR')).toBeVisible();
 });
-test('customer failure retry success, loyalty and Barista workflow', async ({page}) => {
+test('customer VNPAY success, loyalty and Barista workflow', async ({page}) => {
   test.slow();
   await addCoffee(page);
   await page.reload();
@@ -85,22 +81,13 @@ test('customer failure retry success, loyalty and Barista workflow', async ({pag
   await page.getByLabel('Mã ưu đãi').fill('BREW10');
   await page.getByRole('button',{name:'Áp dụng'}).click();
   await expect(page.getByText(/Đã áp dụng BREW10/)).toBeVisible();
-  await page.getByRole('button',{name:'Thẻ ngân hàng'}).click();
-  await page.getByLabel('Kết quả thanh toán demo').selectOption('PAYMENT_FAILED');
-  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
-  await expect(page.getByRole('heading',{name:'Thanh toán chưa thành công'})).toBeVisible();
-  const orderId = new URL(page.url()).pathname.split('/')[2];
-  await expect(page.getByLabel(/Giỏ hàng 2 món/)).toBeVisible();
-  await page.getByRole('button',{name:'Thử thanh toán lại'}).click();
-  await expect(page).toHaveURL(new RegExp(`/checkout\\?retryOrder=${orderId}$`));
-  await expect(page.getByText(`Thanh toán lại đơn #${orderId}`)).toBeVisible();
-  await expect(page.getByText('hệ thống sẽ không tạo thêm đơn mới')).toBeVisible();
-  await expect(page.getByLabel('Kết quả thanh toán demo')).toHaveValue('PAID');
-  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
-  await expect(page).toHaveURL(new RegExp(`/payment/${orderId}/success$`));
+  await expect(page.getByRole('radio',{name:/VNPAY-QR/})).toBeChecked();
+  await page.getByRole('button',{name:/Thanh toán qua VNPAY/}).click();
   await expect(page.getByRole('heading',{name:'Đặt hàng thành công!'})).toBeVisible();
+  const orderId = new URL(page.url()).pathname.split('/')[2];
+  await expect(page).toHaveURL(new RegExp(`/payment/${orderId}/success$`));
   await expect(page.getByText('116.000 ₫')).toBeVisible();
-  await expect(page.getByText('Phương thức: Thẻ ngân hàng')).toBeVisible();
+  await expect(page.getByText('Phương thức: VNPAY-QR')).toBeVisible();
   await expect(page.getByLabel(/Giỏ hàng 0 món/)).toBeVisible();
   await page.goto('/orders');
   await expect(page.getByText(`Mã đơn #${orderId}`)).toBeVisible();
@@ -177,7 +164,7 @@ test('Barista cancellation requires a reason and moves the order to history', as
   await page.getByRole('link',{name:/Lịch sử xử lý/}).click();
   await expect(page.locator('.barista-ticket').filter({hasText:id})).toContainText('Hết nguyên liệu');
 });
-test('mobile search and unknown payment remains pending', async ({page}) => {
+test('mobile search and VNPAY checkout remain responsive', async ({page}) => {
   test.slow();
   await page.setViewportSize({width:375,height:812});
   await page.goto('/');
@@ -187,11 +174,7 @@ test('mobile search and unknown payment remains pending', async ({page}) => {
   await page.getByRole('button',{name:'Xem tất cả đồ uống'}).click();
   await addCoffee(page);
   await registerFromCheckout(page);
-  await page.getByLabel('Kết quả thanh toán demo').selectOption('UNKNOWN');
-  await page.getByRole('button',{name:/Xác nhận thanh toán/}).click();
-  await expect(page.getByRole('heading',{name:'Đang xác minh kết quả thanh toán'})).toBeVisible();
-  await expect(page.getByText('Chờ thanh toán')).toBeVisible();
-  await page.getByRole('button',{name:'Kiểm tra trạng thái đơn'}).click();
-  await expect(page.getByRole('heading',{name:'Đang xác minh kết quả thanh toán'})).toBeVisible();
-  await expect(page.getByLabel(/Giỏ hàng 2 món/)).toBeVisible();
+  await expect(page.getByRole('radio',{name:/VNPAY-QR/})).toBeChecked();
+  await expect(page.getByLabel('Kết quả thanh toán demo')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

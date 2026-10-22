@@ -40,8 +40,22 @@ import {
           orders: OrdersService,
           prisma: PrismaService,
         ): PaymentOrderPort => ({
-          async findOwned(id, userId) {
-            return orders.get(id, userId);
+          async findOwned(id, userId, transaction) {
+            if (transaction) {
+              return transaction.order.findFirst({
+                where: { id, userId },
+                select: {
+                  id: true,
+                  userId: true,
+                  total: true,
+                  status: true,
+                },
+              });
+            }
+            return prisma.order.findFirst({
+              where: { id, userId },
+              select: { id: true, userId: true, total: true, status: true },
+            });
           },
           async prepareRetry(id, userId, transaction) {
             return orders.preparePaymentRetry(id, userId, transaction);
@@ -54,7 +68,6 @@ import {
               });
               if (!owned)
                 throw new NotFoundException('Không tìm thấy đơn hàng');
-              if (input.status === 'UNKNOWN') return;
 
               const targetStatus =
                 input.status === 'PAID'

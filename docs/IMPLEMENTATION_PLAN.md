@@ -1,5 +1,13 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## VNPAY-QR — 2026-10-21
+
+Đã thay gateway mock bằng VNPAY WebPay 2.1.0 cho môi trường TEST: backend tạo URL HMAC-SHA512, Return chỉ điều hướng, IPN public HTTPS là nguồn chốt Payment/Order chính và QueryDR có chữ ký là fallback khi IPN trễ/mất. `VNPAY_BANK_CODE` là biến backend tùy chọn và mặc định để trống trong file mẫu; ngày 2026-10-22 VNPAY đã xác nhận active QR cho terminal TEST hiện tại nên `.env` local dùng `VNPAYQR`. Frontend bỏ chọn kết quả demo, chuyển sang trang hosted của VNPAY và chờ trạng thái backend đã xác minh. Cấu hình secret chỉ nằm backend; Docker frontend không còn nhận root `.env`.
+
+Mã và kiểm tra đã cập nhật ngày 2026-10-22: backend 191 test + build/lint, frontend 19 unit + typecheck/build/lint phạm vi, Compose config và QA 1440/768/390 đều PASS. Compose đang chạy đủ ba service và migration VNPAY đã áp dụng. Giao dịch Sandbox bằng tài khoản TEST đã được QueryDR xác minh và lưu DB `PAID` cho Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` (`vnp_TransactionNo=15711511`, `NCB`, pay date `20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`). T08/10B vẫn **IN_PROGRESS**, không nâng `VERIFIED_COMPLETE` cho tới khi cấu hình portal và kiểm chứng IPN HTTPS thật. Bộ credential ghi “môi trường TEST” không phải giao dịch production.
+
+Luồng UI mới phân biệt Return read-only với trạng thái được backend xác minh: mã Return không thành công chỉ điều hướng tới `/payment/:id/unknown`, không mutate. Màn `verifying` gọi owner-auth `POST /payments/:orderId/reconcile` một lần, còn nút kiểm tra gọi lại QueryDR trước khi đọc Order. Từ màn UNKNOWN, `resumeOrder` replay cùng idempotency key/Payment PROCESSING và không tạo bản ghi mới; `retryOrder` với key mới chỉ dành cho Payment đã được IPN hoặc QueryDR finalize `PAYMENT_FAILED`.
+
 ## Payment status — 2026-10-17
 
 Nhánh `feature/fix-payment-status` từ main `c2d6922`: đã sửa hợp đồng trạng thái adapter AppModule theo PAID/PAYMENT_FAILED/UNKNOWN và kiểm tra ownership; 80/80 tests liên quan PASS, gồm 15 ca PostgreSQL qua AppModule thật, build/lint PASS. Xem [PAYMENT_STATUS_VERIFICATION.md](PAYMENT_STATUS_VERIFICATION.md). **T08/10B tiếp tục IN_PROGRESS** vì retry/replay/atomicity và E2E toàn luồng chưa hoàn tất. Không dùng bản sửa này để chốt toàn bộ Payment, Loyalty hoặc Task 06.
@@ -78,7 +86,7 @@ Chỉ đổi thành `VERIFIED_COMPLETE` khi toàn bộ tiêu chí của Task đ�
 | T05 | Giỏ | TV1+TV3 | VERIFIED_COMPLETE | T04 | frontend/src/stores, frontend/src/components/cart-sync.tsx, backend/src/cart | Thêm/sửa/xóa/tổng/badge; giỏ lưu theo tài khoản | Playwright: cấu hình riêng, tăng/giảm/xóa/clear, tổng, badge, refresh; 11 backend cart tests; HTTP PostgreSQL 12/12; luồng API mode khách→đăng ký→gộp→sửa→reload→đăng xuất/nhập 8/8 | TV4 nối `POST /orders` với `cart-pricing.ts` và xóa giỏ server khi đơn PAID |
 | T06 | Orders API | TV4 | IN_PROGRESS | Auth, products | backend/src/orders, backend/src/inventory | POST /orders PENDING | Sau merge: 18 suites/168 tests PASS trên PostgreSQL tạm gồm Orders HTTP, concurrency/rollback | Payment/Promotion và E2E trình duyệt API mode |
 | T07 | Auth | TV1 | VERIFIED_COMPLETE (module Auth TV1) | DB | backend/src/auth, frontend/src/app/login, frontend/src/app/register | Đăng ký/nhập/JWT/guard/logout | Sau merge: 168/168 backend tests; HTTP QA cookie cũ 401 sau logout; Playwright role/redirect trước merge qua | Áp migration Auth trên DB nhóm |
-| T08 | Payment | TV1+TV5 | IN_PROGRESS | T06 | frontend/src/services, frontend/src/app/payment, backend/src/payments, backend/prisma | Wallet/Card, PAID/FAILED/UNKNOWN, idempotency | Orders port/module/FK đã nối; PostgreSQL Payment 2 suite/18 test; browser API FAILED→quay lại checkout→retry PAID cùng order qua; Order trả phương thức PAID và màn success vẫn hiện đúng sau reload; checkout retry QA 1440/768/390 qua | Gateway production và browser E2E mở rộng UNKNOWN/Wallet |
+| T08 | Payment | TV1+TV5 | IN_PROGRESS | T06 | frontend/src/services, frontend/src/app/payment, backend/src/payments, backend/prisma | VNPAY hosted, Return read-only, IPN chính + QueryDR fallback, resume idempotent | Sandbox TEST đã thanh toán; QueryDR/DB xác nhận PAID (`15711511`, NCB); backend 191 và frontend 19 test qua | Cấu hình IPN HTTPS trong portal và xác nhận callback IPN E2E; tiếp tục QA production config |
 | T09 | Xác nhận/lịch sử/Docker | TV1+TV6 | BACKEND_PENDING | T06,T08 | frontend/src/app/orders, compose | GET /orders/me, demo E2E | Playwright history/timeline + Compose 3 dịch vụ qua | Orders history backend thật |
 | T10 | Logic nâng cao | TV4+TV5+TV6 | IN_PROGRESS | T06,T08 | backend/src/orders, backend/src/inventory, docs/API_CONTRACT.md | State machine, idempotency, stock, loyalty | 10A: đủ 49 cặp transition; 10C: unit race test qua; Payment idempotency core test qua | PostgreSQL race/rollback chưa chạy; 10B TV5, 10D TV6 |
 
@@ -110,5 +118,5 @@ Cấu trúc thư mục hiện hành và vị trí từng chức năng đã đư�
 - TV2: backend products, catalog, tồn kho.
 - TV3: tùy chọn sản phẩm, use case giỏ, nhất quán giá.
 - TV4: backend orders, state machine, concurrency và inventory.
-- TV5: backend payments, mock gateway, idempotency.
+- TV5: backend payments, VNPAY WebPay/IPN, idempotency và reconciliation.
 - TV6: backend order history, promotions, loyalty, hỗ trợ E2E.

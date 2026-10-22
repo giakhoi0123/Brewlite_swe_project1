@@ -1,14 +1,32 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, type PaymentMethod, type PaymentStatus } from '@prisma/client';
+import { Prisma, type PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import type { PaymentFinalStatus } from './payment.types';
 
-type ClaimInput = {
+type CreateInput = {
   userId: string;
   orderId: string;
   amount: number;
   method: PaymentMethod;
   idempotencyKey: string;
+  vnpTxnRef: string;
+  paymentUrl: string;
+  expiresAt: Date;
 };
+
+type FinalizeInput = {
+  id: string;
+  status: PaymentFinalStatus;
+  responseCode: string;
+  transactionStatus: string;
+  transactionNo?: string;
+  bankCode?: string;
+  cardType?: string;
+  payDate?: string;
+  processedAt: Date;
+};
+
+type DbClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class PaymentsRepository {
@@ -18,40 +36,57 @@ export class PaymentsRepository {
     return this.prisma.$transaction(work);
   }
 
-  findByKey(userId: string, idempotencyKey: string) {
-    return this.prisma.payment.findUnique({
+  findByKey(
+    userId: string,
+    idempotencyKey: string,
+    client: DbClient = this.prisma,
+  ) {
+    return client.payment.findUnique({
       where: { userId_idempotencyKey: { userId, idempotencyKey } },
     });
   }
 
-  async claim(input: ClaimInput) {
-    try {
-      return {
-        created: true as const,
-        payment: await this.prisma.payment.create({
-          data: { ...input, status: 'PROCESSING' },
-        }),
-      };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        const payment = await this.findByKey(
-          input.userId,
-          input.idempotencyKey,
-        );
-        if (payment) return { created: false as const, payment };
-      }
-      throw error;
-    }
+  findByTxnRef(vnpTxnRef: string, client: DbClient = this.prisma) {
+    return client.payment.findUnique({ where: { vnpTxnRef } });
   }
 
-  finalize(
-    tx: Prisma.TransactionClient,
-    id: string,
-    status: Exclude<PaymentStatus, 'PROCESSING'>,
+  findLatestForOwnedOrder(
+    orderId: string,
+    userId: string,
+    client: DbClient = this.prisma,
   ) {
-    return tx.payment.update({ where: { id }, data: { status } });
+    return client.payment.findFirst({
+      where: { orderId, userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  create(tx: Prisma.TransactionClient, input: CreateInput) {
+    return tx.payment.create({
+      data: { ...input, status: 'PROCESSING' },
+    });
+  }
+
+  conditionalFinalize(tx: Prisma.TransactionClient, input: FinalizeInput) {
+    return tx.payment.updateMany({
+      where: { id: input.id, status: 'PROCESSING' },
+      data: {
+        status: input.status,
+        vnpResponseCode: input.responseCode,
+        vnpTransactionStatus: input.transactionStatus,
+        vnpTransactionNo: input.transactionNo,
+        vnpBankCode: input.bankCode,
+        vnpCardType: input.cardType,
+        vnpPayDate: input.payDate,
+        processedAt: input.processedAt,
+      },
+    });
+  }
+
+  isUniqueViolation(error: unknown): boolean {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    );
   }
 }

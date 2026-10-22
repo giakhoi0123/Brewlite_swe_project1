@@ -47,8 +47,8 @@ export interface PaymentService {
     orderId: string,
     method: PaymentMethod,
     idempotencyKey: string,
-    demoOutcome?: "PAID" | "PAYMENT_FAILED" | "UNKNOWN",
   ): Promise<Payment>;
+  reconcile(orderId: string): Promise<Payment>;
 }
 export interface PromotionService {
   validate(code: string, subtotal: number): Promise<Promotion>;

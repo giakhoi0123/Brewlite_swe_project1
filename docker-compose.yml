@@ -10,7 +10,7 @@ services:
     volumes:
       - brewlite_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-brewlite} -d ${POSTGRES_DB:-brewlite}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-brewlite} -d ${POSTGRES_DB:-brewlite}" ]
       interval: 5s
       retries: 10
   backend:
@@ -29,15 +29,14 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_DATA_MODE: ${NEXT_PUBLIC_DATA_MODE:-mock}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api}
-        NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS: ${NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS:-false}
-    env_file: .env
+        NEXT_PUBLIC_DATA_MODE: ${NEXT_PUBLIC_DATA_MODE:-api}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+        INTERNAL_API_URL: http://backend:3001/api
     environment:
       PORT: 3000
-      NEXT_PUBLIC_API_URL: http://localhost:3001/api
-      NEXT_PUBLIC_DATA_MODE: ${NEXT_PUBLIC_DATA_MODE:-mock}
-      NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS: ${NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS:-false}
+      NEXT_PUBLIC_API_URL: /api
+      INTERNAL_API_URL: http://backend:3001/api
+      NEXT_PUBLIC_DATA_MODE: ${NEXT_PUBLIC_DATA_MODE:-api}
     ports:
       - "3000:3000"
     depends_on:

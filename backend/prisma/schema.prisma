@@ -31,6 +31,7 @@ enum OrderStatus {
 enum PaymentMethod {
   WALLET
   CARD
+  VNPAY_QR
 }
 
 enum PaymentStatus {
@@ -225,17 +226,27 @@ model CartItem {
 }
 
 model Payment {
-  id             String        @id @default(uuid()) @db.Uuid
-  userId         String        @map("user_id") @db.Uuid
-  orderId        String        @map("order_id") @db.Uuid
-  amount         Int
-  method         PaymentMethod
-  status         PaymentStatus @default(PROCESSING)
-  idempotencyKey String        @map("idempotency_key") @db.Uuid
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  order          Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  id                   String        @id @default(uuid()) @db.Uuid
+  userId               String        @map("user_id") @db.Uuid
+  orderId              String        @map("order_id") @db.Uuid
+  amount               Int
+  method               PaymentMethod
+  status               PaymentStatus @default(PROCESSING)
+  idempotencyKey       String        @map("idempotency_key") @db.Uuid
+  vnpTxnRef             String?       @unique @map("vnp_txn_ref")
+  paymentUrl            String?       @map("payment_url") @db.Text
+  expiresAt             DateTime?     @map("expires_at")
+  vnpTransactionNo      String?       @map("vnp_transaction_no")
+  vnpResponseCode       String?       @map("vnp_response_code")
+  vnpTransactionStatus String?       @map("vnp_transaction_status")
+  vnpBankCode           String?       @map("vnp_bank_code")
+  vnpCardType           String?       @map("vnp_card_type")
+  vnpPayDate            String?       @map("vnp_pay_date")
+  processedAt           DateTime?     @map("processed_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
   @@index([orderId])
