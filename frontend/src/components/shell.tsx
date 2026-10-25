@@ -70,8 +70,7 @@ export function Header() {
       )}
       {dataMode === "hybrid" && (
         <div className="demo">
-          Sản phẩm, giỏ hàng và đăng nhập dùng máy chủ thật; một số dữ liệu khác
-          được lưu cục bộ.
+         
         </div>
       )}
     </>

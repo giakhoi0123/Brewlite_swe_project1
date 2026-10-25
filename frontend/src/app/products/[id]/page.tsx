@@ -57,7 +57,7 @@ export default function ProductPage({
   const { id } = use(params),
     router = useRouter(),
     add = useCart((s) => s.add),
-    cartError = useCart((s) => s.error);
+    cartItems = useCart((s) => s.items);
   const [product, setProduct] = useState<Product | null>(null),
     [related, setRelated] = useState<Product[]>([]),
     [loading, setLoading] = useState(true),
@@ -69,7 +69,6 @@ export default function ProductPage({
     [sugar, setSugar] = useState(SUGAR[0]),
     [note, setNote] = useState(""),
     [liked, setLiked] = useState(false),
-    [adding, setAdding] = useState(false),
     [quickAdded, setQuickAdded] = useState("");
   const load = useCallback(() => {
     setLoading(true);
@@ -85,7 +84,6 @@ export default function ProductPage({
   }, [id]);
   useEffect(() => {
     load();
-    useCart.getState().dismissError();
   }, [load]);
   useEffect(() => {
     services.products
@@ -105,12 +103,16 @@ export default function ProductPage({
   const invalid =
     !!product &&
     (!chosenSize?.available || chosenToppings.some((t) => !t.available));
-  const blocked = !product || invalid || product.stock < quantity;
+  // Tồn kho tính trên tổng số phần của món này đã có trong giỏ (mọi cấu hình) cộng phần định thêm.
+  const inCart = cartItems
+    .filter((i) => i.productId === product?.id)
+    .reduce((n, i) => n + i.quantity, 0);
+  const overStock = !!product && inCart + quantity > product.stock;
+  const blocked = !product || invalid || overStock;
   const story = stories[product?.category || ""] || stories.default;
-  const submit = async (next: "/cart" | "/checkout") => {
-    if (!product || blocked || adding) return;
-    setAdding(true);
-    const ok = await add({
+  const submit = (next: "/cart" | "/checkout") => {
+    if (!product || blocked) return;
+    add({
       key: itemKey(product.id, size, selected, ice, sugar, note),
       productId: product.id,
       name: product.name,
@@ -125,12 +127,14 @@ export default function ProductPage({
       note: note.trim() || undefined,
       sizeOptions: product.sizes,
     });
-    setAdding(false);
-    if (ok) router.push(next);
+    router.push(next);
   };
-  const quickAdd = async (p: Product) => {
+  const quickAdd = (p: Product) => {
     const s = p.sizes.find((x) => x.isDefault) || p.sizes[0];
-    if (!s || p.stock < 1) return;
+    const already = cartItems
+      .filter((i) => i.productId === p.id)
+      .reduce((n, i) => n + i.quantity, 0);
+    if (!s || already + 1 > p.stock) return;
     const item: CartItem = {
       key: itemKey(p.id, s.code, [], ICE[0], SUGAR[0]),
       productId: p.id,
@@ -145,7 +149,8 @@ export default function ProductPage({
       sugar: SUGAR[0],
       sizeOptions: p.sizes.length ? p.sizes : undefined,
     };
-    if (await add(item)) setQuickAdded(p.id);
+    add(item);
+    setQuickAdded(p.id);
   };
   if (loading)
     return (
@@ -329,19 +334,17 @@ export default function ProductPage({
             {product.stock === 0 && (
               <p className="error">Món này đang hết hàng.</p>
             )}
-            {product.stock > 0 && quantity > product.stock && (
-              <p className="error">Chỉ còn {product.stock} phần.</p>
-            )}
-            {invalid && <p className="error">Tùy chọn không hợp lệ.</p>}
-            {cartError && (
-              <p className="error" role="alert">
-                {cartError}
+            {product.stock > 0 && overStock && (
+              <p className="error">
+                Chỉ còn {product.stock} phần
+                {inCart > 0 ? ` (giỏ đã có ${inCart} phần)` : ""}.
               </p>
             )}
+            {invalid && <p className="error">Tùy chọn không hợp lệ.</p>}
             <div className="pd-actions">
               <button
                 className="pd-btn pd-btn-dark"
-                disabled={blocked || adding}
+                disabled={blocked}
                 onClick={() => submit("/cart")}
               >
                 <Icon name="bag" size={18} />
@@ -349,7 +352,7 @@ export default function ProductPage({
               </button>
               <button
                 className="pd-btn pd-btn-caramel"
-                disabled={blocked || adding}
+                disabled={blocked}
                 onClick={() => submit("/checkout")}
               >
                 <Icon name="bolt" size={18} />

@@ -1,6 +1,5 @@
 import { request } from "./http";
 import type {
-  CartService,
   ProductService,
   OrderService,
   PaymentService,
@@ -9,9 +8,6 @@ import type {
   BaristaOrderService,
 } from "./contracts";
 import type {
-  CartItem,
-  CartLineInput,
-  CartView,
   Order,
   Payment,
   Product,
@@ -56,82 +52,6 @@ export const apiProducts: ProductService = {
       throw e;
     }
   },
-};
-
-type ApiCartItem = Omit<CartItem, "key" | "note"> & {
-  id: string;
-  note: string;
-  lineTotal: number;
-  available: boolean;
-};
-
-type ApiCartView = Omit<CartView, "items"> & { items: ApiCartItem[] };
-
-const toCartView = <T extends ApiCartView>(view: T) => ({
-  ...view,
-  items: view.items.map(
-    (i): CartItem => ({
-      key: i.id,
-      productId: i.productId,
-      name: i.name,
-      imageUrl: i.imageUrl,
-      size: i.size,
-      sizeOptions: i.sizeOptions,
-      toppingIds: i.toppingIds,
-      toppingNames: i.toppingNames,
-      unitPrice: i.unitPrice,
-      quantity: i.quantity,
-      ice: i.ice,
-      sugar: i.sugar,
-      note: i.note || undefined,
-      issue: i.issue,
-    }),
-  ),
-});
-
-const line = (l: CartLineInput) => ({
-  productId: l.productId,
-  size: l.size,
-  toppingIds: l.toppingIds,
-  quantity: l.quantity,
-  ice: l.ice,
-  sugar: l.sugar,
-  note: l.note || undefined,
-});
-
-export const apiCart: CartService = {
-  get: async () => toCartView(await request<ApiCartView>("/cart")),
-  add: async (_userId, l) =>
-    toCartView(
-      await request<ApiCartView>("/cart/items", {
-        method: "POST",
-        body: JSON.stringify(line(l)),
-      }),
-    ),
-  update: async (_userId, itemId, patch) =>
-    toCartView(
-      await request<ApiCartView>(`/cart/items/${encodeURIComponent(itemId)}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      }),
-    ),
-  remove: async (_userId, itemId) =>
-    toCartView(
-      await request<ApiCartView>(`/cart/items/${encodeURIComponent(itemId)}`, {
-        method: "DELETE",
-      }),
-    ),
-  clear: async () =>
-    toCartView(await request<ApiCartView>("/cart", { method: "DELETE" })),
-  merge: async (_userId, lines) =>
-    toCartView(
-      await request<
-        ApiCartView & { skipped: { productId: string; reason: string }[] }
-      >("/cart/merge", {
-        method: "POST",
-        body: JSON.stringify({ items: lines.map(line) }),
-      }),
-    ),
 };
 
 export const apiOrders: OrderService = {
