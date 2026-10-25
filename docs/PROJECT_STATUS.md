@@ -68,7 +68,7 @@ Payment frontend đã bổ sung payment intent có kiểm tra dữ liệu, xử 
 | Feature | Frontend | Backend | Tests | Owner | Ghi chú |
 |---|---|---|---|---|---|
 | Menu, chi tiết | VERIFIED_COMPLETE (chi tiết làm lại theo Stitch 2026-10-15) | Products API VERIFIED_COMPLETE | Playwright (Edge) mock 3/3 + API mode 2/2 qua | TV1/TV2/TV3 | Mock và API adapter |
-| Giỏ | VERIFIED_COMPLETE (làm lại theo Stitch 2026-10-15) | Cart API VERIFIED_COMPLETE (`/cart`, PostgreSQL) | 11 backend tests; smoke HTTP DB thật 12/12; luồng trình duyệt API mode 8/8; unit mock cart | TV1/TV3 | Khách: Zustand persist; đăng nhập: giỏ lưu server |
+| Giỏ | VERIFIED_COMPLETE (2026-10-24 quay về giỏ Zustand) | Không dùng; `POST /orders` nhận items từ store và tính lại giá | 4 unit test store; Playwright API mode 16/16 | TV1/TV3 | Mọi người dùng: Zustand persist (localStorage); backend `/cart` còn nhưng frontend không gọi |
 | Auth | UI_COMPLETED | Code đầy đủ | 37 backend tests; PostgreSQL HTTP; Playwright đăng ký/role qua | TV1 | Cookie JWT và role |
 | Checkout / Orders | UI_COMPLETED | IN_PROGRESS (code TV4 đã có) | Unit/HTTP giá, DTO, guard, stock/state qua; PostgreSQL/E2E thật chưa chạy | TV1/TV4 | Có POST PENDING, GET mine/detail/status; bật api mode để dùng backend |
 | Payment | UI_COMPLETED | IN_PROGRESS | VNPAY TEST + QueryDR đã lưu PAID thật trong DB; 18 suite/191 backend, 19/19 frontend; checkout QA 1440/768/390 | TV1/TV5 | IPN là nguồn chính nhưng portal/callback IPN E2E chưa cấu hình/xác nhận |
@@ -86,6 +86,14 @@ Prisma generate/validate và backend build/lint qua. Backend có 138 test qua, 7
 Checkout giữ phong cách UI cũ, dùng service API hiện có kèm cookie; xử lý lỗi/loading, chống submit đồng thời, điều hướng theo ID server và tránh POST lần nữa khi sessionStorage lỗi sau tạo đơn. GET status dùng JSON `{status}` và adapter unwrap. Bật `NEXT_PUBLIC_DATA_MODE=api` + restart/build frontend để dùng backend; mode mock vẫn dành cho demo. Thanh toán thật sau PENDING còn phụ thuộc TV5.
 
 Blocker: không có Docker CLI, DB cấu hình `localhost:5434/brewlite` từ chối kết nối; cần chạy migration và PostgreSQL/browser E2E sau khi DB sẵn sàng. Typecheck mở rộng toàn bộ backend tests còn lỗi fixture Products có sẵn (thiếu stock/description), ngoài phần TV4; build ứng dụng và Jest vẫn qua. Kết quả frontend cuối cùng và lệnh tái lập xem `docs/TESTING.md`.
+
+## TV3 — Quay về giỏ Zustand (2026-10-24, nhánh `feature/cart_productDetail`)
+
+- Theo thiết kế ban đầu: giỏ của mọi người dùng chỉ nằm trong `stores/cart.ts` (Zustand persist, key `brewlite-cart-v1`, version 2 có migrate bỏ dữ liệu giỏ server cũ). Bỏ `components/cart-sync.tsx`, `CartService` (`apiCart`, `mockCart`), `CartView`, `CartLineInput`, `CartItem.issue`.
+- Giữ các tính năng UI: đổi size trong giỏ (gộp khi trùng cấu hình), ghi chú, mã ưu đãi trong store, "Thêm nhanh". Thao tác store đồng bộ; `clear()` vẫn trả `Promise<boolean>` cho `clearCartAfterPaidOrder`.
+- Tồn kho kiểm sớm ở client: trang chi tiết tính cả số phần đã có trong giỏ; trang giỏ đánh dấu món vượt `stock` của danh sách sản phẩm và khóa nút đặt hàng. Backend vẫn là nơi quyết định khi `POST /orders` (409/422).
+- **Không sửa backend.** `backend/src/cart`, bảng `carts/cart_items` và lệnh xóa `cartItem` khi PAID trong Payment vẫn còn nhưng không còn dữ liệu từ frontend. Gỡ hẳn cần TV4 (DTO Orders import `ICE_LEVELS/SUGAR_LEVELS` từ `cart-pricing.ts`) và TV5 đồng ý.
+- `hybrid` giờ chỉ có nghĩa là Products thật. Kiểm chứng: xem `docs/TESTING.md` mục 2026-10-24.
 
 ## TV3+TV5 — Cart/Payment (merged vào main)
 

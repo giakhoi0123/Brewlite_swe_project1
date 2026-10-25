@@ -56,7 +56,9 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV5 | POST `/payments/:orderId/reconcile` | CUSTOMER | UUID path, không body | Payment mới nhất; QueryDR có thể finalize `PAID`/`PAYMENT_FAILED` | 400, 401, 403, 404, 503 | Verifying / kiểm tra trạng thái | Kiểm tra ownership và response VNPAY có chữ ký; fallback khi IPN trễ/mất |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 
-### Giỏ hàng theo tài khoản (TV3, đã triển khai)
+### Giỏ hàng theo tài khoản (TV3, backend còn nhưng frontend không dùng)
+Từ 2026-10-24 frontend quay về giỏ Zustand (localStorage) và gửi items trong body `POST /orders`; không gọi các route dưới đây. Giữ lại để tránh sửa phần Orders/Payment đang tham chiếu `cart-pricing.ts` và bảng `cart_items`.
+
 Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng nhập. Mỗi route trả `CartView`. Giá **không** lưu trong giỏ: server luôn tính lại `unitPrice = price + size.extraPrice + Σ topping.extraPrice` từ Product hiện tại; client gửi giá sẽ bị 400.
 
 | Method và đường dẫn | Request | Thành công | Lỗi |

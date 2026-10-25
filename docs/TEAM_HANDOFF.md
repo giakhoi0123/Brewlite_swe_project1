@@ -9,7 +9,7 @@ TV5 duy trì `backend/src/payments`: URL WebPay 2.1.0 ký HMAC-SHA512, callback 
 | Người nhận | Việc cần nối tiếp | Contract và phép kiểm tra |
 |---|---|---|
 | Tri (TV2) | Giữ API Products, ảnh, size/topping/stock đồng bộ với frontend | GET `/products`, `/products/:id`; thử tên dài, hết hàng, 404 |
-| Đông (TV3) | Giữ Cart API, đồng bộ giá/tồn kho với đơn của TV4 | Bảng `carts/cart_items`; cùng cấu hình gộp, khác cấu hình tách; giỏ không mất khi đăng nhập |
+| Đông (TV3) | Giữ giỏ Zustand (`stores/cart.ts`) và trang chi tiết/giỏ; payload `POST /orders` thống nhất với TV4 | Cùng cấu hình gộp, khác cấu hình tách; giỏ không mất khi reload/đăng nhập. Backend `/cart` + bảng `carts/cart_items` còn nhưng frontend không gọi từ 2026-10-24 |
 | Điệp (TV4) | Orders/Inventory đã có và test PostgreSQL sau merge qua; mở rộng Staff API thêm detail, hủy có lý do, terminal history, `completedAt` | `docs/API_CONTRACT.md`; list/status đã có, chưa bật nút hủy trong API mode; cần API browser E2E |
 | Kiệt (TV5) | Duy trì VNPAY URL/IPN/Return, idempotency và reconciliation cho attempt PROCESSING quá hạn; hoàn tiền khi hủy nếu sau này có | Chỉ IPN hợp lệ được PAID; replay key không phát hành giao dịch lần hai |
 | Duy (TV6) | Orders history, promotion, loyalty API và E2E thật | `/orders/me`, `/promotions/validate`, `/loyalty/me`; điểm chỉ cộng một lần sau PAID; voucher cá nhân hiện **chưa có API**, UI chỉ báo đang chờ |

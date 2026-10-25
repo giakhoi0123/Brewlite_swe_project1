@@ -1,3 +1,29 @@
+# Kiểm chứng giỏ Zustand — 2026-10-24 (Windows, Docker PostgreSQL 5434)
+
+- `npm --prefix frontend test`: **23/23 PASS** (thêm `src/stores/cart.test.ts` 4 test: gộp cấu hình, kẹp 1–99, đổi size gộp dòng, xóa/clear/persist; bỏ test `mockCart`). `npm --prefix frontend run lint` và `run build` PASS.
+- `npm run db:migrate` áp dụng các migration còn pending lên database ứng dụng local; seed idempotent.
+- Script Playwright (Edge) trên backend + frontend `NEXT_PUBLIC_DATA_MODE=api`, Auth/Products/Orders/PostgreSQL thật, chặn `/api/payments` để dừng ở PENDING: **16/16 PASS** — khách thêm món, cùng cấu hình gộp, khác đá thành dòng mới, đổi size, tăng số lượng, xóa dòng, reload còn giỏ, 1440/768/390 không tràn (giỏ + chi tiết), đăng ký từ giỏ không mất giỏ, `POST /orders` 201 PENDING, body chỉ có cấu hình (không giá), tổng server = tổng UI, giỏ còn khi chưa PAID, **0 request `/api/cart`**.
+- `playwright test api-menu` (API mode): 2/2 PASS.
+
+## Hồi quy toàn module sau khi đổi giỏ (2026-10-24)
+
+Database kiểm thử riêng `brewlite_e2e_<timestamp>` trong container (migrate + seed, xóa sau khi chạy); không đụng database ứng dụng. Edge, backend trỏ vào DB kiểm thử.
+
+| Lớp | Kết quả |
+|---|---|
+| Frontend unit / lint / build | 23/23 PASS, lint sạch, build PASS |
+| Backend build / lint / Jest | PASS; Jest 20 suite/253 test PASS (38 test DB opt-in skip), bằng mốc trước khi đổi; lint chỉ có 3 warning cũ (loyalty/orders) |
+| API mode: `api-menu` (Products) | 2/2 PASS |
+| API mode: `auth-presentation` | 3/3 PASS |
+| API mode: `auth-session-api` | PASS khi chạy riêng; FAIL khi chạy sau `auth-presentation` (link "Đăng nhập" khớp 3 phần tử) — **lỗi có sẵn**, tái hiện y hệt trên code gốc (stash) |
+| API mode: `orders-api` (Orders/Inventory) | 4/4 PASS sau khi cập nhật test: thay kiểm tra bảng `cart_items` bằng kiểm tra giỏ localStorage, sửa tên nút cũ "Xác nhận thanh toán" → "Thanh toán qua VNPAY" (đổi từ commit VNPAY `59103dd`, test chưa cập nhật) |
+| API mode: script giỏ Zustand | 16/16 PASS |
+| Mock mode: `flow.spec` | 2/5 PASS (cart remove/clear; mobile checkout). 3 FAIL **giống hệt trên code gốc**: dòng 24 mở UUID sản phẩm seed trong mock; dòng 105/153 `getByLabel('Mật khẩu')` khớp 2 phần tử (nút hiện/ẩn mật khẩu). Bài VNPAY success vẫn qua bước "Giỏ hàng 0 món" sau PAID trước khi lỗi ở đăng nhập Barista |
+
+Kết luận: đổi giỏ sang Zustand không làm hỏng Products, Auth, Orders/Inventory, Payment mock (xóa giỏ sau PAID) và Loyalty (11 điểm sau đơn); các lỗi còn lại tồn tại trước thay đổi và thuộc test Auth/flow. Barista không đọc giỏ, nhưng E2E Barista chưa kiểm chứng được vì bị chặn ở bước đăng nhập (lỗi selector có sẵn).
+
+---
+
 # Kiểm chứng sau khi nhập `origin/main` — 2026-10-22
 
 - Prisma generate/validate, backend build và lint: PASS. Backend unit/integration không cần DB: **20 suite/253 test PASS**; backend E2E: **6 suite/126 test PASS**, 36 test DB opt-in skip đúng cấu hình.

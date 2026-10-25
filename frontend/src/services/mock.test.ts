@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mockBarista, mockCart, mockLoyalty, mockOrders, mockPayments, mockPromotions } from './mock';
+import { mockBarista, mockLoyalty, mockOrders, mockPayments, mockPromotions } from './mock';
 import { cartTotal, itemKey, lineTotal, type CartItem } from '@/types/domain';
 const data = new Map<string,string>();
 Object.defineProperty(globalThis,'window',{value:{},configurable:true});
@@ -41,16 +41,4 @@ test('Barista can cancel a PREPARING order with a reason',async()=>{
  const cancelled=await mockBarista.cancel(order.id,'Máy pha hỏng');
  assert.equal(cancelled.status,'CANCELLED');
  assert.equal(cancelled.cancelReason,'Máy pha hỏng');
-});
-test('account cart reprices on the server side, merges configs and enforces stock',async()=>{
- data.clear();const line={productId:'ca-phe-sua',size:'M' as const,toppingIds:['cream'],quantity:2,ice:'70% đá',sugar:'50% ít ngọt'};
- let cart=await mockCart.add('u1',line);assert.equal(cart.items[0].unitPrice,63000);assert.equal(cart.subtotal,126000);
- cart=await mockCart.add('u1',{...line,quantity:1});assert.equal(cart.items.length,1);assert.equal(cart.totalQuantity,3);
- assert.deepEqual((await mockCart.get('u2')).items,[]);
- cart=await mockCart.update('u1',cart.items[0].key,{size:'L'});assert.equal(cart.items[0].unitPrice,70000);
- await assert.rejects(()=>mockCart.update('u1',cart.items[0].key,{quantity:21}),/chỉ còn 20 phần/);
- await assert.rejects(()=>mockCart.add('u1',{...line,productId:'cold-brew-cam'}),/hết hàng/);
- const merged=await mockCart.merge('u1',[{...line,size:'L',quantity:1},{...line,productId:'khong-co'}]);
- assert.equal(merged.items[0].quantity,4);assert.equal(merged.skipped.length,1);
- assert.equal((await mockCart.clear('u1')).items.length,0);
 });

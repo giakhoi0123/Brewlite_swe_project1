@@ -19,7 +19,7 @@ stitch/     HTML, DESIGN.md gốc và ảnh tham chiếu screen.webp
 docs/       kế hoạch, hợp đồng, kiến trúc, trạng thái, tích hợp, bàn giao, kiểm thử
 ```
 
-`frontend/src/app` có route, `components` dùng chung, `stores/cart.ts` giữ giỏ sau refresh, `services` tách interface/mock/API, `types/domain.ts` chứa DTO UI. `backend/src/auth` và `backend/src/products` là module NestJS; `backend/prisma` là nguồn schema và migration.
+`frontend/src/app` có route, `components` dùng chung, `stores/cart.ts` giữ giỏ trong localStorage (Zustand persist, không đồng bộ server; checkout gửi items trong `POST /orders`), `services` tách interface/mock/API, `types/domain.ts` chứa DTO UI. `backend/src/auth` và `backend/src/products` là module NestJS; `backend/prisma` là nguồn schema và migration.
 
 Xem [cây thư mục đầy đủ và bản đồ chức năng](docs/PROJECT_STRUCTURE.md) để biết mỗi phần của dự án nằm ở đâu.
 
