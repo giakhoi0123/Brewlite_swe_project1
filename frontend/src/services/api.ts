@@ -1,6 +1,5 @@
 import { request } from "./http";
 import type {
-  CartService,
   ProductService,
   OrderService,
   PaymentService,
@@ -9,29 +8,30 @@ import type {
   BaristaOrderService,
 } from "./contracts";
 import type {
-  CartItem,
-  CartLineInput,
-  CartView,
   Order,
   Payment,
   Product,
   Promotion,
-  LoyaltyPoints,
   OrderStatus,
+  RewardOption,
 } from "@/types/domain";
+
 type ApiListProduct = Pick<
   Product,
   "id" | "name" | "price" | "imageUrl" | "stock" | "description"
 >;
+
 type ApiDetailProduct = Omit<Product, "category" | "sizes"> & {
   defaultSizeId?: string;
   sizes: (Product["sizes"][number] & { id?: string })[];
 };
+
 const normalize = (p: ApiDetailProduct): Product => ({
   ...p,
   category: "Thực đơn",
   sizes: p.sizes.map((s) => ({ ...s, isDefault: s.id === p.defaultSizeId })),
 });
+
 export const apiProducts: ProductService = {
   list: async () => {
     const rows = await request<ApiListProduct[]>("/products");
@@ -53,78 +53,7 @@ export const apiProducts: ProductService = {
     }
   },
 };
-type ApiCartItem = Omit<CartItem, "key" | "note"> & {
-  id: string;
-  note: string;
-  lineTotal: number;
-  available: boolean;
-};
-type ApiCartView = Omit<CartView, "items"> & { items: ApiCartItem[] };
-const toCartView = <T extends ApiCartView>(view: T) => ({
-  ...view,
-  items: view.items.map(
-    (i): CartItem => ({
-      key: i.id,
-      productId: i.productId,
-      name: i.name,
-      imageUrl: i.imageUrl,
-      size: i.size,
-      sizeOptions: i.sizeOptions,
-      toppingIds: i.toppingIds,
-      toppingNames: i.toppingNames,
-      unitPrice: i.unitPrice,
-      quantity: i.quantity,
-      ice: i.ice,
-      sugar: i.sugar,
-      note: i.note || undefined,
-      issue: i.issue,
-    }),
-  ),
-});
-const line = (l: CartLineInput) => ({
-  productId: l.productId,
-  size: l.size,
-  toppingIds: l.toppingIds,
-  quantity: l.quantity,
-  ice: l.ice,
-  sugar: l.sugar,
-  note: l.note || undefined,
-});
-// userId không cần gửi: server lấy từ cookie phiên đăng nhập.
-export const apiCart: CartService = {
-  get: async () => toCartView(await request<ApiCartView>("/cart")),
-  add: async (_userId, l) =>
-    toCartView(
-      await request<ApiCartView>("/cart/items", {
-        method: "POST",
-        body: JSON.stringify(line(l)),
-      }),
-    ),
-  update: async (_userId, itemId, patch) =>
-    toCartView(
-      await request<ApiCartView>(`/cart/items/${encodeURIComponent(itemId)}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      }),
-    ),
-  remove: async (_userId, itemId) =>
-    toCartView(
-      await request<ApiCartView>(`/cart/items/${encodeURIComponent(itemId)}`, {
-        method: "DELETE",
-      }),
-    ),
-  clear: async () =>
-    toCartView(await request<ApiCartView>("/cart", { method: "DELETE" })),
-  merge: async (_userId, lines) =>
-    toCartView(
-      await request<
-        ApiCartView & { skipped: { productId: string; reason: string }[] }
-      >("/cart/merge", {
-        method: "POST",
-        body: JSON.stringify({ items: lines.map(line) }),
-      }),
-    ),
-};
+
 export const apiOrders: OrderService = {
   create: (_userId, items, promotion) =>
     request<Order>("/orders", {
@@ -143,23 +72,34 @@ export const apiOrders: OrderService = {
       }),
     }),
   mine: () => request<Order[]>("/orders/me"),
-  get: (id) => request<Order>(`/orders/${encodeURIComponent(id)}`),
+  get: (id) =>
+    request<Order>(`/orders/${encodeURIComponent(id)}`, { cache: "no-store" }),
   status: (id) =>
-    request<{ status: OrderStatus }>(`/orders/${encodeURIComponent(id)}/status`)
+    request<{ status: OrderStatus }>(
+      `/orders/${encodeURIComponent(id)}/status`,
+      { cache: "no-store" },
+    )
       .then((result) => result.status),
 };
+
 export const apiPayments: PaymentService = {
-  pay: (orderId, method, idempotencyKey, demoOutcome) =>
+  pay: (orderId, method, idempotencyKey) =>
     request<Payment>("/payments", {
       method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
       body: JSON.stringify({
         orderId,
         method,
         idempotencyKey,
-        ...(demoOutcome ? { demoOutcome } : {}),
       }),
     }),
+  reconcile: (orderId) =>
+    request<Payment>(
+      `/payments/${encodeURIComponent(orderId)}/reconcile`,
+      { method: "POST" },
+    ),
 };
+
 export const apiPromotions: PromotionService = {
   validate: (code, subtotal) =>
     request<Promotion>("/promotions/validate", {
@@ -167,9 +107,26 @@ export const apiPromotions: PromotionService = {
       body: JSON.stringify({ code, subtotal }),
     }),
 };
+
 export const apiLoyalty: LoyaltyService = {
-  get: () => request<LoyaltyPoints>("/loyalty/me"),
+  get: async () => {
+    try {
+      return await request<{ points: number }>("/loyalty/me");
+    } catch {
+      const response = await request<{ user: { loyaltyPoints: number } }>("/auth/me");
+      return { points: response.user.loyaltyPoints };
+    }
+  },
+  redeem: async (_userId, option: RewardOption) =>
+    request<{ success: boolean; code: string; remainingPoints: number }>(
+      "/loyalty/redeem",
+      {
+        method: "POST",
+        body: JSON.stringify({ rewardOptionId: option.id }),
+      },
+    ),
 };
+
 export const apiBarista: BaristaOrderService = {
   list: () => request<Order[]>("/staff/orders"),
   get: async (id) => {

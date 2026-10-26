@@ -7,8 +7,12 @@ const api = (process.env.BREWLITE_E2E_API_URL || 'http://localhost:3001/api').re
 test.skip(!process.env.BREWLITE_RUN_ORDERS_E2E || !databaseUrl,
   'Opt in with API-mode frontend, real backend and a migrated dedicated ORDERS_TEST_DATABASE_URL');
 
-// Only fixtures owned by this run are removed. Auth, Cart, Products and Orders all use real APIs/DB.
-const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+// Only fixtures owned by this run are removed. Auth, Products and Orders use real APIs/DB;
+// the cart is the browser's Zustand store (localStorage), sent as items in POST /orders.
+const db = new PrismaClient({ datasources: { db: { url: databaseUrl || 'postgresql://unused:unused@localhost:1/unused' } } });
+const payButton = /Thanh toán qua VNPAY 90\.000/;
+const cartLines = (page: import('@playwright/test').Page) =>
+  page.evaluate(() => (JSON.parse(localStorage.getItem('brewlite-cart-v1') || '{}').state?.items ?? []) as { productId: string; quantity: number }[]);
 let productId: string;
 let toppingId: string;
 let customerId: string | undefined;
@@ -30,7 +34,6 @@ test.beforeEach(async () => {
 });
 test.afterEach(async () => {
   await db.order.deleteMany({ where: { items: { some: { productId } } } });
-  if (customerId) await db.cart.deleteMany({ where: { userId: customerId } });
   await db.product.deleteMany({ where: { id: productId } });
   await db.topping.deleteMany({ where: { id: toppingId } });
   if (customerId) await db.user.deleteMany({ where: { id: customerId } });
@@ -62,9 +65,11 @@ async function checkout(page: import('@playwright/test').Page) {
   expect(registration.status()).toBe(201);
   customerId = (await registration.json()).user.id;
   await expect(page).toHaveURL(/\/checkout$/);
-  await expect(page.getByLabel('Kết quả thanh toán demo')).toHaveCount(0);
-  await expect.poll(async () => db.cartItem.count({ where: { cart: { userId: customerId }, productId } })).toBe(1);
-  await expect(page.getByRole('button', { name: 'Xác nhận thanh toán 90.000 ₫' })).toBeEnabled();
+  await expect(page.getByLabel('Kết quả thanh toán kiểm thử')).toHaveCount(0);
+  // Registering keeps the browser cart; nothing is written to the server cart tables.
+  expect(await cartLines(page)).toMatchObject([{ productId, quantity: 2 }]);
+  expect(await db.cartItem.count({ where: { productId } })).toBe(0);
+  await expect(page.getByRole('button', { name: payButton })).toBeEnabled();
 }
 
 for (const width of [1440, 768, 390]) {
@@ -73,7 +78,7 @@ for (const width of [1440, 768, 390]) {
     await checkout(page);
     await page.screenshot({ path: testInfo.outputPath(`checkout-${width}.png`), fullPage: true });
     const created = page.waitForResponse(r => r.url() === `${api}/orders` && r.request().method() === 'POST');
-    await page.getByRole('button', { name: 'Xác nhận thanh toán 90.000 ₫' }).click();
+    await page.getByRole('button', { name: payButton }).click();
     const response = await created;
     expect(response.status()).toBe(201);
     const body = await response.json();
@@ -87,7 +92,8 @@ for (const width of [1440, 768, 390]) {
     expect(stored.items[0]).toMatchObject({ productId, size: 'L', qty: 2, unitPrice: 45000, lineTotal: 90000 });
     expect(stored.statusHistory).toHaveLength(1);
     expect(await db.product.findUniqueOrThrow({ where: { id: productId } })).toMatchObject({ stock: 6, version: 2 });
-    expect(await db.cartItem.count({ where: { cart: { userId: customerId }, productId } })).toBe(1);
+    // PENDING is not PAID: the browser cart must still be there.
+    expect(await cartLines(page)).toMatchObject([{ productId, quantity: 2 }]);
     expect(await db.payment.count({ where: { orderId: body.id } })).toBe(0);
     await page.goto(`/orders/${body.id}`);
     await expect(page.getByRole('heading', { name: `Mã đơn #${body.id}` })).toBeVisible();
@@ -104,11 +110,11 @@ test('Task 06 API stock conflict keeps checkout/cart and creates no order', asyn
   await checkout(page);
   await db.product.update({ where: { id: productId }, data: { stock: 0, version: { increment: 1 } } });
   const created = page.waitForResponse(r => r.url() === `${api}/orders` && r.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Xác nhận thanh toán 90.000 ₫' }).click();
+  await page.getByRole('button', { name: payButton }).click();
   expect((await created).status()).toBe(409);
   await expect(page).toHaveURL(/\/checkout$/);
   await expect(page.getByRole('alert').filter({ hasText: 'không đủ tồn kho' })).toBeVisible();
   await expect(page.getByLabel('Giỏ hàng 2 món')).toBeVisible();
   expect(await db.order.count({ where: { userId: customerId } })).toBe(0);
-  expect(await db.cartItem.count({ where: { cart: { userId: customerId }, productId } })).toBe(1);
+  expect(await cartLines(page)).toMatchObject([{ productId, quantity: 2 }]);
 });

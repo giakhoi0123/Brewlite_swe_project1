@@ -1,40 +1,33 @@
 # Hợp đồng API BrewLite
 
-## TV4 kiểm chứng hợp đồng — 2026-10-18
+## ??ng b? main v?o nh?nh Orders ? 2026-10-26
 
-Không thay JSON/endpoint trong lượt đối chiếu báo cáo `(2).docx`. Staff list/detail/cancel/status, `cancelReason?`, `completedAt?` bên dưới đã được kiểm chứng cùng Orders/Inventory: 272 backend tests PASS và browser hai phiên API thật tại 1440/768/390. List vẫn gồm PAID/PREPARING/READY/COMPLETED/CANCELLED; UI lọc PAID cho hàng chờ và terminal cho history. Hủy chỉ PENDING/PAID/PAYMENT_FAILED, không phải refund. UI API mode hủy/history/KPI còn do TV1 bật. [Bằng chứng TV4](TV4_ACCEPTANCE.md).
+Nh?p `origin/main:2c45463`: gi? h?p ??ng VNPAY m?i, Promotions/Loyalty v? gi? Zustand t? main. API staff detail, reason trim 1?300 k? t? v? `completedAt` l?u c?ng s? ki?n COMPLETED c?a TV4 ???c gi?. Ma tr?n hi?n h?nh cho ph?p h?y c? PREPARING theo c?p nh?t main; kh?ng ho?n ti?n t? ??ng. C?c ghi ch? gi?i h?n h?y tr??c ng?y n?y l? l?ch s?.
 
-## Task 06 review — 2026-10-17, mới nhất
+Hai nh?nh c?ng th?m `orders.cancel_reason`: migration `20261019000000_loyalty_log` d?ng `ADD COLUMN IF NOT EXISTS` ?? ch?y ti?p sau migration staff c?a TV4. Ch?a ?p migration v?o database ?ng d?ng; DB ?? ?p b?n Loyalty g?c c?n ??i chi?u l?ch s?/checksum v? c?t staff tr??c tri?n khai, kh?ng t? s?a `_prisma_migrations`. Docker daemon ch?a ch?y trong l??t ??ng b? n?y.
 
-Kiểm chứng lại trên code `2c8adc2` sau khi nhập main `bacb7a6`, PR #16 chưa merge: toàn bộ backend 247/247 trên PostgreSQL thật (10 migration, 0 skipped); browser Orders API 4/4 tại 1440/768/390. Hợp đồng Task 06 giữ nguyên: POST 201 với UUID/PENDING, giá server, snapshot/history/reserve cùng transaction, giỏ chưa xóa và chưa cấp điểm/Payment. Browser chặn request Payment bằng route.abort, không giả kết quả thanh toán. Chi tiết [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). Phần Task 06 ngày 16 dưới là bằng chứng cũ; Payment/Promotion/Staff được bảo toàn từ main.
+## VNPAY WebPay 2.1.0 / VNPAY-QR — 2026-10-21
 
-## Task 06 — cập nhật 2026-10-16
+Payment hiện được cấu hình cho VNPAY Sandbox/TEST theo luồng bất đồng bộ, không còn nhận kết quả demo từ client. Backend tạo URL có chữ ký HMAC-SHA512. `VNPAY_BANK_CODE` là cấu hình backend tùy chọn: khi để trống, request không có `vnp_BankCode` và trang hosted của VNPAY hiển thị các phương thức terminal được cấp; chỉ đặt `VNPAYQR` khi VNPAY đã bật kênh QR cho merchant TEST. `VNPAY_HASH_SECRET` chỉ tồn tại ở backend.
 
-`POST /orders` đã kiểm chứng trên PostgreSQL 15 và trình duyệt API mode (1440/768/390): HTTP 201, UUID mã đơn, PENDING, giá server và snapshot/history/kho lưu cùng transaction. Xem [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md).
+Ngày 2026-10-22, request ép `vnp_BankCode=VNPAYQR` ban đầu bị VNPAY trả “Ngân hàng thanh toán không được hỗ trợ”. Bộ phận kỹ thuật VNPAY sau đó xác nhận đã active VNPAYQR cho terminal TEST, nên cấu hình local hiện gửi `VNPAY_BANK_CODE=VNPAYQR`; URL ký thử đã chứa đúng bank code. Thanh toán bằng tài khoản TEST trước đó đã được QueryDR có chữ ký xác minh và lưu `PAID`; IPN vẫn là nguồn xác nhận chính và E2E callback IPN còn chờ cấu hình trong công cụ VSM Sandbox.
 
-- `productId` và mỗi `toppingIds` được chuẩn hóa chữ thường trước lookup; topping trùng khác hoa/thường bị 400.
-- `ice` chỉ nhận `100% đá | 70% đá | 30% đá | Không đá`; `sugar` chỉ nhận `100% chuẩn | 70% ngọt vừa | 50% ít ngọt | Không đường`, dùng cùng danh sách Cart. Không còn nhận chuỗi bất kỳ 1–40 ký tự.
-- Giá/owner/status client tự gửi bị 400; cấu hình hoặc mã ưu đãi không hợp lệ trả 400 với provider PromotionDiscount trên main mới; thiếu kho/xung đột 409. Không cần migration cho thay đổi DTO này.
-- Tạo PENDING giữ nguyên Cart, không tự tạo Payment/cộng điểm. Browser test cô lập request Payment của Task 08, không suy ra thanh toán đã hoàn thành.
-- Main `c2d6922` đã đăng ký PaymentsModule và provider PromotionDiscount; trạng thái Payment/Promotion cũ bên dưới cần được owner cập nhật/kiểm chứng riêng.
+QR hiển thị trong Sandbox có thể báo “QR không tồn tại” khi được quét bằng ứng dụng ngân hàng LIVE vì TEST/LIVE là hai môi trường tách biệt. Kiểm thử bằng thẻ test VNPAY hoặc ứng dụng QR TEST iOS/Android do VNPAY vừa cấp qua email; việc QR xuất hiện trên hosted page không thay thế bằng chứng IPN thành công. Credential công cụ TEST là secret vận hành, không thuộc API contract và không được commit.
 
-## Payment consistency — 2026-10-17, trạng thái mới nhất
+| Endpoint | Auth | Input | Output / hành vi |
+|---|---|---|---|
+| POST `/payments` | CUSTOMER | `{orderId,method:"VNPAY_QR",idempotencyKey?}` và/hoặc header `Idempotency-Key`; bắt buộc có UUID ở ít nhất một nguồn, hai nguồn phải khớp | `201 Payment` trạng thái `PROCESSING`, có `paymentUrl,expiresAt`; amount/user lấy từ Order |
+| POST `/payments/:orderId/reconcile` | CUSTOMER, owner của Order | UUID `orderId`; không có body | `200 Payment`; trả trạng thái hiện có hoặc gọi QueryDR để đối soát Payment `PROCESSING` |
+| GET `/payments/vnpay/ipn` | Public, chữ ký VNPAY | Query `vnp_*` | HTTP 200 JSON `{RspCode,Message}`; nguồn chốt Payment/Order chính |
+| GET `/payments/vnpay/return` | Public, chữ ký VNPAY | Query `vnp_*` | Không cập nhật dữ liệu; chữ ký/reference/amount hợp lệ và mã thành công chuyển tới `/payment/:orderId/verifying`, mã không thành công tới `/payment/:orderId/unknown`, callback không hợp lệ tới `/payment/error` |
 
-Đã tích hợp `origin/main:808077f` (PR #15/#17) trong lượt này. Giữ FK Payment→Order, trường paymentMethod và sandbox `demoOutcome` của main: chỉ gateway có `PAYMENT_DEMO_CONTROLS=true` sử dụng lựa chọn demo; replay cùng key luôn trả kết quả cũ dù client thay lựa chọn demo. `prepareAttempt` dùng lại `OrdersService.preparePaymentRetry` khi cần reserve, không nhân bản state machine.
+IPN phải kiểm checksum, `vnp_TmnCode`, `vnp_TxnRef` và `vnp_Amount === payment.amount * 100` trước khi ghi. Chỉ khi cả `vnp_ResponseCode` và `vnp_TransactionStatus` bằng `00` mới chuyển PAID. Chỉ lỗi cuối rõ ràng mới chuyển PAYMENT_FAILED; trạng thái chưa hoàn tất, đảo giao dịch, hoàn tiền, nghi ngờ gian lận hoặc lifecycle lạ giữ `PROCESSING` để tránh cho thanh toán lần hai khi khách có thể đã bị trừ tiền. Finalize Payment, Order state/history, inventory và loyalty chạy trong cùng transaction; Orders là owner duy nhất của phép cộng điểm, còn Payment adapter ghi `LoyaltyLog` và xóa giỏ trong transaction đó. Conditional update ngăn IPN lặp cộng điểm hoặc chuyển trạng thái lần hai. Phản hồi IPN: `00` đã cập nhật, `02` đã xử lý, `01` không tìm thấy, `04` sai số tiền, `97` sai chữ ký, `99` lỗi/chưa thể chốt.
 
-HTTP DTO/response không đổi. Bản sửa trạng thái `b6ca9ac` đã có trong nhánh nền `feature/fix-payment-status` trước lượt này; giữ nhánh hiện có; mở PR #18 sau khi PR #15 đã merge, không trộn Task 06 hoặc Loyalty mới.
+QueryDR là fallback khi IPN bị trễ hoặc mất, không thay vai trò nguồn chính của IPN. Backend gửi request HMAC-SHA512 tới `VNPAY_QUERY_URL` bằng `VNPAY_QUERY_IP_ADDRESS`, rồi kiểm chữ ký response, `querydr`, merchant, transaction reference, amount và loại giao dịch trước khi ghi. Transaction status `00` được finalize `PAID`; `02` (lỗi), `08` (quá hạn) và `11` (hủy/hết hạn theo WebPay 2.1.0 và phản hồi Sandbox đã quan sát) được finalize `PAYMENT_FAILED`. Các trạng thái đảo giao dịch, hoàn tiền, nghi ngờ gian lận, lifecycle khác hoặc mã query lỗi giữ Payment `PROCESSING` để kiểm tra lại/thủ công. Việc finalize dùng cùng transaction/idempotency guard như IPN. Return vẫn chỉ xác minh và điều hướng, tuyệt đối không ghi DB.
 
-- Một user + idempotency key + order + method trả đúng Payment đã hoàn tất, kể cả đơn đã chuyển tiếp ở Barista; không gọi gateway, transition hoặc cấp điểm lại. Key đổi order/method trả 409; đơn không thuộc user trả 404.
-- PostgreSQL khóa hàng Order khi claim/settle. Unique `(user_id,idempotency_key)` và partial unique index trên `order_id` cho PROCESSING/UNKNOWN/PAID bảo vệ cả request khác key/instance. Request đang xử lý trả 409; client phải giữ key cũ, không tạo key mới để vượt khóa.
-- Retry chỉ sau PAYMENT_FAILED bằng **key mới**. Trong cùng transaction, `prepareAttempt` kiểm tra ownership, chuyển PAYMENT_FAILED → PENDING và reserve kho lại, rồi tạo Payment PROCESSING. Thiếu kho/xung đột trả 409 và rollback cả claim/kho/history; gateway chưa được gọi. Giá lấy snapshot Order, không lấy giá catalog mới.
-- Sau commit claim, gọi gateway **ngoài DB transaction**. Provider nhận `idempotencyKey = Payment.id` cố định theo attempt. Đây không phải cam kết rằng gateway hiện tại đã tích hợp ngân hàng thật.
-- Lưu `gatewayStatus` bền vững trước khi settle. Một transaction tiếp theo dùng chung `Prisma.TransactionClient` để áp dụng Order/kho/history/điểm và finalize Payment với `appliedAt`. Nếu transaction này lỗi, cùng key replay sẽ phục hồi từ journal, không gọi gateway lại. Hai instance tranh settle sẽ chỉ áp dụng một lần nhờ khóa Order.
-- UNKNOWN hoặc exception/timeout của gateway không tự thành PAID, không cộng điểm, giữ Order PENDING và kho đã reserve. Cùng key trả UNKNOWN, mọi key mới cho đơn này bị 409 cho đến khi đối soát xác định kết quả.
-- PROCESSING chưa có journal (crash trước/sau gateway hoặc lỗi lưu journal) không tự hết hạn và không được charge lại. Chưa có API đối soát tự động; cần tra cứu kết quả tại provider và quy trình vận hành riêng. Không suy đoán thành công/thất bại từ thời gian chờ.
+Bằng chứng Sandbox/DB ngày 2026-10-22: `POST /payments/66e28a10-a95e-45ee-b877-a1617e9c3abf/reconcile` đã khôi phục giao dịch bị thiếu IPN; Payment và Order lưu `PAID`, `vnp_TransactionNo=15711511`, `vnp_BankCode=NCB`, `vnp_PayDate=20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`. Đây là bằng chứng QueryDR, chưa phải bằng chứng callback IPN thật.
 
-Migration `20261017000000_payment_consistency` thêm gateway_status/applied_at, CHECK và partial unique index trong transaction. Không gán điểm/timestamp giả cho bản ghi cũ. Nếu có nhiều live attempts cùng đơn, migration từ chối và rollback; phải audit/đối soát dữ liệu cũ trước deploy, không xóa Payment để ép migration qua. Replay final rows cũ trả kết quả cũ, không tự sửa các sai lệch Order/điểm từ trước.
-
-Kiểm chứng: 9 suites/111 tests PASS, 0 skipped; 40 ca PostgreSQL gồm 20 consistency, 2 migration, 15 status và 3 integration/FK. Hai AppModule độc lập, chỉ gateway bên ngoài được điều khiển trong test consistency; Auth/Prisma/Orders/Inventory/Payment adapter thật. Chi tiết: [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các đoạn bên dưới là mốc trước khi hoàn thiện consistency.
+`vnp_TxnRef` là mã chữ/số riêng cho từng Payment attempt, nên retry cùng Order vẫn có reference mới. Retry từ PAYMENT_FAILED phải giữ lại tồn kho trong cùng transaction tạo Payment trước khi phát URL. Mỗi Order chỉ có tối đa một Payment PROCESSING/PAID; PROCESSING quá hạn và UNKNOWN cần QueryDR/reconciliation trước khi cho phép attempt mới.
 
 ## Bản sửa hợp đồng trạng thái Payment — 2026-10-17
 
@@ -64,11 +57,14 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV2 | GET `/products/:id` | Không | UUID path | `ProductDetail` | 400 UUID, 404, 500 | Chi tiết | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
-| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự) | `Order` PENDING, UUID mã đơn | 400, 401, 403, 409 | Checkout | PostgreSQL 15 và browser API 1440/768/390 PASS, xem TASK06_VERIFICATION |
-| TV5 | POST `/payments` | JWT, chủ đơn | `{orderId,method,idempotencyKey}` | `Payment` PAID/PAYMENT_FAILED/UNKNOWN | 400, 401, 404, 409 | Xử lý/kết quả | Đã đăng ký AppModule; status/consistency qua PostgreSQL, browser E2E còn chờ |
+| TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + PostgreSQL tests sau merge qua; browser API E2E chưa chạy |
+| TV5 | POST `/payments` | CUSTOMER | `{orderId,method:"VNPAY_QR",idempotencyKey?}` và/hoặc `Idempotency-Key` header | `Payment` PROCESSING + `paymentUrl,expiresAt` | 400, 401, 404, 409, 503 | Khởi tạo VNPAY-QR | Không nhận amount/status/demoOutcome từ client; header/body key không khớp trả 400 |
+| TV5 | POST `/payments/:orderId/reconcile` | CUSTOMER | UUID path, không body | Payment mới nhất; QueryDR có thể finalize `PAID`/`PAYMENT_FAILED` | 400, 401, 403, 404, 503 | Verifying / kiểm tra trạng thái | Kiểm tra ownership và response VNPAY có chữ ký; fallback khi IPN trễ/mất |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 
-### Giỏ hàng theo tài khoản (TV3, đã triển khai)
+### Giỏ hàng theo tài khoản (TV3, backend còn nhưng frontend không dùng)
+Từ 2026-10-24 frontend quay về giỏ Zustand (localStorage) và gửi items trong body `POST /orders`; không gọi các route dưới đây. Giữ lại để tránh sửa phần Orders/Payment đang tham chiếu `cart-pricing.ts` và bảng `cart_items`.
+
 Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng nhập. Mỗi route trả `CartView`. Giá **không** lưu trong giỏ: server luôn tính lại `unitPrice = price + size.extraPrice + Σ topping.extraPrice` từ Product hiện tại; client gửi giá sẽ bị 400.
 
 | Method và đường dẫn | Request | Thành công | Lỗi |
@@ -92,20 +88,20 @@ Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng n
 `POST /auth/register` body `{"name":"An","email":"an@example.test","password":"Password123"}` → `201 {"user":{"id":"uuid","email":"an@example.test","name":"An","role":"CUSTOMER","loyaltyPoints":0}}`; header Set-Cookie. Role gửi từ client bị từ chối 400. Email trùng 409. `POST /auth/login` body `{"email":"an@example.test","password":"Password123"}` → cùng user/cookie; sai mật khẩu 401. Không trả JWT trong JSON.
 
 ### Ví dụ Orders và Payments
-`POST /orders` body `{"items":[{"productId":"uuid","size":"M","toppingIds":[],"quantity":2,"ice":"70% đá","sugar":"50% ít ngọt"}]}` → `201 {"id":"uuid","userId":"uuid","items":[...],"subtotal":98000,"discount":0,"total":98000,"status":"PENDING","createdAt":"2026-10-14T00:00:00Z"}`. `POST /payments` body `{"orderId":"uuid","method":"WALLET","idempotencyKey":"uuid"}` → `201 {"id":"uuid","orderId":"uuid","method":"WALLET","status":"PAID","idempotencyKey":"uuid"}`. Lỗi gateway được trả bằng `PAYMENT_FAILED`, timeout/chưa chắc chắn là `UNKNOWN`. Trong sandbox có thể gửi thêm `demoOutcome:"PAID"|"PAYMENT_FAILED"|"UNKNOWN"`; backend chỉ sử dụng field này khi `PAYMENT_DEMO_CONTROLS=true`, ngoài sandbox sẽ bỏ qua. `GET /orders/me` → mảng Order cùng cấu trúc. Backend phải tính giá lại, kiểm tra tồn kho và sở hữu đơn.
+`POST /orders` body `{"items":[{"productId":"uuid","size":"M","toppingIds":[],"quantity":2,"ice":"70% đá","sugar":"50% ít ngọt"}]}` → `201 {"id":"uuid","userId":"uuid","items":[...],"subtotal":98000,"discount":0,"total":98000,"status":"PENDING","createdAt":"2026-10-14T00:00:00Z"}`. `POST /payments` body `{"orderId":"uuid","method":"VNPAY_QR","idempotencyKey":"uuid"}` → `201 {"id":"uuid","orderId":"uuid","method":"VNPAY_QR","status":"PROCESSING","idempotencyKey":"uuid","paymentUrl":"https://...","expiresAt":"..."}`. `GET /orders/me` → mảng Order cùng cấu trúc. Backend phải tính giá lại, kiểm tra tồn kho và sở hữu đơn.
 
-Order đã thanh toán trả thêm `paymentMethod:"WALLET"|"CARD"`, lấy từ Payment `PAID` mới nhất của order. Màn kết quả phải dùng trường này để hiển thị đúng phương thức kể cả sau khi tải lại trang; không suy đoán từ trạng thái UI hoặc payment intent đã xóa.
+Order đã thanh toán trả thêm `paymentMethod:"WALLET"|"CARD"|"VNPAY_QR"`, lấy từ Payment `PAID` mới nhất của order. Màn kết quả phải dùng trường này để hiển thị đúng phương thức kể cả sau khi tải lại trang; không suy đoán từ query Return hoặc payment intent đã xóa.
 
 ### Quy ước Payment đã chốt
-- `idempotencyKey` là UUID và duy nhất theo user. Cùng user + key + order + method trả lại Payment đã lưu, không gọi gateway lần hai.
-- Dùng lại key với order hoặc method khác trả `409`. Request trùng khi bản ghi nội bộ còn `PROCESSING` cũng trả `409` để client kiểm tra lại, không tự phát lệnh mới.
-- `PROCESSING` là trạng thái nội bộ trong database, không phải success response của API. Gateway ném lỗi/timeout được chốt thành `UNKNOWN`; Order port phải giữ trạng thái hiện tại và cho phép truy vấn xác minh.
+- `idempotencyKey` là UUID và duy nhất theo user. Cùng user + key + order + method trả lại Payment/URL đã lưu, không tạo VNPAY transaction lần hai.
+- Dùng lại key với order hoặc method khác trả `409`. Một Order có Payment PROCESSING/PAID khác cũng trả `409`, không phát URL thứ hai.
+- `PROCESSING` là response hợp lệ của API khởi tạo, không có nghĩa đã thanh toán. Frontend chuyển tới `paymentUrl`; sau Return gọi reconcile một lần rồi chỉ đọc trạng thái Order đã được IPN hoặc QueryDR xác nhận. Nút “Kiểm tra trạng thái đơn” thực hiện lại cùng trình tự.
+- Return có mã không thành công không finalize Payment và không đổi Order. Màn `/payment/:orderId/unknown` cho phép quay lại `/checkout?resumeOrder=<orderId>`; frontend dùng lại payment intent và `idempotencyKey` cũ để replay Payment `PROCESSING`, nên backend trả lại attempt/URL hiện có thay vì tạo Order hoặc Payment mới.
 - Backend lấy `amount` từ Order của user, không nhận giá hoặc `userId` từ request. `404` dùng khi không tìm thấy đơn thuộc user; order ngoài `PENDING/PAYMENT_FAILED` trả `409`.
 - `PaymentsModule.register(...)` import OrdersModule và provider `PAYMENT_ORDER_PORT`. Migration `20261017000000_payment_order_fk` thêm khóa ngoại `payments.order_id → orders.id`.
-- Kết quả PAID/PAYMENT_FAILED được finalize cùng transaction với Order transition, status history, tồn kho và điểm; lỗi ở bất kỳ bước nào rollback toàn bộ ghi DB. UNKNOWN chỉ finalize Payment, không đổi Order.
-- Replay cùng key đã hoàn tất chỉ trả Payment đã lưu, không chuyển Order lần hai và không cộng điểm lần hai. Retry từ PAYMENT_FAILED không đổi Order trước khi gọi gateway: nếu kết quả PAID, hệ thống giữ lại tồn kho, chuyển qua PENDING rồi PAID trong cùng transaction finalize; nếu tiếp tục PAYMENT_FAILED hoặc UNKNOWN, Order và tồn kho giữ nguyên trạng thái thất bại. Không giữ transaction DB mở trong lúc gọi gateway.
-- Trên frontend, nút “Thử thanh toán lại” từ màn thất bại quay về `/checkout?retryOrder=<orderId>`. Checkout phải tải và xác minh đúng Order của user có trạng thái `PAYMENT_FAILED`, hiển thị snapshot/tổng tiền của đơn cũ, cho chọn lại phương thức/kịch bản gateway rồi tạo payment intent mới cho **cùng orderId**; không gọi lại `POST /orders`.
-- Mock gateway mặc định trả `PAID`; môi trường test có thể đặt `MOCK_PAYMENT_OUTCOME=PAID|PAYMENT_FAILED|UNKNOWN`.
+- PAID/PAYMENT_FAILED chỉ do IPN hợp lệ hoặc response QueryDR đã kiểm chữ ký finalize cùng transaction với Order transition, status history, tồn kho và điểm; lỗi ở bất kỳ bước nào rollback toàn bộ ghi DB. Return URL không ghi DB.
+- Replay callback hoặc cùng idempotency key không chuyển Order/cộng điểm lần hai. Retry từ PAYMENT_FAILED giữ kho lại trước khi phát URL VNPAY; nếu không đủ kho thì rollback và không tạo attempt.
+- Chỉ khi IPN hoặc QueryDR hợp lệ đã finalize `PAYMENT_FAILED`, nút “Thử thanh toán lại” mới quay về `/checkout?retryOrder=<orderId>`, dùng snapshot/tổng của cùng Order và `idempotencyKey` mới để tạo Payment VNPAY attempt mới; không gọi lại `POST /orders`.
 
 ## Endpoint bổ sung đề xuất, chưa thuộc 7 endpoint chính thức
 - GET `/auth/me`: TV1, JWT bắt buộc, trả `{user}`; 401 khi hết hạn. Đã triển khai.
@@ -166,3 +162,12 @@ Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie 
 `ORDER_DISCOUNT` là injection token cho interface `OrderDiscount.calculate(tx,{userId,subtotal,promotionCode?}): Promise<number>`. TV6 thay provider `NoPromotionDiscount` trong OrdersModule bằng implementation tính/giữ lượt dùng ưu đãi trong cùng tx. Giá trị giảm phải là số nguyên từ 0 đến subtotal. Hiện không có mã → giảm 0; có mã → 422, **không** áp dụng mã demo BREW10 trên backend.
 
 Các writer tồn kho khác (TV2) phải tăng Product.version mỗi lần đổi stock; thay đổi catalog liên quan khi đang nhận đơn cần thống nhất cùng cơ chế version. Không gọi InventoryService.restore độc lập với CAS Order, tránh hoàn kho nhiều lần. Migration mới: `20261015000100_orders_inventory`; có FK, index và CHECK giá/số lượng/version, được tạo bằng Prisma diff offline, chưa apply lên DB tại phiên này.
+
+
+## L?ch s? ri?ng nh?nh TV4 tr??c khi nh?p main ng?y 2026-10-26
+
+C?c b?ng ch?ng d??i ??y thu?c code v? gateway mock ? th?i ?i?m ghi nh?n, kh?ng x?c nh?n phi?n b?n VNPAY hi?n t?i.
+
+## TV4 kiểm chứng hợp đồng — 2026-10-18
+
+Không thay JSON/endpoint trong lượt đối chiếu báo cáo `(2).docx`. Staff list/detail/cancel/status, `cancelReason?`, `completedAt?` bên dưới đã được kiểm chứng cùng Orders/Inventory: 272 backend tests PASS và browser hai phiên API thật tại 1440/768/390. List vẫn gồm PAID/PREPARING/READY/COMPLETED/CANCELLED; UI lọc PAID cho hàng chờ và terminal cho history. Hủy chỉ PENDING/PAID/PAYMENT_FAILED, không phải refund. UI API mode hủy/history/KPI còn do TV1 bật. [Bằng chứng TV4](TV4_ACCEPTANCE.md).

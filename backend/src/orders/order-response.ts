@@ -30,11 +30,11 @@ export function orderResponse(order: OrderRecord) {
     discount: order.discountAmount,
     total: order.total,
     ...(order.promotionCode ? { promotionCode: order.promotionCode } : {}),
+    ...(order.cancelReason ? { cancelReason: order.cancelReason } : {}),
     ...(order.payments?.[0]
       ? { paymentMethod: order.payments[0].method }
       : {}),
     createdAt: order.createdAt.toISOString(),
-    ...(order.cancelReason ? { cancelReason: order.cancelReason } : {}),
     ...(order.completedAt
       ? { completedAt: order.completedAt.toISOString() }
       : {}),

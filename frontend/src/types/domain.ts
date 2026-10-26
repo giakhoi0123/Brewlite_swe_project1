@@ -45,20 +45,7 @@ export type CartItem = {
   note?: string;
   /** Các size của món, để đổi size ngay trong giỏ. */
   sizeOptions?: ProductSize[];
-  /** Server báo dòng này không còn hợp lệ (hết hàng, size/topping tạm hết). */
-  issue?: string;
 };
-/** Giỏ hàng lưu theo tài khoản; giá do server tính lại. */
-export type CartView = {
-  items: CartItem[];
-  totalQuantity: number;
-  subtotal: number;
-  valid: boolean;
-};
-export type CartLineInput = Pick<
-  CartItem,
-  "productId" | "size" | "toppingIds" | "quantity" | "ice" | "sugar" | "note"
->;
 export type OrderStatus =
   | "PENDING"
   | "PAID"
@@ -67,7 +54,7 @@ export type OrderStatus =
   | "READY"
   | "COMPLETED"
   | "CANCELLED";
-export type PaymentMethod = "WALLET" | "CARD";
+export type PaymentMethod = "WALLET" | "CARD" | "VNPAY_QR";
 export type OrderItem = CartItem;
 export type Order = {
   id: string;
@@ -89,11 +76,14 @@ export type Payment = {
   id: string;
   orderId: string;
   method: PaymentMethod;
-  status: "PAID" | "PAYMENT_FAILED" | "UNKNOWN";
+  status: "PROCESSING" | "PAID" | "PAYMENT_FAILED" | "UNKNOWN";
   idempotencyKey: string;
+  paymentUrl?: string;
+  expiresAt?: string;
 };
 export type Promotion = { code: string; discount: number };
 export type LoyaltyPoints = { points: number };
+
 export const money = (n: number) =>
   new Intl.NumberFormat("vi-VN").format(n) + " ₫";
 export const lineTotal = (item: CartItem) => item.unitPrice * item.quantity;
@@ -108,3 +98,35 @@ export const itemKey = (
   note = "",
 ) =>
   [id, size, [...toppings].sort().join(","), ice, sugar, note.trim()].join("|");
+
+export interface RewardOption {
+  id: string;
+  title: string;
+  discountAmount: number;
+  pointsCost: number;
+  description: string;
+}
+
+export const REWARD_OPTIONS: RewardOption[] = [
+  {
+    id: "rw-10k",
+    title: "Voucher Giảm 10.000đ",
+    discountAmount: 10000,
+    pointsCost: 50,
+    description: "Đổi 50 điểm nhận mã giảm 10.000đ cho mọi đơn hàng",
+  },
+  {
+    id: "rw-20k",
+    title: "Voucher Giảm 20.000đ",
+    discountAmount: 20000,
+    pointsCost: 100,
+    description: "Đổi 100 điểm nhận mã giảm 20.000đ cho mọi đơn hàng",
+  },
+  {
+    id: "rw-50k",
+    title: "Voucher Giảm 50.000đ",
+    discountAmount: 50000,
+    pointsCost: 200,
+    description: "Đổi 200 điểm nhận mã giảm 50.000đ cho đơn từ 100.000đ",
+  },
+];

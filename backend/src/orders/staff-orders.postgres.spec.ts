@@ -176,7 +176,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
     await get(`/orders/${id}`, otherId).expect(404);
   });
 
-  it.each(['PENDING', 'PAID', 'PAYMENT_FAILED'] as const)(
+  it.each(['PENDING', 'PAID', 'PAYMENT_FAILED', 'PREPARING'] as const)(
     'cancels %s with a trimmed reason, correct inventory, history and customer visibility',
     async (status) => {
       const id = await create(status);
@@ -244,7 +244,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
     await cancel(id, 'x'.repeat(300)).expect(200);
   });
 
-  it.each(['PREPARING', 'READY', 'COMPLETED'] as const)(
+  it.each(['READY', 'COMPLETED'] as const)(
     'rejects cancellation from %s without changing fields, stock or history',
     async (status) => {
       const id = await create(status);
@@ -342,13 +342,18 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
       cancel(id),
       transition(id, 'PREPARING'),
     ]);
-    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+    // Main permits PREPARING -> CANCELLED: both requests may commit in that
+    // order, while competing updates of the same version still return 409.
+    const successful = responses.filter((r) => r.status === 200).length;
+    expect(successful).toBeGreaterThanOrEqual(1);
+    expect(responses.every((r) => r.status === 200 || r.status === 409)).toBe(true);
     const persisted = await row(id);
+    if (successful === 2) expect(persisted.status).toBe('CANCELLED');
     expect(await stock()).toBe(persisted.status === 'CANCELLED' ? 20 : 19);
     expect(persisted.cancelReason).toBe(
       persisted.status === 'CANCELLED' ? 'Hết nguyên liệu' : null,
     );
-    expect(await history(id)).toHaveLength(3);
+    expect(await history(id)).toHaveLength(2 + successful);
   });
 
   it('UC16: two customers compete for the last unit through HTTP; only one order is persisted', async () => {

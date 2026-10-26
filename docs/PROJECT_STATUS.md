@@ -1,40 +1,44 @@
 # Trạng thái dự án
 
-## TV4 đối chiếu báo cáo hoàn chỉnh — 2026-10-18, mới nhất
+## ??ng b? main v?o nh?nh Orders ? 2026-10-26
 
-Đã đọc `BrewLite_Assignment1_BaoCao_HoanChinh (2).docx`, mục 12.1: Điệp phụ trách T06/T10A/T10C/backend Barista. Backend nghiệp vụ đã có đủ; bổ sung hai bài HTTP/PostgreSQL về hai khách tranh món cuối và xác nhận giao đồng thời, cùng runner nghiệm thu hai phiên browser thật. **25 suites/272 tests PASS, 0 skipped**, 11 migrations; backend build local/Docker/lint/full typecheck PASS. Frontend Webpack/API build và luồng khách–Barista tại **1440/768/390 PASS**, dùng API/DB thật và gateway Payment mô phỏng. Các DB thử nghiệm tự dọn, không migrate DB ứng dụng.
+?? nh?p `origin/main:2c45463` v?o `feature/orders-and-inventory` t? n?n `2ee0fc6`, gi? ba commit ri?ng TV4. Nh?n c?p nh?t VNPAY/IPN/QueryDR, Promotions/Loyalty v? gi? Zustand. Gi? staff detail, customerName, completedAt ch?nh x?c v? y?u c?u l? do h?y 1?300 k? t?; d?ng ma tr?n main m?i cho ph?p h?y PREPARING. Lo?i khai b?o tr?ng do merge v? nh?n vi?c main thay b? test Payment mock b?ng VNPAY.
 
-Backend TV4 **READY_FOR_REVIEW**. UI API mode còn ẩn hủy/lịch sử/KPI và thông báo “chờ TV4” đã lỗi thời; đây là việc TV1 nối interface đã có, không phải endpoint backend còn thiếu. Chưa kết luận toàn bộ Barista VERIFIED_COMPLETE hoặc đã triển khai lên môi trường nhóm. Ma trận yêu cầu, bằng chứng và lệnh chạy: [TV4_ACCEPTANCE.md](TV4_ACCEPTANCE.md). Những mốc phía dưới là lịch sử; các số test/nhánh cũ không mô tả cây làm việc hiện tại.
+Prisma generate, build backend, frontend production build Webpack PASS; frontend unit **23/23**, backend Jest **262 PASS / 54 skipped (5 suite DB opt-in)**. Frontend lint PASS. Backend lint kh?ng l?i, c? 3 warning t? main. Full backend test typecheck c?n 5 l?i t?i payments.service.spec.ts, vnpay.gateway.spec.ts v? test/payments.e2e-spec.ts; c? ba file gi?ng origin/main, kh?ng n?m trong ph?n gi?i quy?t conflict. Kh?ng ??nh d?u VERIFIED_COMPLETE ho?c d?ng k?t qu? n?y x?c nh?n E2E/DB.
 
-Kiểm tra lại trước commit/push: backend 272/272, frontend service 14/14, browser 3 viewport và build PASS. Lint toàn frontend vẫn có đúng 1 lỗi memoization ở `profile/page.tsx:21`, file giống `origin/main`; đây là giới hạn ngoài thay đổi TV4, không coi toàn repo đã sạch lint.
+Docker daemon kh?ng ch?y; ch?a ch?y PostgreSQL/migration/E2E v? kh?ng thay d? li?u hay c?u h?nh `.env` local. Hai nh?nh c?ng th?m cancel_reason, n?n migration Loyalty d?ng ADD COLUMN IF NOT EXISTS sau migration staff TV4; database ?? ?p Loyalty b?n g?c c?n ??i chi?u checksum/l?ch s? v? schema tr??c tri?n khai. Xem API_CONTRACT.md. Runner browser TV4 c? d?ng mock payment ch? c?n l? b?ng ch?ng l?ch s?, c?n c?p nh?t cho VNPAY tr??c khi ch?y l?i.
 
-## Backend Barista TV4 — giữ khi nhập main 2026-10-18
+Thay ??i local tr??c merge ???c l?u b?ng stash `codex-before-main-update-2026-10-26` ?? kh?i ph?c sau merge; kh?ng ??a t?i li?u Assignment 2 ch?a commit c?a ng??i d?ng v?o merge commit.
 
-API detail, hủy có lý do, terminal history, `cancelReason` và `completedAt` từ commit `abd7343` đã được giữ trong lần merge `origin/main:b87db13`. Sau merge, fixture Payment tạo đơn hủy được đổi sang `staffCancel(..., reason)` theo contract mới. Prisma generate, backend build local/Docker, lint và **25 suites/270 tests PASS**, 0 skipped trên PostgreSQL thật với đủ 11 migrations; DB UUID tạm đã dọn. Kết quả xác nhận backend tích hợp tại cây merge, không tự xác nhận browser/triển khai DB ứng dụng.
+## Hướng dẫn VNPAY Sandbox/ngrok — 2026-10-22
 
-## Task 06 review — 2026-10-17, mới nhất
+README đã bổ sung quy trình đăng ký Merchant TEST tại `https://sandbox.vnpayment.vn/devreg`, nhận/cấu hình credential, tạo tunnel HTTPS ngrok tới backend cổng 3001, khai báo Return URL/IPN và kiểm thử QR bằng ứng dụng TEST iOS/Android do VNPAY cung cấp. Thay đổi này chỉ là tài liệu vận hành, không đổi mã nguồn, API contract hay trạng thái T08; callback IPN Sandbox E2E vẫn chưa được xác nhận.
 
-Nhánh hiện tại `feature/task-06-orders`; PR #16 đang mở, chưa merge. PR #13 đóng chưa merge; đủ 5 commit gốc đến `03ff19b` còn nguyên và chưa có trong main tại lúc audit. Đã nhập main `bacb7a6` qua `2c8adc2`; chỉ xung đột tài liệu, không ghi đè AppModule/Payment/Promotion/Staff/schema của main.
+## Tích hợp `origin/main` vào Payment — 2026-10-22
 
-Kiểm chứng code `2c8adc2`: **247/247 backend tests trên PostgreSQL 15.18 thật, 24 suites, 0 skipped**, đủ 10 migration; frontend unit **14/14**, browser Orders API **4/4 tại 1440/768/390**. Backend build/lint/full test typecheck, frontend API build Webpack và scoped lint frontend PASS. Frontend lint toàn repo **FAIL** ở `profile/page.tsx:21` (memoization) có sẵn từ main; không sửa UI ngoài Task 06. Prisma generate PASS sau khi chờ lượt DB test kết thúc để giải phóng DLL Windows.
+Đã fetch và nhập `origin/main:cff6ff0` vào `feature/payment-demo-persistence`, giữ nguyên Auth/Orders/Inventory/Promotions/Loyalty/Barista mới trên `main` và thay mock gateway bằng VNPAY. Migration VNPAY chủ động bỏ partial index consistency cũ trước khi tạo index active attempt mới, nên legacy `UNKNOWN` không chặn attempt VNPAY hợp lệ. `POST /payments` nhận idempotency key từ body hoặc header `Idempotency-Key`; hai nguồn không khớp trả 400.
 
-T06 READY_FOR_REVIEW. Browser chặn request Payment bằng route.abort, xác minh Order PENDING, giỏ còn, Payment=0; không dùng để chốt Payment. Log/ảnh/ma trận commit và lệnh chạy: [TASK06_REVIEW_VERIFICATION.md](TASK06_REVIEW_VERIFICATION.md). PostgreSQL/servers/DB test riêng, không reset DB nhóm. Compose/default Turbopack chưa chạy ở lượt này. Các mốc dưới là lịch sử.
+Kiểm chứng sau merge: Prisma generate/validate, backend build/lint, **20 suite/253 test không-DB**, backend E2E **6 suite/126 test**, frontend **20/20 unit**, lint và production build đều PASS. Bộ `test:payments:postgres` tạo database riêng, áp đủ **13 migration**, PASS **7 suite/101 test** rồi xóa database tạm. Lượt PostgreSQL đầu phát hiện điểm Loyalty bị cộng hai lần do cả Orders và Payment adapter cùng increment; adapter đã được sửa để Orders là owner duy nhất của phép cộng, Payment chỉ ghi `LoyaltyLog` và xóa giỏ trong cùng transaction. Lượt chạy lại PASS. Compose config PASS; PostgreSQL/backend/frontend đang chạy và PostgreSQL healthy. Database ứng dụng local chưa được mutate trong lượt merge; `prisma migrate status` còn ba migration pending: `20261017000000_payment_consistency`, `20261019000000_loyalty_log`, `20261022000000_vnpay_consistency_compat`.
 
-## Task 06 trên main mới — 2026-10-16
+T08 vẫn **IN_PROGRESS**: các kiểm tra trên xác nhận migration, persistence, state machine và QueryDR/IPN logic trong test, nhưng portal chưa có bằng chứng callback IPN HTTPS E2E thật.
 
-Đã fetch/pull từ `a80e712` lên `origin/main:c2d6922` trước khi tạo nhánh `codex/task-06-orders`. **T06 READY_FOR_REVIEW**: API tạo PENDING, validation/UUID, giá server, transaction/snapshot, Auth và ownership đã kiểm chứng. Backend **201/201 trên PostgreSQL 15 thật, 0 skipped**; browser API **4/4 tại 1440/768/390**; frontend unit 13/13, backend build/lint/typecheck và frontend Webpack build PASS. Còn review PR của nhóm theo DoD.
+## VNPAY-QR trước merge — 2026-10-21
 
-Bằng chứng, commit từng phần và cách chạy: [TASK06_VERIFICATION.md](TASK06_VERIFICATION.md). Lint frontend toàn repo đang có lỗi memoization ở profile từ main mới; lint các file Task 06 thay đổi PASS. Docker Compose chưa chạy ở máy này; kết quả không xác nhận Task 08/09/10 hoàn thành. Main mới đã có PaymentsModule/PromotionDiscount, nên những đoạn “chưa bật/chưa có” phía dưới là lịch sử, không phải trạng thái mã mới.
+Đã chuyển thiết kế Payment từ mock đồng bộ sang VNPAY WebPay 2.1.0 bất đồng bộ. Checkout chỉ còn phương thức thanh toán VNPAY; backend tạo URL HMAC-SHA512 với amount lấy từ Order. `VNPAY_BANK_CODE` là biến backend tùy chọn, mặc định để trống để trang hosted hiển thị các phương thức terminal được cấp; chỉ đặt `VNPAYQR` khi VNPAY đã bật kênh QR cho merchant TEST. Return URL chỉ xác minh/điều hướng. IPN là nguồn chính; QueryDR có chữ ký là fallback khi IPN trễ/mất. Cả hai đường xác nhận đều kiểm tra merchant, transaction reference và amount trước khi cập nhật Payment + Order/history/inventory/loyalty trong transaction. Các cờ chọn kết quả demo được gỡ khỏi UI/cấu hình API.
 
-## Payment consistency — 2026-10-17, mới nhất
+Phương thức thanh toán trên trang hosted phụ thuộc quyền được cấp cho terminal VNPAY; repo không tự mã hóa payment URL thành QR giả. Ngày 2026-10-22, request ép `VNPAYQR` ban đầu bị VNPAY trả “Ngân hàng thanh toán không được hỗ trợ”; bộ phận kỹ thuật VNPAY sau đó xác nhận đã active VNPAYQR cho terminal TEST. Cấu hình local hiện dùng `VNPAY_BANK_CODE=VNPAYQR`, backend đã được recreate và URL ký thử chứa đúng bank code. File mẫu vẫn để trống vì quyền QR phụ thuộc terminal.
 
-Đã tích hợp main `808077f` vừa nhận PR #15/#17, giữ nguyên sandbox/UI/FK của nhóm; bộ kiểm chứng cuối gồm cả Payment/Orders/FK và gateway sandbox từ main. Browser/Compose của PR #17 là bằng chứng lịch sử của nhánh đó, không coi là đã kiểm chứng lại consistency trong browser.
+Sau khi Sandbox hiển thị QR, quét bằng ứng dụng ngân hàng LIVE có thể báo “QR không tồn tại” vì hệ thống TEST và LIVE tách biệt. VNPAY đã cấp liên kết ứng dụng QR TEST iOS/Android và công cụ VSM Sandbox qua email; bước tiếp theo là cấu hình IPN HTTPS trong VSM và chạy một giao dịch QR TEST mới. Hiện chưa có bằng chứng QR/IPN end-to-end thành công.
 
-Giữ nhánh `feature/fix-payment-status` (nền `faea93e` có bản sửa `b6ca9ac`), PR #18 đang mở, chưa merge; PR #15 status đã được merge. Hoàn thiện claim khóa theo Order, replay không gọi gateway/cộng điểm lại, chặn key mới khi PROCESSING/UNKNOWN/PAID, retry giữ kho lại trước gateway, journal bền vững và transaction chung Payment–Order–kho–history–điểm. Không giữ DB transaction khi gọi gateway, không sửa UI/đổi điểm.
+Return có mã không thành công hiện chỉ điều hướng tới `/payment/:id/unknown`, không mutate Payment/Order. “Thử lại” từ UNKNOWN dùng `/checkout?resumeOrder=id`, giữ nguyên payment intent, idempotency key và Payment `PROCESSING`, nên không tạo Order/Payment mới. Nhánh `PAYMENT_FAILED` đã được IPN hoặc QueryDR chốt vẫn dùng `/checkout?retryOrder=id` với key mới để tạo attempt mới trên cùng Order. Endpoint owner-auth `POST /payments/:orderId/reconcile` được frontend gọi một lần khi vào `verifying` và khi người dùng bấm “Kiểm tra trạng thái đơn”.
 
-**READY_FOR_REVIEW trong phạm vi consistency**: 9 suites/111 tests PASS, 0 skipped, gồm 40 ca PostgreSQL thật (20 consistency chạy qua hai AppModule độc lập, 2 migration legacy, 15 status, 3 integration/FK). Áp đủ 10 migration trên DB UUID riêng rồi xóa đúng DB đó. Backend build/lint, Payment typecheck và script syntax PASS. Full test typecheck vẫn 5 lỗi baseline Products/NoPromotionDiscount; không mở rộng sang sửa chúng.
+Kiểm chứng ngày 2026-10-22: Prisma generate/validate, backend build/lint và **18 suite / 191 test PASS**; 2 suite/11 test PostgreSQL bị skip vì chưa cấu hình database test tách biệt. Frontend **19/19 unit**, typecheck, production build và lint phạm vi VNPAY PASS. Browser QA checkout tại **1440/768/390** không tràn ngang, chỉ có một lựa chọn VNPAY và không còn selector kết quả demo/Ví/Thẻ. Compose đang chạy đủ PostgreSQL/backend/frontend; PostgreSQL healthy, backend HTTP 200 và migration VNPAY đã áp dụng. Full frontend lint còn đúng một lỗi có sẵn ngoài phạm vi tại `profile/page.tsx:21`.
 
-**T08/10B chưa VERIFIED_COMPLETE toàn bộ**: chưa browser E2E/Compose, chưa gateway ngân hàng hay quy trình đối soát tự động. PROCESSING không có journal và UNKNOWN phải giữ khóa để đối soát, không tự retry charge. Trước deploy cần audit dữ liệu Payment cũ/multiple live attempts; migration không tự xóa hoặc sửa bản ghi tài chính. Chi tiết/log: [PAYMENT_CONSISTENCY_VERIFICATION.md](PAYMENT_CONSISTENCY_VERIFICATION.md). Các mốc dưới là lịch sử.
+Giao dịch Sandbox bằng tài khoản TEST `NGUYEN VAN A` đã thành công và được QueryDR lưu xuống PostgreSQL: Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` cùng Payment đều `PAID`; `vnp_TransactionNo=15711511`, bank `NCB`, pay date `20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`. T08 vẫn **IN_PROGRESS** vì IPN trong portal chưa được cấu hình và chưa có bằng chứng callback IPN E2E thật. Các bằng chứng mock/PostgreSQL ngày 2026-10-17 phía dưới chỉ là lịch sử baseline.
+
+## Tích hợp Payment–Order — 2026-10-17
+
+Payment đã có foreign key tới Order, finalize Payment/Order trong cùng transaction, replay idempotent và retry cùng order. Retry chỉ giữ lại tồn kho khi gateway trả PAID; PAYMENT_FAILED/UNKNOWN lặp lại không đổi Order hoặc tồn kho. Backend Prisma generate/build/lint và 18 suite/165 test không-DB qua; 2 suite/18 test PostgreSQL Payment qua; frontend 14/14 unit, production build và browser API FAILED→checkout→PAID cùng order qua. Dockerfile/Compose đã truyền cờ `NEXT_PUBLIC_PAYMENT_DEMO_CONTROLS` vào lúc build; bản Docker API mode đã build, áp đủ 9 migration và chạy lại E2E FAILED→retry→PAID thành công. Gateway production và browser UNKNOWN/Wallet mở rộng vẫn còn chờ nên T08 giữ IN_PROGRESS.
 
 ## Bản sửa Payment status — 2026-10-17
 
@@ -74,10 +78,10 @@ Payment frontend đã bổ sung payment intent có kiểm tra dữ liệu, xử 
 | Feature | Frontend | Backend | Tests | Owner | Ghi chú |
 |---|---|---|---|---|---|
 | Menu, chi tiết | VERIFIED_COMPLETE (chi tiết làm lại theo Stitch 2026-10-15) | Products API VERIFIED_COMPLETE | Playwright (Edge) mock 3/3 + API mode 2/2 qua | TV1/TV2/TV3 | Mock và API adapter |
-| Giỏ | VERIFIED_COMPLETE (làm lại theo Stitch 2026-10-15) | Cart API VERIFIED_COMPLETE (`/cart`, PostgreSQL) | 11 backend tests; smoke HTTP DB thật 12/12; luồng trình duyệt API mode 8/8; unit mock cart | TV1/TV3 | Khách: Zustand persist; đăng nhập: giỏ lưu server |
+| Giỏ | VERIFIED_COMPLETE (2026-10-24 quay về giỏ Zustand) | Không dùng; `POST /orders` nhận items từ store và tính lại giá | 4 unit test store; Playwright API mode 16/16 | TV1/TV3 | Mọi người dùng: Zustand persist (localStorage); backend `/cart` còn nhưng frontend không gọi |
 | Auth | UI_COMPLETED | Code đầy đủ | 37 backend tests; PostgreSQL HTTP; Playwright đăng ký/role qua | TV1 | Cookie JWT và role |
 | Checkout / Orders | UI_COMPLETED | IN_PROGRESS (code TV4 đã có) | Unit/HTTP giá, DTO, guard, stock/state qua; PostgreSQL/E2E thật chưa chạy | TV1/TV4 | Có POST PENDING, GET mine/detail/status; bật api mode để dùng backend |
-| Payment | UI_COMPLETED | IN_PROGRESS | PostgreSQL 2 suite/18 test; API sandbox PAID/FAILED/UNKNOWN; browser FAILED→checkout→retry PAID cùng order; checkout retry QA 1440/768/390 | TV1/TV5 | Đã nối Orders/FK; còn browser UNKNOWN/Wallet mở rộng và gateway production |
+| Payment | UI_COMPLETED | IN_PROGRESS | VNPAY TEST + QueryDR đã lưu PAID thật trong DB; 18 suite/191 backend, 19/19 frontend; checkout QA 1440/768/390 | TV1/TV5 | IPN là nguồn chính nhưng portal/callback IPN E2E chưa cấu hình/xác nhận |
 | Lịch sử/tracking | UI_COMPLETED | IN_PROGRESS | GET orders/me/detail/status có backend TV4; DB/E2E chưa xác minh | TV1/TV4/TV6 | Snapshot item giữ nguyên giá/tên cũ; TV6 tiếp tục history integration |
 | Promotion/Loyalty | UI_COMPLETED | BACKEND_PENDING | Playwright mã sai/đúng, điểm sau PAID qua | TV1/TV6 | BREW10 chỉ demo |
 | Barista | UI_COMPLETED | IN_PROGRESS | HTTP role/DTO tests qua; state machine đủ 49 cặp | TV1/TV4 | Có GET/PATCH staff orders; chưa xác minh DB/browser |
@@ -93,6 +97,14 @@ Checkout giữ phong cách UI cũ, dùng service API hiện có kèm cookie; x�
 
 Blocker: không có Docker CLI, DB cấu hình `localhost:5434/brewlite` từ chối kết nối; cần chạy migration và PostgreSQL/browser E2E sau khi DB sẵn sàng. Typecheck mở rộng toàn bộ backend tests còn lỗi fixture Products có sẵn (thiếu stock/description), ngoài phần TV4; build ứng dụng và Jest vẫn qua. Kết quả frontend cuối cùng và lệnh tái lập xem `docs/TESTING.md`.
 
+## TV3 — Quay về giỏ Zustand (2026-10-24, nhánh `feature/cart_productDetail`)
+
+- Theo thiết kế ban đầu: giỏ của mọi người dùng chỉ nằm trong `stores/cart.ts` (Zustand persist, key `brewlite-cart-v1`, version 2 có migrate bỏ dữ liệu giỏ server cũ). Bỏ `components/cart-sync.tsx`, `CartService` (`apiCart`, `mockCart`), `CartView`, `CartLineInput`, `CartItem.issue`.
+- Giữ các tính năng UI: đổi size trong giỏ (gộp khi trùng cấu hình), ghi chú, mã ưu đãi trong store, "Thêm nhanh". Thao tác store đồng bộ; `clear()` vẫn trả `Promise<boolean>` cho `clearCartAfterPaidOrder`.
+- Tồn kho kiểm sớm ở client: trang chi tiết tính cả số phần đã có trong giỏ; trang giỏ đánh dấu món vượt `stock` của danh sách sản phẩm và khóa nút đặt hàng. Backend vẫn là nơi quyết định khi `POST /orders` (409/422).
+- **Không sửa backend.** `backend/src/cart`, bảng `carts/cart_items` và lệnh xóa `cartItem` khi PAID trong Payment vẫn còn nhưng không còn dữ liệu từ frontend. Gỡ hẳn cần TV4 (DTO Orders import `ICE_LEVELS/SUGAR_LEVELS` từ `cart-pricing.ts`) và TV5 đồng ý.
+- `hybrid` giờ chỉ có nghĩa là Products thật. Kiểm chứng: xem `docs/TESTING.md` mục 2026-10-24.
+
 ## TV3+TV5 — Cart/Payment (merged vào main)
 
 Ngày 2026-10-15 (nhánh `feature/cart_productDetail`):
@@ -101,3 +113,20 @@ Ngày 2026-10-15 (nhánh `feature/cart_productDetail`):
 - Frontend: `CartService` (mock + REST), `components/cart-sync.tsx` gộp giỏ khách lên server khi đăng nhập, xóa bản sao khi đăng xuất. Khách vãng lai vẫn dùng Zustand như cũ.
 - Thêm `NEXT_PUBLIC_DATA_MODE=hybrid`: sản phẩm + giỏ hàng gọi backend thật, đơn/thanh toán/ưu đãi/điểm/Barista vẫn mock (`demoOrders` điều khiển phần UI demo). Kiểm tra trên trình duyệt Edge + PostgreSQL: thêm, thêm món thứ 2, tăng số lượng, đổi size, xóa món, thanh toán demo PAID (giỏ server được xóa), xóa tất cả — 8/8, mỗi bước đối chiếu trực tiếp bảng `cart_items`.
 - Sửa selector E2E mơ hồ `getByText('Tạm hết')` (trang chủ hiện có 2 chữ "Tạm hết" từ commit `0e669c8`).
+
+
+## L?ch s? ri?ng nh?nh TV4 tr??c khi nh?p main ng?y 2026-10-26
+
+C?c b?ng ch?ng d??i ??y thu?c code v? gateway mock ? th?i ?i?m ghi nh?n, kh?ng x?c nh?n phi?n b?n VNPAY hi?n t?i.
+
+## TV4 đối chiếu báo cáo hoàn chỉnh — 2026-10-18, mới nhất
+
+Đã đọc `BrewLite_Assignment1_BaoCao_HoanChinh (2).docx`, mục 12.1: Điệp phụ trách T06/T10A/T10C/backend Barista. Backend nghiệp vụ đã có đủ; bổ sung hai bài HTTP/PostgreSQL về hai khách tranh món cuối và xác nhận giao đồng thời, cùng runner nghiệm thu hai phiên browser thật. **25 suites/272 tests PASS, 0 skipped**, 11 migrations; backend build local/Docker/lint/full typecheck PASS. Frontend Webpack/API build và luồng khách–Barista tại **1440/768/390 PASS**, dùng API/DB thật và gateway Payment mô phỏng. Các DB thử nghiệm tự dọn, không migrate DB ứng dụng.
+
+Backend TV4 **READY_FOR_REVIEW**. UI API mode còn ẩn hủy/lịch sử/KPI và thông báo “chờ TV4” đã lỗi thời; đây là việc TV1 nối interface đã có, không phải endpoint backend còn thiếu. Chưa kết luận toàn bộ Barista VERIFIED_COMPLETE hoặc đã triển khai lên môi trường nhóm. Ma trận yêu cầu, bằng chứng và lệnh chạy: [TV4_ACCEPTANCE.md](TV4_ACCEPTANCE.md). Những mốc phía dưới là lịch sử; các số test/nhánh cũ không mô tả cây làm việc hiện tại.
+
+Kiểm tra lại trước commit/push: backend 272/272, frontend service 14/14, browser 3 viewport và build PASS. Lint toàn frontend vẫn có đúng 1 lỗi memoization ở `profile/page.tsx:21`, file giống `origin/main`; đây là giới hạn ngoài thay đổi TV4, không coi toàn repo đã sạch lint.
+
+## Backend Barista TV4 — giữ khi nhập main 2026-10-18
+
+API detail, hủy có lý do, terminal history, `cancelReason` và `completedAt` từ commit `abd7343` đã được giữ trong lần merge `origin/main:b87db13`. Sau merge, fixture Payment tạo đơn hủy được đổi sang `staffCancel(..., reason)` theo contract mới. Prisma generate, backend build local/Docker, lint và **25 suites/270 tests PASS**, 0 skipped trên PostgreSQL thật với đủ 11 migrations; DB UUID tạm đã dọn. Kết quả xác nhận backend tích hợp tại cây merge, không tự xác nhận browser/triển khai DB ứng dụng.

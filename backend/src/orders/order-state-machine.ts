@@ -5,7 +5,7 @@ const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
   PENDING: ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
   PAYMENT_FAILED: ['PENDING', 'CANCELLED'],
   PAID: ['PREPARING', 'CANCELLED'],
-  PREPARING: ['READY'],
+  PREPARING: ['READY', 'CANCELLED'],
   READY: ['COMPLETED'],
   COMPLETED: [],
   CANCELLED: [],
