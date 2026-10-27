@@ -142,6 +142,54 @@ export class LoyaltyService {
     }
   }
 
+  /**
+   * LẤY DANH SÁCH VOUCHER KHẢ DỤNG (TỰ ĐỘNG LỌC BỎ CÁC MÃ ĐÃ DÙNG TRONG BẢNG ORDER)
+   */
+  async getVouchers(userId: string) {
+    if (!userId) {
+      throw new BadRequestException('Không xác định được thông tin tài khoản');
+    }
+
+    // A. Lấy danh sách tất cả mã promotionCode đã được dùng trong Order
+    const usedOrders = await this.prisma.order.findMany({
+      where: {
+        userId,
+        promotionCode: { not: null },
+        status: { notIn: ['CANCELLED', 'PAYMENT_FAILED'] },
+      },
+      select: { promotionCode: true },
+    });
+
+    const usedCodesSet = new Set(
+      usedOrders
+        .map((o) => o.promotionCode?.trim().toUpperCase())
+        .filter((c): c is string => Boolean(c)),
+    );
+
+    // B. Lấy danh sách các khuyến mãi đang kích hoạt trong hệ thống (Ép kiểu as any để tránh lỗi Type definition)
+    const db = this.prisma as any;
+    const promotions: any[] = await db.promotion.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // C. Lọc ra các voucher chưa bị sử dụng bởi user này
+    const availablePromotions = promotions.filter(
+      (p: any) => !usedCodesSet.has(p.code.trim().toUpperCase()),
+    );
+
+    return availablePromotions.map((p: any) => ({
+      id: p.id,
+      code: p.code,
+      title: p.name,
+      discountAmount: p.discountValue,
+      description: p.description,
+      minOrderValue: p.minOrderValue,
+      status: 'UNUSED',
+      isUsed: false,
+    }));
+  }
+
   async getUserPoints(targetUserId: string, requestingUserId: string, userRole?: string) {
     if (!targetUserId) {
       throw new BadRequestException('Mã người dùng không được để trống');

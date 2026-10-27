@@ -45,20 +45,7 @@ export type CartItem = {
   note?: string;
   /** Các size của món, để đổi size ngay trong giỏ. */
   sizeOptions?: ProductSize[];
-  /** Server báo dòng này không còn hợp lệ (hết hàng, size/topping tạm hết). */
-  issue?: string;
 };
-/** Giỏ hàng lưu theo tài khoản; giá do server tính lại. */
-export type CartView = {
-  items: CartItem[];
-  totalQuantity: number;
-  subtotal: number;
-  valid: boolean;
-};
-export type CartLineInput = Pick<
-  CartItem,
-  "productId" | "size" | "toppingIds" | "quantity" | "ice" | "sugar" | "note"
->;
 export type OrderStatus =
   | "PENDING"
   | "PAID"
@@ -67,7 +54,7 @@ export type OrderStatus =
   | "READY"
   | "COMPLETED"
   | "CANCELLED";
-export type PaymentMethod = "WALLET" | "CARD";
+export type PaymentMethod = "WALLET" | "CARD" | "VNPAY_QR";
 export type OrderItem = CartItem;
 export type Order = {
   id: string;
@@ -89,8 +76,10 @@ export type Payment = {
   id: string;
   orderId: string;
   method: PaymentMethod;
-  status: "PAID" | "PAYMENT_FAILED" | "UNKNOWN";
+  status: "PROCESSING" | "PAID" | "PAYMENT_FAILED" | "UNKNOWN";
   idempotencyKey: string;
+  paymentUrl?: string;
+  expiresAt?: string;
 };
 export type Promotion = { code: string; discount: number };
 export type LoyaltyPoints = { points: number };

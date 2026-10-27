@@ -14,12 +14,10 @@ const sizeLabel = (s: ProductSize) =>
 function SizeControl({
   item,
   sizes,
-  disabled,
   onChange,
 }: {
   item: CartItem;
   sizes: ProductSize[];
-  disabled: boolean;
   onChange: (size: ProductSize["code"], unitPrice: number) => void;
 }) {
   const current = sizes.find((s) => s.code === item.size);
@@ -29,7 +27,6 @@ function SizeControl({
       <span className="sr-only">Chọn size cho {item.name}</span>
       <select
         value={item.size}
-        disabled={disabled}
         onChange={(e) => {
           const next = sizes.find((s) => s.code === e.target.value);
           if (next)
@@ -55,10 +52,6 @@ export default function CartPage() {
       clear,
       promoCode,
       setPromoCode,
-      owner,
-      busy,
-      error: cartError,
-      dismissError,
     } = useCart(),
     { user, loading } = useAuth(),
     router = useRouter();
@@ -69,8 +62,20 @@ export default function CartPage() {
     [promoBusy, setPromoBusy] = useState(false);
   const count = items.reduce((n, i) => n + i.quantity, 0),
     subtotal = cartTotal(items),
-    discount = Math.min(promotion?.discount || 0, subtotal),
-    hasIssue = items.some((i) => i.issue);
+    discount = Math.min(promotion?.discount || 0, subtotal);
+  // Kiểm tra sớm theo tồn kho của danh sách sản phẩm; backend vẫn kiểm lại khi POST /orders.
+  const stockIssue = (item: CartItem) => {
+    const product = products.find((p) => p.id === item.productId);
+    if (!product) return "";
+    const total = items
+      .filter((i) => i.productId === item.productId)
+      .reduce((n, i) => n + i.quantity, 0);
+    if (total <= product.stock) return "";
+    return product.stock === 0
+      ? `${product.name} đang hết hàng`
+      : `${product.name} chỉ còn ${product.stock} phần`;
+  };
+  const hasIssue = items.some((i) => stockIssue(i));
   useEffect(() => {
     services.products
       .list()
@@ -128,7 +133,6 @@ export default function CartPage() {
           </div>
           <p>
             Cà phê rang mộc thủ công, pha chế ngay khi nhận đơn.
-            {owner ? " Giỏ được lưu theo tài khoản của bạn." : ""}
           </p>
         </div>
         {items.length > 0 && (
@@ -143,14 +147,6 @@ export default function CartPage() {
           </button>
         )}
       </div>
-      {cartError && (
-        <div className="ct-alert" role="alert">
-          <span>{cartError}</span>
-          <button aria-label="Đóng thông báo" onClick={dismissError}>
-            ×
-          </button>
-        </div>
-      )}
       {items.length === 0 ? (
         <div className="ct-empty">
           <span>
@@ -163,10 +159,11 @@ export default function CartPage() {
           </Link>
         </div>
       ) : (
-        <div className={`ct-layout ${busy ? "is-busy" : ""}`} aria-busy={busy}>
+        <div className="ct-layout">
           <section className="ct-list">
             {items.map((i) => {
-              const product = products.find((p) => p.id === i.productId);
+              const product = products.find((p) => p.id === i.productId),
+                issue = stockIssue(i);
               return (
                 <article className="cart-row ct-item" key={i.key}>
                   <Link href={`/products/${i.productId}`} className="ct-thumb">
@@ -188,7 +185,6 @@ export default function CartPage() {
                       <SizeControl
                         item={i}
                         sizes={i.sizeOptions ?? product?.sizes ?? []}
-                        disabled={busy}
                         onChange={(size, unit) => changeSize(i.key, size, unit)}
                       />
                       <span className="ct-chip">
@@ -208,7 +204,7 @@ export default function CartPage() {
                         {i.note ? ` · Ghi chú: ${i.note}` : ""}
                       </span>
                     </div>
-                    {i.issue && <p className="ct-issue">{i.issue}</p>}
+                    {issue && <p className="ct-issue">{issue}</p>}
                     <div className="ct-item-bottom">
                       <div>
                         <small>Đơn giá</small>
@@ -304,12 +300,12 @@ export default function CartPage() {
             </div>
             {hasIssue && (
               <p className="error ct-summary-note">
-                Vui lòng chỉnh các món được đánh dấu trước khi đặt hàng.
+                Vui lòng giảm số lượng các món được đánh dấu trước khi đặt hàng.
               </p>
             )}
             <button
               className="ct-primary"
-              disabled={loading || busy || hasIssue}
+              disabled={loading || hasIssue}
               onClick={() =>
                 router.push(user ? "/checkout" : "/login?next=%2Fcheckout")
               }

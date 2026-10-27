@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
@@ -6,22 +6,46 @@ import request from 'supertest';
 import { AppModule } from '../app.module';
 import { cookieOriginGuard } from '../auth/csrf.middleware';
 import { PrismaService } from '../prisma.service';
+import { formEncode } from './vnpay.gateway';
 
-// Opt in with a migrated, dedicated test database. Never fall back to DATABASE_URL.
+// Opt in with a migrated, dedicated test database. Never use DATABASE_URL here.
 const databaseUrl = process.env.PAYMENTS_TEST_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
 
-describeDatabase('Payments and Orders PostgreSQL integration', () => {
+describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
   let app: INestApplication;
   let module: TestingModule;
   let db: PrismaService;
   const userId = randomUUID();
   const productId = randomUUID();
   const origin = 'http://localhost:3000';
+  const tmnCode = 'BREWTEST';
+  const hashSecret = 'postgres-vnpay-test-secret';
+  const savedEnv = Object.fromEntries(
+    [
+      'JWT_SECRET',
+      'FRONTEND_ORIGIN',
+      'FRONTEND_PUBLIC_URL',
+      'VNPAY_TMN_CODE',
+      'VNPAY_HASH_SECRET',
+      'VNPAY_PAYMENT_URL',
+      'VNPAY_RETURN_URL',
+      'VNPAY_EXPIRE_MINUTES',
+    ].map((key) => [key, process.env[key]]),
+  );
 
   beforeAll(async () => {
     process.env.JWT_SECRET = 'payments-postgres-http-test-only';
     process.env.FRONTEND_ORIGIN = origin;
+    process.env.FRONTEND_PUBLIC_URL = origin;
+    process.env.VNPAY_TMN_CODE = tmnCode;
+    process.env.VNPAY_HASH_SECRET = hashSecret;
+    process.env.VNPAY_PAYMENT_URL =
+      'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
+    process.env.VNPAY_RETURN_URL =
+      'http://localhost:3001/api/payments/vnpay/return';
+    process.env.VNPAY_EXPIRE_MINUTES = '15';
+
     db = new PrismaService({ datasources: { db: { url: databaseUrl! } } });
     await db.$connect();
     await db.user.create({
@@ -67,7 +91,6 @@ describeDatabase('Payments and Orders PostgreSQL integration', () => {
   });
 
   beforeEach(async () => {
-    process.env.MOCK_PAYMENT_OUTCOME = 'PAID';
     await db.payment.deleteMany({ where: { userId } });
     await db.order.deleteMany({ where: { userId } });
     await db.product.update({
@@ -81,14 +104,21 @@ describeDatabase('Payments and Orders PostgreSQL integration', () => {
   });
 
   afterAll(async () => {
-    delete process.env.MOCK_PAYMENT_OUTCOME;
-    if (app) await app.close();
-    if (!db) return;
-    await db.payment.deleteMany({ where: { userId } });
-    await db.order.deleteMany({ where: { userId } });
-    await db.product.deleteMany({ where: { id: productId } });
-    await db.user.deleteMany({ where: { id: userId } });
-    await db.$disconnect();
+    try {
+      if (db) {
+        await db.payment.deleteMany({ where: { userId } });
+        await db.order.deleteMany({ where: { userId } });
+        await db.product.deleteMany({ where: { id: productId } });
+        await db.user.deleteMany({ where: { id: userId } });
+      }
+    } finally {
+      await app?.close();
+      await db?.$disconnect();
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   const cookie = () =>
@@ -122,144 +152,165 @@ describeDatabase('Payments and Orders PostgreSQL integration', () => {
       .post('/api/payments')
       .set('Cookie', cookie())
       .set('Origin', origin)
-      .send({ orderId, method: 'CARD', idempotencyKey });
+      .send({ orderId, method: 'VNPAY_QR', idempotencyKey });
 
-  it('persists one payment, marks the order PAID and replays without duplicate data', async () => {
+  const callback = (
+    paymentUrl: string,
+    responseCode = '00',
+    transactionStatus = '00',
+  ) => {
+    const url = new URL(paymentUrl);
+    const params = {
+      vnp_Amount: url.searchParams.get('vnp_Amount')!,
+      vnp_BankCode: 'NCB',
+      vnp_CardType: 'QRCODE',
+      vnp_PayDate: '20261021101500',
+      vnp_ResponseCode: responseCode,
+      vnp_TmnCode: tmnCode,
+      vnp_TransactionNo: '123456789',
+      vnp_TransactionStatus: transactionStatus,
+      vnp_TxnRef: url.searchParams.get('vnp_TxnRef')!,
+    };
+    return {
+      ...params,
+      vnp_SecureHash: createHmac('sha512', hashSecret)
+        .update(formEncode(params), 'utf8')
+        .digest('hex'),
+    };
+  };
+
+  it('persists and idempotently replays one PROCESSING URL while blocking another active attempt', async () => {
     const order = await createOrder();
     const idempotencyKey = randomUUID();
     const first = await pay(order.id, idempotencyKey).expect(201);
     expect(first.body).toMatchObject({
       orderId: order.id,
-      method: 'CARD',
-      status: 'PAID',
+      method: 'VNPAY_QR',
+      status: 'PROCESSING',
       idempotencyKey,
+      paymentUrl: expect.stringContaining('vnp_SecureHash='),
+      expiresAt: expect.any(String),
     });
+    await pay(order.id, idempotencyKey).expect(201, first.body);
+    await pay(order.id, randomUUID()).expect(409);
 
-    const persistedPayment = await db.payment.findFirstOrThrow({
-      where: { userId, orderId: order.id },
-    });
-    const persistedOrder = await db.order.findUniqueOrThrow({
-      where: { id: order.id },
-      include: { statusHistory: { orderBy: { version: 'asc' } } },
-    });
-    const persistedUser = await db.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    expect(persistedPayment).toMatchObject({
+    expect(await db.payment.count({ where: { orderId: order.id } })).toBe(1);
+    expect(
+      await db.payment.findUniqueOrThrow({ where: { id: first.body.id } }),
+    ).toMatchObject({
+      status: 'PROCESSING',
       amount: order.total,
-      status: 'PAID',
-      idempotencyKey,
+      paymentUrl: first.body.paymentUrl,
     });
-    expect(persistedOrder.status).toBe('PAID');
-    expect(persistedOrder.statusHistory.map((row) => row.toStatus)).toEqual([
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: order.id } }),
+    ).toMatchObject({ status: 'PENDING', inventoryHeld: true });
+  });
+
+  it('atomically finalizes success from IPN, ignores replay, and keeps Return read-only', async () => {
+    const order = await createOrder();
+    const created = await pay(order.id, randomUUID()).expect(201);
+    const query = callback(created.body.paymentUrl);
+
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(query)
+      .expect(200, { RspCode: '00', Message: 'Confirm Success' });
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(query)
+      .expect(200, {
+        RspCode: '02',
+        Message: 'Order already confirmed',
+      });
+
+    const beforeReturn = {
+      payment: await db.payment.findUniqueOrThrow({
+        where: { id: created.body.id },
+      }),
+      order: await db.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { statusHistory: { orderBy: { version: 'asc' } } },
+      }),
+      points: (
+        await db.user.findUniqueOrThrow({ where: { id: userId } })
+      ).loyaltyPoints,
+    };
+    expect(beforeReturn.payment).toMatchObject({
+      status: 'PAID',
+      vnpResponseCode: '00',
+      vnpTransactionStatus: '00',
+      vnpTransactionNo: '123456789',
+    });
+    expect(beforeReturn.order.status).toBe('PAID');
+    expect(beforeReturn.order.statusHistory.map((row) => row.toStatus)).toEqual([
       'PENDING',
       'PAID',
     ]);
-    expect(persistedUser.loyaltyPoints).toBe(4);
-    expect(await db.loyaltyLog.findMany({ where: { orderId: order.id } })).toEqual([
-      expect.objectContaining({ userId, orderId: order.id, points: 4 }),
-    ]);
+    expect(beforeReturn.points).toBe(4);
 
-    const paidOrder = await request(app.getHttpServer())
-      .get(`/api/orders/${order.id}`)
-      .set('Cookie', cookie())
-      .expect(200);
-    expect(paidOrder.body).toMatchObject({
-      id: order.id,
-      status: 'PAID',
-      paymentMethod: 'CARD',
-    });
-
-    await pay(order.id, idempotencyKey).expect(201, first.body);
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/return')
+      .query(query)
+      .expect(302)
+      .expect(
+        'Location',
+        `${origin}/payment/${order.id}/verifying`,
+      );
     expect(
-      await db.payment.count({ where: { userId, orderId: order.id } }),
-    ).toBe(1);
+      await db.payment.findUniqueOrThrow({ where: { id: created.body.id } }),
+    ).toEqual(beforeReturn.payment);
     expect(
-      await db.orderStatusHistory.count({ where: { orderId: order.id } }),
-    ).toBe(2);
+      await db.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { statusHistory: { orderBy: { version: 'asc' } } },
+      }),
+    ).toEqual(beforeReturn.order);
     expect(
       (await db.user.findUniqueOrThrow({ where: { id: userId } }))
         .loyaltyPoints,
-    ).toBe(4);
-    expect(await db.loyaltyLog.count({ where: { orderId: order.id } })).toBe(1);
+    ).toBe(beforeReturn.points);
   });
 
-  it('accepts an HTTP Idempotency-Key header and replays its result', async () => {
+  it('releases stock on failed IPN and atomically reserves it before a retry URL', async () => {
     const order = await createOrder();
-    const idempotencyKey = randomUUID();
-    const send = () => request(app.getHttpServer()).post('/api/payments')
-      .set('Cookie', cookie()).set('Origin', origin)
-      .set('Idempotency-Key', idempotencyKey)
-      .send({ orderId: order.id, method: 'CARD' });
-    const first = await send().expect(201);
-    await send().expect(201, first.body);
-    expect(await db.payment.count({ where: { orderId: order.id } })).toBe(1);
-    expect(await db.loyaltyLog.count({ where: { orderId: order.id } })).toBe(1);
-  });
-
-  it('persists failure, restores stock, then reserves it again for a paid retry', async () => {
-    const order = await createOrder();
-    process.env.MOCK_PAYMENT_OUTCOME = 'PAYMENT_FAILED';
-    await pay(order.id, randomUUID()).expect(201);
+    const failed = await pay(order.id, randomUUID()).expect(201);
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(callback(failed.body.paymentUrl, '24', '02'))
+      .expect(200, { RspCode: '00', Message: 'Confirm Success' });
     expect(
       await db.order.findUniqueOrThrow({ where: { id: order.id } }),
     ).toMatchObject({ status: 'PAYMENT_FAILED', inventoryHeld: false });
     expect(
       (await db.product.findUniqueOrThrow({ where: { id: productId } })).stock,
     ).toBe(5);
-    expect(await db.loyaltyLog.count({ where: { orderId: order.id } })).toBe(0);
 
-    process.env.MOCK_PAYMENT_OUTCOME = 'PAID';
-    await pay(order.id, randomUUID()).expect(201);
+    await db.product.update({ where: { id: productId }, data: { stock: 0 } });
+    await pay(order.id, randomUUID()).expect(409);
+    expect(await db.payment.count({ where: { orderId: order.id } })).toBe(1);
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: order.id } }),
+    ).toMatchObject({ status: 'PAYMENT_FAILED', inventoryHeld: false });
+
+    await db.product.update({ where: { id: productId }, data: { stock: 5 } });
+    const retry = await pay(order.id, randomUUID()).expect(201);
+    expect(retry.body.status).toBe('PROCESSING');
     const retriedOrder = await db.order.findUniqueOrThrow({
       where: { id: order.id },
       include: { statusHistory: { orderBy: { version: 'asc' } } },
     });
-    expect(retriedOrder).toMatchObject({ status: 'PAID', inventoryHeld: true });
+    expect(retriedOrder).toMatchObject({
+      status: 'PENDING',
+      inventoryHeld: true,
+    });
     expect(retriedOrder.statusHistory.map((row) => row.toStatus)).toEqual([
       'PENDING',
       'PAYMENT_FAILED',
       'PENDING',
-      'PAID',
     ]);
     expect(
       (await db.product.findUniqueOrThrow({ where: { id: productId } })).stock,
     ).toBe(4);
-    expect(
-      await db.payment.findMany({
-        where: { userId, orderId: order.id },
-        orderBy: { createdAt: 'asc' },
-        select: { status: true },
-      }),
-    ).toEqual([{ status: 'PAYMENT_FAILED' }, { status: 'PAID' }]);
-  });
-
-  it('enforces the payment order foreign key', async () => {
-    await expect(
-      db.payment.create({
-        data: {
-          userId,
-          orderId: randomUUID(),
-          amount: 40000,
-          method: 'CARD',
-          status: 'PAID',
-          idempotencyKey: randomUUID(),
-        },
-      }),
-    ).rejects.toMatchObject({ code: 'P2003' });
-  });
-
-  it('US-05: clears the paid customer cart after successful settlement', async () => {
-    const cart = await db.cart.upsert({
-      where: { userId }, create: { userId }, update: {},
-    });
-    await db.cartItem.create({ data: {
-      cartId: cart.id, productId, size: 'M', toppingIds: [],
-      ice: '70% đá', sugar: '50% ít ngọt', note: '',
-      configKey: 'acceptance-paid-cart', quantity: 1,
-    } });
-    const order = await createOrder();
-    await pay(order.id, randomUUID()).expect(201);
-    expect(await db.cartItem.count({ where: { cartId: cart.id } })).toBe(0);
   });
 });

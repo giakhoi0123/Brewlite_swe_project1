@@ -1,8 +1,5 @@
 import type {
   CartItem,
-  CartLineInput,
-  CartView,
-  ProductSize,
   LoyaltyPoints,
   Order,
   OrderStatus,
@@ -16,24 +13,6 @@ import type {
 export interface ProductService {
   list(): Promise<Product[]>;
   get(id: string): Promise<Product | null>;
-}
-
-/** Giỏ hàng của tài khoản đang đăng nhập; `itemId` là `CartItem.key` do server cấp. */
-export interface CartService {
-  get(userId: string): Promise<CartView>;
-  add(userId: string, line: CartLineInput): Promise<CartView>;
-  update(
-    userId: string,
-    itemId: string,
-    patch: { quantity?: number; size?: ProductSize["code"] },
-  ): Promise<CartView>;
-  remove(userId: string, itemId: string): Promise<CartView>;
-  clear(userId: string): Promise<CartView>;
-  /** Gộp giỏ khách vãng lai sau khi đăng nhập; dòng không hợp lệ bị bỏ qua. */
-  merge(
-    userId: string,
-    lines: CartLineInput[],
-  ): Promise<CartView & { skipped: { productId: string; reason: string }[] }>;
 }
 
 export interface OrderService {
@@ -52,8 +31,8 @@ export interface PaymentService {
     orderId: string,
     method: PaymentMethod,
     idempotencyKey: string,
-    demoOutcome?: "PAID" | "PAYMENT_FAILED" | "UNKNOWN",
   ): Promise<Payment>;
+  reconcile(orderId: string): Promise<Payment>;
 }
 
 export interface PromotionService {

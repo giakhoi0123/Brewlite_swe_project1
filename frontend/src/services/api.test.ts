@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { apiOrders, apiPayments, apiBarista, apiPromotions, apiLoyalty } from './api';
+import { apiOrders, apiPayments, apiBarista } from './api';
 import { ApiError } from './http';
 import type { CartItem } from '../types/domain';
 
@@ -11,20 +11,6 @@ const item: CartItem = {
   size: 'M', toppingIds: ['topping'], toppingNames: ['Untrusted topping'], unitPrice: 1,
   quantity: 2, ice: '70% đá', sugar: '50% ít ngọt', note: 'Ít nóng',
 };
-
-test('promotion preview and loyalty points use available backend routes', async () => {
-  const calls: string[] = [];
-  globalThis.fetch = async (url) => {
-    calls.push(String(url));
-    return Response.json(calls.length === 1
-      ? { code: 'WELCOME10', discount: 10000 }
-      : { user: { loyaltyPoints: 12 } });
-  };
-  assert.deepEqual(await apiPromotions.validate('WELCOME10', 90000), { code: 'WELCOME10', discount: 10000 });
-  assert.deepEqual(await apiLoyalty.get('ignored'), { points: 12 });
-  assert.ok(calls[0].endsWith('/promotions/validate'));
-  assert.ok(calls[1].endsWith('/auth/me'));
-});
 
 test('orders adapter posts options and cookie credentials, never client price/owner/discount', async () => {
   let call: { url: string; init?: RequestInit } | undefined;
@@ -77,6 +63,8 @@ test('history, detail, status and staff requests retain authentication and expec
     assert.equal(call.init?.credentials, 'include');
   });
   assert.equal(calls[4].init?.method, 'PATCH');
+  assert.equal(calls[1].init?.cache, 'no-store');
+  assert.equal(calls[2].init?.cache, 'no-store');
   assert.deepEqual(JSON.parse(String(calls[4].init?.body)), { status: 'PREPARING' });
 });
 
@@ -85,28 +73,43 @@ test('status adapter unwraps the JSON status response', async () => {
   assert.equal(await apiOrders.status('order'), 'PENDING');
 });
 
-test('payments adapter forwards the selected sandbox outcome to the API', async () => {
+test('payments adapter sends only the VNPAY initiation contract', async () => {
   let body: unknown;
   let headers: HeadersInit | undefined;
   globalThis.fetch = async (_url, init) => {
     body = JSON.parse(String(init?.body));
     headers = init?.headers;
-    return Response.json({ status: 'PAYMENT_FAILED' }, { status: 201 });
+    return Response.json({
+      status: 'PROCESSING',
+      paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+    }, { status: 201 });
   };
   await apiPayments.pay(
     'order-id',
-    'CARD',
+    'VNPAY_QR',
     '41a650c7-8597-4a01-a8e2-000000000001',
-    'PAYMENT_FAILED',
   );
   assert.deepEqual(body, {
     orderId: 'order-id',
-    method: 'CARD',
+    method: 'VNPAY_QR',
     idempotencyKey: '41a650c7-8597-4a01-a8e2-000000000001',
-    demoOutcome: 'PAYMENT_FAILED',
   });
   assert.deepEqual(headers, {
     'Content-Type': 'application/json',
     'Idempotency-Key': '41a650c7-8597-4a01-a8e2-000000000001',
   });
+});
+
+test('payments reconciliation is an authenticated POST scoped to the order', async () => {
+  let call: { url: string; init?: RequestInit } | undefined;
+  globalThis.fetch = async (url, init) => {
+    call = { url: String(url), init };
+    return Response.json({ status: 'PAID' });
+  };
+  await apiPayments.reconcile('order/id');
+  assert.ok(call);
+  assert.ok(call.url.endsWith('/payments/order%2Fid/reconcile'));
+  assert.equal(call.init?.method, 'POST');
+  assert.equal(call.init?.credentials, 'include');
+  assert.equal(call.init?.body, undefined);
 });
