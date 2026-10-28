@@ -34,9 +34,36 @@ function CheckoutContent() {
     [existingOrderReady, setExistingOrderReady] = useState(false),
     [error, setError] = useState("");
   const submitting = useRef(false);
+
+  // Helper hàm chuẩn hóa Promotion response từ Backend để tránh dính NaN
+  const normalizePromotion = (res: any): Promotion | null => {
+    if (!res) return null;
+    const rawData = res.data || res;
+    const discountVal = Number(
+      rawData.discountAmount ??
+        rawData.discountValue ??
+        rawData.discount ??
+        rawData.amount ??
+        0,
+    );
+    const validDiscount = isNaN(discountVal) ? 0 : discountVal;
+
+    return {
+      ...rawData,
+      code: rawData.code || code,
+      discount: validDiscount,
+    };
+  };
+
   useEffect(() => {
-    if (!loading && !user) router.replace("/login?next=%2Fcheckout");
-  }, [loading, user, router]);
+    if (!loading && !user) {
+      const query = searchParams.toString();
+      router.replace(
+        `/login?next=${encodeURIComponent(`/checkout${query ? `?${query}` : ""}`)}`,
+      );
+    }
+  }, [loading, user, router, searchParams]);
+
   useEffect(() => {
     if (!existingOrderId || !user) {
       setExistingOrderLoading(false);
@@ -83,25 +110,30 @@ function CheckoutContent() {
       active = false;
     };
   }, [existingOrderId, resumeOrderId, retryOrderId, user]);
+
   const displayItems = existingOrder?.items || items;
   const displayDiscount = existingOrder
-    ? existingOrder.discount
-    : promotion?.discount || 0;
+    ? Number(existingOrder.discount || 0)
+    : Number(promotion?.discount || 0);
   const displayTotal =
     existingOrder?.total ?? Math.max(0, cartTotal(items) - displayDiscount);
-  // Mã đã áp dụng ở giỏ hàng được kiểm tra lại và áp dụng sẵn.
+
+  // Mã đã áp dụng ở giỏ hàng được kiểm tra lại và áp dụng sẵn
   useEffect(() => {
     if (!cartPromoCode || !items.length) return;
     services.promotions
       .validate(cartPromoCode, cartTotal(items))
-      .then(setPromotion)
+      .then((res) => setPromotion(normalizePromotion(res)))
       .catch(() => setPromotion(null));
   }, [cartPromoCode, items]);
+
   const apply = async () => {
     setPromoBusy(true);
     setError("");
     try {
-      setPromotion(await services.promotions.validate(code, cartTotal(items)));
+      const res = await services.promotions.validate(code, cartTotal(items));
+      const validPromo = normalizePromotion(res);
+      setPromotion(validPromo);
     } catch (e) {
       setPromotion(null);
       setError(e instanceof Error ? e.message : "Mã không hợp lệ");
@@ -109,6 +141,7 @@ function CheckoutContent() {
       setPromoBusy(false);
     }
   };
+
   const submit = async () => {
     if (!user || !displayItems.length || submitting.current) return;
     if (existingOrderId && (!existingOrder || !existingOrderReady)) {
@@ -137,18 +170,21 @@ function CheckoutContent() {
       setBusy(false);
     }
   };
+
   if (loading || existingOrderLoading)
     return (
       <main className="container main">
         <Loading />
       </main>
     );
+
   if (!user)
     return (
       <main className="container main">
         <Loading label="Chuyển đến đăng nhập..." />
       </main>
     );
+
   return (
     <main className="container main">
       <h1 className="section-title">Thanh toán đơn hàng</h1>
@@ -203,33 +239,35 @@ function CheckoutContent() {
                 </div>
               ))}
             </section>
-            {!existingOrder && <section className="card panel">
-              <h2>Ưu đãi & Khuyến mãi</h2>
-              <div className="row">
-                <input
-                  className="field"
-                  aria-label="Mã ưu đãi"
-                  placeholder="Nhập mã giảm giá"
-                  value={code}
-                  onChange={(e) => {
-                    setCode(e.target.value);
-                    setPromotion(null);
-                  }}
-                />
-                <button
-                  className="btn btn-secondary"
-                  disabled={promoBusy || !code.trim()}
-                  onClick={apply}
-                >
-                  {promoBusy ? "Đang kiểm tra..." : "Áp dụng"}
-                </button>
-              </div>
-              {promotion && (
-                <p className="success">
-                  Đã áp dụng {promotion.code}: giảm {money(promotion.discount)}
-                </p>
-              )}
-            </section>}
+            {!existingOrder && (
+              <section className="card panel">
+                <h2>Ưu đãi & Khuyến mãi</h2>
+                <div className="row">
+                  <input
+                    className="field"
+                    aria-label="Mã ưu đãi"
+                    placeholder="Nhập mã giảm giá"
+                    value={code}
+                    onChange={(e) => {
+                      setCode(e.target.value);
+                      setPromotion(null);
+                    }}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    disabled={promoBusy || !code.trim()}
+                    onClick={apply}
+                  >
+                    {promoBusy ? "Đang kiểm tra..." : "Áp dụng"}
+                  </button>
+                </div>
+                {promotion && (
+                  <p className="success">
+                    Đã áp dụng {promotion.code}: giảm {money(promotion.discount)}
+                  </p>
+                )}
+              </section>
+            )}
             <section className="card panel">
               <h2>Phương thức thanh toán trực tuyến</h2>
               <label className="vnpay-option selected">
