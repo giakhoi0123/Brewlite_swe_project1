@@ -179,9 +179,9 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: QueryDR Sandbox đã xác minh và lưu một giao dịch test, nhưng IPN HTTPS trên portal chưa được cấu hình nên E2E callback IPN thật chưa được xác nhận; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). Các bằng chứng mock cũ không xác nhận tích hợp VNPAY.
 
 
-## L?ch s? ri?ng nh?nh TV4 tr??c khi nh?p main ng?y 2026-10-26
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
 
-C?c b?ng ch?ng d??i ??y thu?c code v? gateway mock ? th?i ?i?m ghi nh?n, kh?ng x?c nh?n phi?n b?n VNPAY hi?n t?i.
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
 
 > TV4, cập nhật 2026-10-18: đối chiếu báo cáo hoàn chỉnh `(2).docx`; backend Orders/Inventory/State Machine/Barista sẵn sàng review. **272/272 backend tests, 25 suites, 0 skipped** và browser khách–Barista hai phiên API thật tại **1440/768/390 PASS**. Build/lint/typecheck backend PASS; frontend Webpack/API build PASS. UI API mode hủy/lịch sử/KPI còn cần TV1 nối endpoint đã có. [Ma trận yêu cầu, bằng chứng và cách chạy lại](docs/TV4_ACCEPTANCE.md). Mốc Task 06 bên dưới là lịch sử.
 

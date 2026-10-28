@@ -1,0 +1,138 @@
+@startuml activity-checkout
+title Activity Diagram: Luồng Đặt hàng, Thanh toán & Pha chế End-to-End (BrewLite)
+skinparam conditionStyle inside
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+|#E8F4FD|Khách hàng (Customer)|
+|#F0F4C3|Giao diện Next.js (Frontend)|
+|#FFE0B2|NestJS API (Backend)|
+|#E1BEE7|PostgreSQL (Database)|
+|#FFCDD2|Cổng Thanh toán (Mock Gateway)|
+|#D1C4E9|Nhân viên Barista (Staff)|
+
+|Khách hàng (Customer)|
+start
+:Duyệt Menu sản phẩm;
+:Chọn món, tùy chỉnh Size/Topping/Đá/Đường;
+:Thêm sản phẩm vào giỏ hàng;
+:Vào màn hình Giỏ hàng;
+:Bấm "Tiến hành đặt hàng";
+
+|Giao diện Next.js (Frontend)|
+if (Đã đăng nhập hợp lệ?) then (Chưa)
+  :Chuyển hướng sang màn hình /login;
+  |Khách hàng (Customer)|
+  :Nhập Email & Mật khẩu;
+  |Giao diện Next.js (Frontend)|
+  :Gửi POST /auth/login;
+  |NestJS API (Backend)|
+  :Xác thực mật khẩu (bcrypt);
+  :Thiết lập HttpOnly Cookie (JWT);
+  |Giao diện Next.js (Frontend)|
+  :Quay lại màn hình Checkout;
+else (Đã đăng nhập)
+endif
+
+|Khách hàng (Customer)|
+:Chọn phương thức thanh toán (Ví/Thẻ);\n(Có thể nhập mã giảm giá);
+:Bấm nút "Thanh toán ngay";
+
+|Giao diện Next.js (Frontend)|
+:Gửi POST /api/orders\n(payload: items, promotionCode);
+
+|NestJS API (Backend)|
+:Kiểm tra JWT sessionVersion;
+:Mở Database Transaction;
+
+|PostgreSQL (Database)|
+:Khóa và đọc số lượng tồn kho\n(SELECT FOR UPDATE);
+
+|NestJS API (Backend)|
+if (Tất cả sản phẩm còn đủ tồn kho?) then (Không đủ)
+  |PostgreSQL (Database)|
+  :Rollback Transaction;
+  |NestJS API (Backend)|
+  :Trả về HTTP 409 Conflict\n("Sản phẩm hết hàng");
+  |Giao diện Next.js (Frontend)|
+  :Hiển thị thông báo hết hàng;\nYêu cầu cập nhật giỏ;
+  |Khách hàng (Customer)|
+  stop
+else (Đủ tồn kho)
+  |PostgreSQL (Database)|
+  :Trừ giữ tồn kho (stock = stock - qty);\nĐặt cờ inventory_held = true;
+  :Tạo bản ghi Order (status = PENDING);\nLưu snapshot OrderItem & giá;
+  :Ghi nhận OrderStatusHistory (PENDING);
+  :Commit Transaction;
+  |NestJS API (Backend)|
+  :Trả về HTTP 201 Created\n{ orderId, total, status: "PENDING" };
+endif
+
+|Giao diện Next.js (Frontend)|
+:Tạo Idempotency-Key (UUID v4);
+:Gửi POST /api/payments\n{ orderId, method, idempotencyKey };
+
+|NestJS API (Backend)|
+:Kiểm tra cặp (userId, idempotencyKey);
+if (Idempotency Key đã tồn tại?) then (Đã có)
+  :Trả về kết quả giao dịch trước đó (Replay);\n(Không gọi Gateway, không trừ tiền lặp);
+else (Key mới)
+  |PostgreSQL (Database)|
+  :Khóa dòng Order (row-level lock);\nTạo bản ghi Payment (status = PROCESSING);
+  |NestJS API (Backend)|
+  :Gọi MockPaymentGateway.process();
+  |Cổng Thanh toán (Mock Gateway)|
+  :Mô phỏng xử lý giao dịch;
+  if (Kết quả thanh toán?) then (Thành công - PAID)
+    |PostgreSQL (Database)|
+    :Cập nhật Payment (status = PAID, gatewayStatus = PAID);
+    :Cập nhật Order (status = PAID);\nCộng điểm thưởng Loyalty;\nXóa các món trong Cart;
+    :Ghi nhật ký OrderStatusHistory (PAID);
+    |NestJS API (Backend)|
+    :Trả về HTTP 200 OK\n{ status: "PAID", orderId };
+    |Giao diện Next.js (Frontend)|
+    :Chuyển sang màn hình Xác nhận đơn (/orders/[id]);
+    
+    |Nhân viên Barista (Staff)|
+    :Đơn hàng xuất hiện trên màn hình KDS (/barista/dashboard);
+    :Bấm "Nhận pha chế";
+    |NestJS API (Backend)|
+    :Cập nhật Order (status = PREPARING);
+    |Nhân viên Barista (Staff)|
+    :Pha chế xong đồ uống, bấm "Sẵn sàng";
+    |NestJS API (Backend)|
+    :Cập nhật Order (status = READY);
+    |Khách hàng (Customer)|
+    :Nhận thông báo món đã sẵn sàng tại quầy;
+    :Đến nhận đồ uống;
+    |Nhân viên Barista (Staff)|
+    :Bấm "Hoàn tất đơn";
+    |NestJS API (Backend)|
+    :Cập nhật Order (status = COMPLETED, completedAt = NOW);
+    |Khách hàng (Customer)|
+    stop
+  else if (Thất bại - PAYMENT_FAILED) then
+    |PostgreSQL (Database)|
+    :Cập nhật Payment (status = PAYMENT_FAILED);\nCập nhật Order (status = PAYMENT_FAILED);\nHoàn trả tồn kho (stock = stock + qty);
+    :Ghi nhật ký OrderStatusHistory (PAYMENT_FAILED);
+    |NestJS API (Backend)|
+    :Trả về HTTP 402/400 (PAYMENT_FAILED);
+    |Giao diện Next.js (Frontend)|
+    :Hiển thị màn hình Lỗi thanh toán;\nHiển thị nút "Thử thanh toán lại";
+    |Khách hàng (Customer)|
+    :Chọn phương thức khác hoặc thử lại;
+    stop
+  else (Không rõ - UNKNOWN / Timeout)
+    |PostgreSQL (Database)|
+    :Ghi nhận gatewayStatus = UNKNOWN;\nGiữ nguyên Order PENDING & giữ tồn kho;
+    |NestJS API (Backend)|
+    :Trả về HTTP 202 Accepted (UNKNOWN);
+    |Giao diện Next.js (Frontend)|
+    :Báo đơn đang chờ đối soát kết quả;
+    |Khách hàng (Customer)|
+    stop
+  endif
+endif
+
+@enduml
+

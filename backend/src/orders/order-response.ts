@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 
 export const orderInclude = {
+  ingredientUsage: true,
   user: { select: { fullName: true } },
   items: {
     orderBy: { position: 'asc' },

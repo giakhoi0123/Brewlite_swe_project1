@@ -10,6 +10,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { OrdersService } from './orders.service';
 import { PromotionDiscount } from './order-discount';
 import type { CreateOrderDto } from './dto/create-order.dto';
+import { ingredientFixture, recipeFixture } from '../../test/fixtures/ingredients';
 
 describe('Orders service', () => {
   const productId = '10000000-0000-4000-8000-000000000001';
@@ -21,13 +22,13 @@ describe('Orders service', () => {
     price: 29000,
     stock: 5,
     version: 1,
-    sizes: [{ code: 'M', extraPrice: 5000, available: true }],
+    sizes: [{ code: 'M', extraPrice: 5000, available: true, recipe: recipeFixture() }],
     toppings: [
       {
         toppingId,
         available: true,
         extraPrice: 6000,
-        topping: { name: 'Kem sữa' },
+        topping: { name: 'Kem sữa', recipe: recipeFixture() },
       },
     ],
   });
@@ -50,6 +51,7 @@ describe('Orders service', () => {
   const history = jest.fn(async (_args: unknown) => ({}));
   const restore = jest.fn(async (_args: unknown) => ({}));
   const tx = {
+    ingredient: { findMany: async () => [ingredientFixture()], updateMany: async () => ({ count: 1 }) },
     product: {
       findMany: jest.fn(async () => products),
       updateMany: stockUpdate,

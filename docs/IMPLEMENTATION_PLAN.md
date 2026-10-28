@@ -1,14 +1,42 @@
 # Kế hoạch triển khai BrewLite 1.0
 
-## ??ng b? main v?o nh?nh Orders ? 2026-10-26
+## TV4 — kho nguyên vật liệu — 2026-10-28
 
-?? nh?p `origin/main:2c45463` v?o `feature/orders-and-inventory` t? n?n `2ee0fc6`, gi? ba commit ri?ng TV4. Nh?n c?p nh?t VNPAY/IPN/QueryDR, Promotions/Loyalty v? gi? Zustand. Gi? staff detail, customerName, completedAt ch?nh x?c v? y?u c?u l? do h?y 1?300 k? t?; d?ng ma tr?n main m?i cho ph?p h?y PREPARING. Lo?i khai b?o tr?ng do merge v? nh?n vi?c main thay b? test Payment mock b?ng VNPAY.
+Đã triển khai mở rộng T06/10C theo yêu cầu mới: Ingredient, công thức mỗi size/topping, snapshot nguyên liệu theo Order, giữ/hoàn/retry transaction + optimistic locking, API nhân viên và availability catalog. [Thiết kế, API và giới hạn](INGREDIENT_INVENTORY.md). PostgreSQL riêng: **16 migrations, 28 suites/335 tests PASS, 0 skipped**; frontend **23/23**, backend full test typecheck PASS. Database local đã migrate/seed 17 nguyên liệu, 30 size, 2 topping; giữ nguyên ba đơn lịch sử.
 
-Prisma generate, build backend, frontend production build Webpack PASS; frontend unit **23/23**, backend Jest **262 PASS / 54 skipped (5 suite DB opt-in)**. Frontend lint PASS. Backend lint kh?ng l?i, c? 3 warning t? main. Full backend test typecheck c?n 5 l?i t?i payments.service.spec.ts, vnpay.gateway.spec.ts v? test/payments.e2e-spec.ts; c? ba file gi?ng origin/main, kh?ng n?m trong ph?n gi?i quy?t conflict. Kh?ng ??nh d?u VERIFIED_COMPLETE ho?c d?ng k?t qu? n?y x?c nh?n E2E/DB.
+Phần triển khai backend đã kiểm thử; không nâng toàn bộ T06/T10 hoặc dự án lên VERIFIED_COMPLETE. TV2/TV4 cần xác nhận công thức thực tế thay số liệu minh họa. Contract vẫn một phần cho mỗi topping được chọn trên mỗi ly; không có UI nhập kho hoặc số phần lặp cùng topping. Công thức hiện chưa phụ thuộc tỷ lệ đá/đường. Product stock tiếp tục là giới hạn bán bổ sung. Migration Promotion bổ sung chỉ hiện thực model có sẵn; không đổi owner/logic TV6. Checksum migration Orders local cũ giữ nguyên sau đối chiếu schema, không reset lịch sử.
 
-Docker daemon kh?ng ch?y; ch?a ch?y PostgreSQL/migration/E2E v? kh?ng thay d? li?u hay c?u h?nh `.env` local. Hai nh?nh c?ng th?m cancel_reason, n?n migration Loyalty d?ng ADD COLUMN IF NOT EXISTS sau migration staff TV4; database ?? ?p Loyalty b?n g?c c?n ??i chi?u checksum/l?ch s? v? schema tr??c tri?n khai. Xem API_CONTRACT.md. Runner browser TV4 c? d?ng mock payment ch? c?n l? b?ng ch?ng l?ch s?, c?n c?p nh?t cho VNPAY tr??c khi ch?y l?i.
+## Căn cứ viết báo cáo Assignment 1 — 2026-10-27
 
-Thay ??i local tr??c merge ???c l?u b?ng stash `codex-before-main-update-2026-10-26` ?? kh?i ph?c sau merge; kh?ng ??a t?i li?u Assignment 2 ch?a commit c?a ng??i d?ng v?o merge commit.
+[ASSIGNMENT1_REQUIREMENTS.md](ASSIGNMENT1_REQUIREMENTS.md) lưu yêu cầu từ đề gốc và phân biệt với báo cáo nhóm tại main `2c45463`. Khi soạn báo cáo, đối chiếu 10 task/DoD và bằng chứng hiện hành, đặc biệt Task 8 Ví/Thẻ mock, Task 9 E2E, Task 10 và NFR < 500 ms. Đây là công việc đọc/ghi nhớ tài liệu; chưa sửa payment, phân công hoặc nâng trạng thái task. Task Assignment 1 không dùng chung mã với Task 1–5 Assignment 2.
+
+## Assignment 2 — hồ sơ dữ liệu ngữ cảnh cho AI — 2026-10-24
+
+Tệp ngữ cảnh hoàn chỉnh bằng Markdown [BREWLITE_ASSIGNMENT2_COMPREHENSIVE_CONTEXT.md](assignment2/BREWLITE_ASSIGNMENT2_COMPREHENSIVE_CONTEXT.md) đã được tổng hợp để nạp trực tiếp vào các hệ thống AI (hoặc thành viên tra cứu nhanh). Bao gồm đề bài, quy tắc tuần tự, phân công 6 người, Prisma schema, API contracts, UC-CHK, khoảng trống kỹ thuật và quy tắc chỉ đạo cho AI.
+
+## Assignment 2 — nguồn dữ liệu dùng chung — 2026-10-24
+
+Nhóm có thể dùng [hồ sơ dữ liệu tổng hợp một file](assignment2/BrewLite_Assignment2_Ho_so_du_lieu_nhom.docx) để tra cứu yêu cầu, phân công, scope/FR/NFR đề xuất, UC-CHK, schema/API, nguồn kiểm thử và checklist delivery. Thứ tự tiếp theo vẫn là chốt scope/SRS/FR → review UC và sơ đồ → nghiệm thu Task 1 → Task 2–5 theo đề. Hồ sơ phân biệt code hiện có, bằng chứng cũ và phần cần làm (đặc biệt health, CI/CD, production, hai lớp domain Promotion/LoyaltyTransaction); không thay thế các tạo phẩm riêng có lịch sử commit và bằng chứng thực tế.
+
+## Assignment 2 — Task 1.3 theo phân công mới — 2026-10-24
+
+Đã soạn [UC-CHK — Đặt và thanh toán đơn hàng](requirements/use-case-checkout.md) theo `Assignment2-BrewLite (2).pdf` mục 3.3 và `BrewLite_Phan_cong_6_thanh_vien.docx`: Điệp viết đặc tả, Duy phụ trách sơ đồ, Đông–Điệp review chéo. Có actor/trigger/điều kiện, 10 bước chính, 4 luồng thay thế, 8 ngoại lệ, quy tắc, 15 AC/test dự kiến và sơ đồ trọng tâm đề xuất (PlantUML/SVG). Trạng thái **DRAFT_READY_FOR_REVIEW**; bước tiếp theo là ghép mã FR/NFR với SRS Task 1.2, Duy/Đông review và chốt Q01–Q05 trong đặc tả. Chưa nghiệm thu toàn bộ Task 1 hoặc bắt đầu triển khai Task 2–5.
+
+Các ghi chú phân công UC-CHK ngày 21/10 bên dưới là lịch sử; dùng DOCX vừa cung cấp cho phần Task 1.3. Không thay API, ứng dụng hoặc nhánh hiện tại; không dùng kết quả kiểm thử Assignment 1 để đánh dấu hoàn thành Assignment 2.
+
+## Assignment 2 — Task 1 TV4 — 2026-10-21
+
+Lộ trình Assignment 2 theo đề gồm 5 Task tuần tự, khác với bảng T01–T10 Assignment 1 phía dưới. [Bộ bàn giao TV4](assignment2/TV4_TASK1_HANDOFF.md) đã có bản yêu cầu, test plan và truy vết dự kiến, trạng thái **DRAFT_READY_FOR_REVIEW**. Mốc tiếp theo: nhóm review Q01–Q06, chốt scope/owner, ghép context/SRS/UC và diagram Task 1, commit/PR thật trước nghiệm thu Task 2. Chưa chuyển trạng thái hoàn thành cho Task 2–5; chưa quyết định di chuyển repo hoặc viết lại ứng dụng.
+
+## Đồng bộ main vào nhánh Orders — 2026-10-26
+
+Đã nhập `origin/main:2c45463` vào `feature/orders-and-inventory` từ nền `2ee0fc6`, giữ ba commit riêng TV4. Nhận cập nhật VNPAY/IPN/QueryDR, Promotions/Loyalty và giỏ Zustand. Giữ staff detail, customerName, completedAt chính xác và yêu cầu lý do hủy 1–300 ký tự; dùng ma trận main mới cho phép hủy PREPARING. Loại khai báo trùng do merge và nhận việc main thay bộ test Payment mock bằng VNPAY.
+
+Prisma generate, build backend, frontend production build Webpack PASS; frontend unit **23/23**, backend Jest **262 PASS / 54 skipped (5 suite DB opt-in)**. Frontend lint PASS. Backend lint không lỗi, có 3 warning từ main. Full backend test typecheck còn 5 lỗi tại payments.service.spec.ts, vnpay.gateway.spec.ts và test/payments.e2e-spec.ts; cả ba file giống origin/main, không nằm trong phần giải quyết conflict. Không đánh dấu VERIFIED_COMPLETE hoặc dùng kết quả này xác nhận E2E/DB.
+
+Docker daemon không chạy; chưa chạy PostgreSQL/migration/E2E và không thay dữ liệu hay cấu hình `.env` local. Hai nhánh cùng thêm cancel_reason, nên migration Loyalty dùng ADD COLUMN IF NOT EXISTS sau migration staff TV4; database đã áp Loyalty bản gốc cần đối chiếu checksum/lịch sử và schema trước triển khai. Xem API_CONTRACT.md. Runner browser TV4 cũ dùng mock payment chỉ còn là bằng chứng lịch sử, cần cập nhật cho VNPAY trước khi chạy lại.
+
+Thay đổi local trước merge được lưu bằng stash `codex-before-main-update-2026-10-26` để khôi phục sau merge; không đưa tài liệu Assignment 2 chưa commit của người dùng vào merge commit.
 
 ## Tích hợp main vào VNPAY — 2026-10-22
 
@@ -136,9 +164,9 @@ Cấu trúc thư mục hiện hành và vị trí từng chức năng đã đư�
 - TV6: backend order history, promotions, loyalty, hỗ trợ E2E.
 
 
-## L?ch s? ri?ng nh?nh TV4 tr??c khi nh?p main ng?y 2026-10-26
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
 
-C?c b?ng ch?ng d??i ??y thu?c code v? gateway mock ? th?i ?i?m ghi nh?n, kh?ng x?c nh?n phi?n b?n VNPAY hi?n t?i.
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
 
 ## Nghiệm thu phạm vi TV4 theo báo cáo — 2026-10-18, mới nhất
 

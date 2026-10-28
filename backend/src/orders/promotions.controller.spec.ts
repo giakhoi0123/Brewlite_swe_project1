@@ -5,7 +5,13 @@ import { PromotionsController } from './promotions.controller';
 
 describe('PromotionsController', () => {
   const prisma = {
-    $transaction: (callback: (tx: object) => Promise<number>) => callback({}),
+    $transaction: (callback: (tx: object) => Promise<number>) => callback({
+      promotion: { findFirst: async ({ where }: { where: { code: { equals: string } } }) => {
+        const values: Record<string, number> = { WELCOME10: 10000, DISCOUNT10: 5000 };
+        const discountValue = values[where.code.equals];
+        return discountValue ? { code: where.code.equals, discountValue, discountType: 'FIXED_AMOUNT', minOrderValue: 50000, isActive: true } : null;
+      } },
+    }),
   } as unknown as PrismaService;
   const controller = new PromotionsController(prisma, new PromotionDiscount());
 

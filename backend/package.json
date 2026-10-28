@@ -16,6 +16,7 @@
     "lint": "oxlint src/ test/",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.ts",
     "test:postgres": "node scripts/verify-orders-postgres.cjs",
+    "test:ingredients:postgres": "node scripts/verify-ingredients-postgres.cjs",
     "test:acceptance": "node scripts/verify-acceptance-postgres.cjs",
     "test:watch": "jest --watch",
     "test:payments:postgres": "node scripts/verify-payments-postgres.cjs",
@@ -27,6 +28,7 @@
     "prisma:push": "prisma db push",
     "prisma:seed": "prisma db seed",
     "prisma:seed-customization": "tsx prisma/seed-customization.ts",
+    "prisma:seed-inventory": "tsx prisma/seed-inventory.ts",
     "prisma:migrate": "prisma migrate deploy"
   },
   "dependencies": {

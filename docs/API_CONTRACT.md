@@ -1,10 +1,18 @@
 # Hợp đồng API BrewLite
 
-## ??ng b? main v?o nh?nh Orders ? 2026-10-26
+## Kho nguyên vật liệu — 2026-10-28
 
-Nh?p `origin/main:2c45463`: gi? h?p ??ng VNPAY m?i, Promotions/Loyalty v? gi? Zustand t? main. API staff detail, reason trim 1?300 k? t? v? `completedAt` l?u c?ng s? ki?n COMPLETED c?a TV4 ???c gi?. Ma tr?n hi?n h?nh cho ph?p h?y c? PREPARING theo c?p nh?t main; kh?ng ho?n ti?n t? ??ng. C?c ghi ch? gi?i h?n h?y tr??c ng?y n?y l? l?ch s?.
+Đã thêm [hợp đồng nguyên liệu và định mức](INGREDIENT_INVENTORY.md): API BARISTA `GET/POST /staff/inventory`, `POST /staff/inventory/:id/receipts`, `GET /staff/inventory/recipes`, `PUT /staff/inventory/product-sizes/:id/recipe` và `PUT /staff/inventory/toppings/:id/recipe`. Decimal trả dạng chuỗi; lượng gửi là số tối đa 3 chữ số lẻ. PUT thay toàn bộ công thức trong transaction; nhập kho là phép cộng không có idempotency key.
 
-Hai nh?nh c?ng th?m `orders.cancel_reason`: migration `20261019000000_loyalty_log` d?ng `ADD COLUMN IF NOT EXISTS` ?? ch?y ti?p sau migration staff c?a TV4. Ch?a ?p migration v?o database ?ng d?ng; DB ?? ?p b?n Loyalty g?c c?n ??i chi?u l?ch s?/checksum v? c?t staff tr??c tri?n khai, kh?ng t? s?a `_prisma_migrations`. Docker daemon ch?a ch?y trong l??t ??ng b? n?y.
+`POST /orders` giữ nguyên DTO size/toppingIds/quantity, nhưng đơn mới bắt buộc có định mức đầy đủ. Mỗi topping đã chọn là một phần/ly; nhân số ly và cộng chung nguyên liệu toàn đơn. Giữ Product stock lẫn nguyên liệu trong cùng transaction; thiếu kho/công thức trả 409. Hoàn/retry dùng snapshot nguyên liệu đã lưu; hủy PREPARING không hoàn nguyên liệu đã pha. Đơn lịch sử trước migration tiếp tục cơ chế Product stock cũ. Catalog giữ response shape, tính stock/availability theo cả công thức và giới hạn Product stock. Giỏ chưa tạo đơn không giữ kho; Auth thật và mock không đổi.
+
+Migration/seed đã áp local ngày 28/10; ghi chú “chưa áp migration” bên dưới là lịch sử. Chi tiết checksum Orders cũ, seed minh họa và bằng chứng kiểm thử ở tài liệu liên kết.
+
+## Đồng bộ main vào nhánh Orders — 2026-10-26
+
+Nhập `origin/main:2c45463`: giữ hợp đồng VNPAY mới, Promotions/Loyalty và giỏ Zustand từ main. API staff detail, reason trim 1–300 ký tự và `completedAt` lưu cùng sự kiện COMPLETED của TV4 được giữ. Ma trận hiện hành cho phép hủy cả PREPARING theo cập nhật main; không hoàn tiền tự động. Các ghi chú giới hạn hủy trước ngày này là lịch sử.
+
+Hai nhánh cùng thêm `orders.cancel_reason`: migration `20261019000000_loyalty_log` dùng `ADD COLUMN IF NOT EXISTS` để chạy tiếp sau migration staff của TV4. Chưa áp migration vào database ứng dụng; DB đã áp bản Loyalty gốc cần đối chiếu lịch sử/checksum và cột staff trước triển khai, không tự sửa `_prisma_migrations`. Docker daemon chưa chạy trong lượt đồng bộ này.
 
 ## VNPAY WebPay 2.1.0 / VNPAY-QR — 2026-10-21
 
@@ -164,9 +172,9 @@ Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie 
 Các writer tồn kho khác (TV2) phải tăng Product.version mỗi lần đổi stock; thay đổi catalog liên quan khi đang nhận đơn cần thống nhất cùng cơ chế version. Không gọi InventoryService.restore độc lập với CAS Order, tránh hoàn kho nhiều lần. Migration mới: `20261015000100_orders_inventory`; có FK, index và CHECK giá/số lượng/version, được tạo bằng Prisma diff offline, chưa apply lên DB tại phiên này.
 
 
-## L?ch s? ri?ng nh?nh TV4 tr??c khi nh?p main ng?y 2026-10-26
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
 
-C?c b?ng ch?ng d??i ??y thu?c code v? gateway mock ? th?i ?i?m ghi nh?n, kh?ng x?c nh?n phi?n b?n VNPAY hi?n t?i.
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
 
 ## TV4 kiểm chứng hợp đồng — 2026-10-18
 

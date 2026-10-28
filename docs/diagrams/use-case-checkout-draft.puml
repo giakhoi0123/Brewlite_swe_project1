@@ -1,0 +1,24 @@
+@startuml
+left to right direction
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Arial
+title BrewLite — UC-CHK: Đặt và thanh toán đơn hàng
+actor "Khách hàng" as Customer
+rectangle "Hệ thống BrewLite" {
+  usecase "UC-CHK\nĐặt và thanh toán đơn hàng" as Checkout
+  usecase "Tạo đơn hàng" as CreateOrder
+  usecase "Thanh toán Ví/Thẻ\n(mô phỏng)" as Pay
+  Checkout ..> CreateOrder : <<include>>
+  Checkout ..> Pay : <<include>>
+}
+actor "Dịch vụ thanh toán\nmô phỏng" as Gateway
+Customer -- Checkout
+Pay -- Gateway
+legend bottom
+  Bản đề xuất 24/10/2026 — chờ Duy review.
+  Đăng nhập là điều kiện trước lệnh ghi; nhánh chưa đăng nhập: A01.
+  Luồng retry, gửi lặp và UNKNOWN: xem đặc tả UC-CHK.
+  include không biểu diễn thứ tự thực hiện hoặc nhánh ngoại lệ.
+endlegend
+@enduml

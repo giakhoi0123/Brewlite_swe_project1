@@ -92,6 +92,7 @@ model ProductSize {
   available  Boolean         @default(true)
   isDefault  Boolean         @default(false) @map("is_default")
   product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  recipe     ProductRecipe[]
 
   @@unique([productId, code])
   @@map("product_sizes")
@@ -102,6 +103,7 @@ model Topping {
   name              String
   products          ProductTopping[]
   orderItemToppings OrderItemTopping[]
+  recipe            ToppingRecipe[]
 
   @@map("toppings")
 }
@@ -129,6 +131,8 @@ model Order {
   total          Int
   promotionCode  String?              @map("promotion_code")
   inventoryHeld  Boolean              @default(true) @map("inventory_held")
+  ingredientInventory Boolean         @default(false) @map("ingredient_inventory")
+  ingredientUsage OrderIngredientUsage[]
   cancelReason   String?              @map("cancel_reason") @db.VarChar(300)
   completedAt    DateTime?            @map("completed_at")
   createdAt      DateTime             @default(now()) @map("created_at")
@@ -142,6 +146,58 @@ model Order {
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@map("orders")
+}
+
+enum IngredientUnit {
+  G
+  ML
+  PIECE
+}
+
+model Ingredient {
+  id        String @id @default(uuid()) @db.Uuid
+  name      String @unique
+  unit      IngredientUnit
+  stock     Decimal @default(0) @db.Decimal(12, 3)
+  version   Int @default(1)
+  products  ProductRecipe[]
+  toppings  ToppingRecipe[]
+  orders    OrderIngredientUsage[]
+  @@map("ingredients")
+}
+
+model ProductRecipe {
+  productSizeId String @map("product_size_id") @db.Uuid
+  ingredientId  String @map("ingredient_id") @db.Uuid
+  amount        Decimal @db.Decimal(12, 3)
+  productSize   ProductSize @relation(fields: [productSizeId], references: [id], onDelete: Cascade)
+  ingredient    Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  @@id([productSizeId, ingredientId])
+  @@index([ingredientId])
+  @@map("product_recipes")
+}
+
+model ToppingRecipe {
+  toppingId    String @map("topping_id") @db.Uuid
+  ingredientId String @map("ingredient_id") @db.Uuid
+  amount       Decimal @db.Decimal(12, 3)
+  topping      Topping @relation(fields: [toppingId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  @@id([toppingId, ingredientId])
+  @@index([ingredientId])
+  @@map("topping_recipes")
+}
+
+// Immutable demand snapshot: retry/release must never recalculate a changed recipe.
+model OrderIngredientUsage {
+  orderId      String @map("order_id") @db.Uuid
+  ingredientId String @map("ingredient_id") @db.Uuid
+  amount       Decimal @db.Decimal(12, 3)
+  order        Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  @@id([orderId, ingredientId])
+  @@index([ingredientId])
+  @@map("order_ingredient_usage")
 }
 
 model OrderItem {

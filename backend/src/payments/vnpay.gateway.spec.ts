@@ -204,7 +204,7 @@ describe('VnpayGateway WebPay 2.1.0', () => {
       .update(responseData, 'utf8')
       .digest('hex');
     const originalFetch = global.fetch;
-    const fetchMock = jest.fn(async () =>
+    const fetchMock = jest.fn(async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
       Promise.resolve(
         new Response(JSON.stringify({ ...responseParams, vnp_SecureHash }), {
           status: 200,

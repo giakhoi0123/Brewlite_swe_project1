@@ -6,6 +6,7 @@ import { PrismaService } from '../src/prisma.service';
 import { ProductsModule } from '../src/products/products.module';
 import type { ProductListItem } from '../src/products/products.service';
 import { productDetailFixture } from './fixtures/product-detail';
+import { recipeFixture } from './fixtures/ingredients';
 // Reuse the detailed HTTP and pricing contract in the acceptance run.
 import '../src/products/product-detail.http.spec';
 import '../src/cart/cart-pricing.spec';
@@ -47,7 +48,7 @@ describe('Products HTTP contract', () => {
   });
 
   it('returns HTTP 200 and the public array without authentication', async () => {
-    findMany.mockResolvedValue([product]);
+    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: recipeFixture() }] }] as any);
 
     const response = await request(app.getHttpServer())
       .get('/api/products')
@@ -75,7 +76,7 @@ describe('Products HTTP contract', () => {
   });
 
   it('allows the configured local frontend origin to read the response', async () => {
-    findMany.mockResolvedValue([product]);
+    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: recipeFixture() }] }] as any);
     await request(app.getHttpServer())
       .get('/api/products')
       .set('Origin', 'http://localhost:3001')
@@ -102,7 +103,7 @@ describe('Products HTTP contract', () => {
     expect(response.body.sizes.map((size: { code: string }) => size.code)).toEqual(['S', 'M', 'L']);
     expect(response.body.defaultSizeId).toBe(detail.sizes.find((size) => size.isDefault)?.id);
     expect(response.body.toppings).toEqual(detail.toppings.map(({ topping, extraPrice, available }) => ({
-      ...topping, extraPrice, available,
+      id: topping.id, name: topping.name, extraPrice, available,
     })));
     const selected = response.body.sizes.find((size: { code: string }) => size.code === 'M');
     expect(response.body.price + selected.extraPrice + response.body.toppings[0].extraPrice).toBe(40000);

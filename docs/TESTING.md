@@ -234,9 +234,9 @@ npm --prefix backend test -- --runInBand src/payments/payments.postgres.spec.ts
 Không trỏ hai biến trên vào database demo/chung vì suite tạo và xóa fixture của riêng nó nhưng migration vẫn thay đổi schema. T08 giữ IN_PROGRESS cho đến khi browser API E2E đầy đủ và QA thủ công hoàn tất.
 
 
-## L?ch s? ri?ng nh?nh TV4 tr??c khi nh?p main ng?y 2026-10-26
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
 
-C?c b?ng ch?ng d??i ??y thu?c code v? gateway mock ? th?i ?i?m ghi nh?n, kh?ng x?c nh?n phi?n b?n VNPAY hi?n t?i.
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
 
 ## TV4 nghiệm thu theo báo cáo hoàn chỉnh — 2026-10-18
 

@@ -2,6 +2,7 @@ import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { sampleProducts } from './seed-products';
 import { seedProductCustomization } from './seed-product-customization';
+import { seedIngredients } from './seed-ingredients';
 
 const prisma = new PrismaClient();
 
@@ -28,6 +29,7 @@ async function main() {
   // Insert only: re-running seed must not restock products or overwrite edited prices.
   await prisma.product.createMany({ data: sampleProducts, skipDuplicates: true });
   await seedProductCustomization(prisma);
+  if (process.env.NODE_ENV !== 'production') await seedIngredients(prisma);
 }
 
 main()

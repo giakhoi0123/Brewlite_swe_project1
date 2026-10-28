@@ -1,3 +1,4 @@
+import { seedFixtureRecipes } from '../../test/fixtures/ingredients';
 import { createHmac, randomUUID } from 'node:crypto';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
@@ -91,6 +92,7 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
   });
 
   beforeEach(async () => {
+    await seedFixtureRecipes(db, userId, [productId], []);
     await db.payment.deleteMany({ where: { userId } });
     await db.order.deleteMany({ where: { userId } });
     await db.product.update({
@@ -109,6 +111,7 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
         await db.payment.deleteMany({ where: { userId } });
         await db.order.deleteMany({ where: { userId } });
         await db.product.deleteMany({ where: { id: productId } });
+        await db.ingredient.deleteMany({ where: { id: userId } });
         await db.user.deleteMany({ where: { id: userId } });
       }
     } finally {

@@ -1,3 +1,4 @@
+import { ingredientFixture, recipeFixture } from '../../test/fixtures/ingredients';
 import { jest } from '@jest/globals';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -31,6 +32,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
   }));
   const findMany = jest.fn(async (_args: unknown) => []);
   const db = {
+    ingredient: { findMany: async () => [ingredientFixture()], updateMany: async () => ({ count: 1 }) },
     user: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         [customer, staff].includes(where.id)
@@ -51,8 +53,8 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
           price: 29000,
           stock: 5,
           version: 1,
-          sizes: [{ code: 'M', extraPrice: 5000, available: true }],
-          toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa' } }],
+          sizes: [{ code: 'M', extraPrice: 5000, available: true, recipe: recipeFixture() }],
+          toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa', recipe: recipeFixture() } }],
         },
       ],
       updateMany,

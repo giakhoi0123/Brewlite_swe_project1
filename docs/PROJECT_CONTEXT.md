@@ -1,8 +1,12 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
-## ??ng b? 2026-10-26
+## Yêu cầu Assignment 1 phục vụ báo cáo — 2026-10-27
 
-Nh?nh hi?n h?nh feature/orders-and-inventory ?? nh?p origin/main:2c45463 v?i VNPAY, Loyalty/Promotion v? gi? Zustand. Gi? API chi ti?t v? completedAt c?a TV4; h?y PREPARING theo main m?i. Tr?ng th?i ki?m ch?ng v? gi?i h?n migration ? PROJECT_STATUS.md; c?c m? t? gateway mock ph?a d??i l? l?ch s?.
+Đã đọc đề gốc `BrewLite-CongNghePhanMem (3).pdf` và báo cáo nhóm `BrewLite_Assignment1 (1).pdf`; lưu nguồn, tiêu chí 10 task, Scrum/DoD, NFR, US01–US16 và điểm cần đối chiếu tại [ASSIGNMENT1_REQUIREMENTS.md](ASSIGNMENT1_REQUIREMENTS.md). Đọc ghi chú này khi làm báo cáo Assignment 1. Đề yêu cầu Ví/Thẻ mock; VNPAY Sandbox không tự thay thế Task 8. Barista là mở rộng nhưng state machine Task 10 vẫn bắt buộc. Nhận định trong PDF báo cáo gắn với main `2c45463`, không tự áp thành hiện trạng nhánh hiện có. Lượt này chỉ ghi nhớ tài liệu theo yêu cầu người dùng.
+
+## Đồng bộ 2026-10-26
+
+Nhánh hiện hành feature/orders-and-inventory đã nhập origin/main:2c45463 với VNPAY, Loyalty/Promotion và giỏ Zustand. Giữ API chi tiết và completedAt của TV4; hủy PREPARING theo main mới. Trạng thái kiểm chứng và giới hạn migration ở PROJECT_STATUS.md; các mô tả gateway mock phía dưới là lịch sử.
 
 ## Cập nhật VNPAY — 2026-10-21
 
@@ -31,9 +35,9 @@ Backend Prisma `backend/prisma/schema.prisma`, migration `backend/prisma/migrati
 Baseline 2026-10-17: backend Prisma generate/build/lint và 18 suites/165 tests không cần DB qua; hai suite/18 test PostgreSQL Payment mock qua trên database tạm riêng với đủ 9 migration. Đây là bằng chứng lịch sử trước VNPAY, không xác nhận gateway/IPN mới. Kết quả kiểm tra hiện hành được ghi ở `PROJECT_STATUS.md` và `TESTING.md`.
 
 
-## L?ch s? ri?ng nh?nh TV4 tr??c khi nh?p main ng?y 2026-10-26
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
 
-C?c b?ng ch?ng d??i ??y thu?c code v? gateway mock ? th?i ?i?m ghi nh?n, kh?ng x?c nh?n phi?n b?n VNPAY hi?n t?i.
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
 
 ## TV4 đối chiếu báo cáo và nghiệm thu — 2026-10-18, mới nhất
 

@@ -1,0 +1,89 @@
+@startuml use-case-system
+title Sơ đồ Use-case Tổng quát Hệ thống BrewLite
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam monochrome false
+
+actor "Khách hàng\n(Customer)" as Customer
+actor "Nhân viên Quầy / Barista\n(Staff)" as Barista
+actor "Cổng Thanh toán\n(Simulated Gateway)" as Gateway <<Secondary>>
+
+rectangle "Hệ thống BrewLite (Coffee Ordering & Cashless Payment)" {
+  ' Package Menu & Catalog
+  package "Quản lý Menu & Sản phẩm" {
+    usecase "UC01: Xem danh mục đồ uống" as UC_ViewMenu
+    usecase "UC02: Tìm kiếm & Lọc món" as UC_SearchMenu
+    usecase "UC03: Xem chi tiết & Tùy chọn món\n(Size / Topping / Đá / Đường)" as UC_ProductDetail
+  }
+
+  ' Package Giỏ hàng & Đơn hàng
+  package "Giỏ hàng & Đặt hàng" {
+    usecase "UC04: Quản lý giỏ hàng\n(Thêm / Sửa / Xóa món)" as UC_ManageCart
+    usecase "UC05: Đặt hàng (Tạo đơn PENDING)" as UC_CreateOrder
+    usecase "UC06: Áp dụng mã giảm giá" as UC_ApplyPromo
+    usecase "UC07: Kiểm tra & Giữ tồn kho" as UC_HoldStock
+  }
+
+  ' Package Thanh toán
+  package "Thanh toán không tiền mặt" {
+    usecase "UC08: Thanh toán qua Ví/Thẻ mô phỏng" as UC_Payment
+    usecase "UC09: Xử lý Idempotency & Retry" as UC_Idempotency
+    usecase "UC10: Hoàn tồn kho khi thất bại" as UC_ReleaseStock
+    usecase "UC11: Tích lũy điểm thưởng (Loyalty)" as UC_Loyalty
+  }
+
+  ' Package Theo dõi & Lịch sử
+  package "Theo dõi & Lịch sử đơn" {
+    usecase "UC12: Xem lịch sử đơn của tôi" as UC_OrderHistory
+    usecase "UC13: Theo dõi trạng thái đơn hàng" as UC_TrackOrder
+  }
+
+  ' Package Xác thực & Tài khoản
+  package "Xác thực & Người dùng" {
+    usecase "UC14: Đăng ký / Đăng nhập tài khoản" as UC_Auth
+  }
+
+  ' Package Nghiệp vụ Quầy Barista (Mở rộng)
+  package "Vận hành Quầy Barista (KDS)" {
+    usecase "UC15: Xem hàng đợi pha chế (KDS)" as UC_BaristaQueue
+    usecase "UC16: Cập nhật trạng thái pha chế\n(PREPARING -> READY -> COMPLETED)" as UC_UpdateStatus
+    usecase "UC17: Hủy đơn hàng kèm lý do" as UC_BaristaCancel
+  }
+}
+
+' Quan hệ Khách hàng
+Customer --> UC_ViewMenu
+Customer --> UC_SearchMenu
+Customer --> UC_ProductDetail
+Customer --> UC_ManageCart
+Customer --> UC_CreateOrder
+Customer --> UC_Payment
+Customer --> UC_OrderHistory
+Customer --> UC_TrackOrder
+Customer --> UC_Auth
+
+' Quan hệ includes và extends
+UC_SearchMenu .> UC_ViewMenu : <<extend>>
+UC_ManageCart .> UC_ProductDetail : <<include>>
+UC_CreateOrder .> UC_ManageCart : <<include>>
+UC_CreateOrder .> UC_HoldStock : <<include>>
+UC_CreateOrder <. UC_ApplyPromo : <<extend>>
+UC_Payment .> UC_CreateOrder : <<include>>
+UC_Payment .> UC_Idempotency : <<include>>
+UC_Payment <. UC_ReleaseStock : <<extend>> (Khi lỗi)
+UC_Payment <. UC_Loyalty : <<extend>> (Khi thành công)
+UC_TrackOrder .> UC_OrderHistory : <<extend>>
+
+' Quan hệ Cổng thanh toán
+UC_Payment --> Gateway
+
+' Quan hệ Barista
+Barista --> UC_BaristaQueue
+Barista --> UC_UpdateStatus
+Barista --> UC_BaristaCancel
+UC_BaristaCancel .> UC_ReleaseStock : <<include>>
+
+@enduml
+

@@ -1,0 +1,241 @@
+@startuml class-domain
+title Domain Class Diagram: Hệ thống BrewLite (Assignment 2)
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+enum Role {
+  CUSTOMER
+  BARISTA
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PREPARING
+  READY
+  COMPLETED
+  PAYMENT_FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  WALLET
+  CARD
+}
+
+enum PaymentStatus {
+  PROCESSING
+  PAID
+  PAYMENT_FAILED
+  UNKNOWN
+}
+
+enum ProductSizeCode {
+  S
+  M
+  L
+}
+
+class User {
+  - id: UUID
+  - email: String
+  - passwordHash: String
+  - fullName: String
+  - phone: String
+  - role: Role
+  - loyaltyPoints: Integer
+  - sessionVersion: Integer
+  - status: UserStatus
+  - createdAt: DateTime
+  - updatedAt: DateTime
+  + register(): User
+  + login(): Session
+  + logout(): void
+  + addLoyaltyPoints(pts: Integer): void
+}
+
+class Product {
+  - id: UUID
+  - name: String
+  - price: Integer
+  - imageUrl: String
+  - stock: Integer
+  - version: Integer
+  - description: String
+  + checkAvailability(qty: Integer): Boolean
+  + reserveStock(qty: Integer): void
+  + releaseStock(qty: Integer): void
+}
+
+class ProductSize {
+  - id: UUID
+  - productId: UUID
+  - code: ProductSizeCode
+  - name: String
+  - extraPrice: Integer
+  - available: Boolean
+  - isDefault: Boolean
+}
+
+class Topping {
+  - id: UUID
+  - name: String
+}
+
+class ProductTopping {
+  - productId: UUID
+  - toppingId: UUID
+  - extraPrice: Integer
+  - available: Boolean
+}
+
+class Order {
+  - id: UUID
+  - userId: UUID
+  - status: OrderStatus
+  - version: Integer
+  - subtotal: Integer
+  - discountAmount: Integer
+  - total: Integer
+  - promotionCode: String
+  - inventoryHeld: Boolean
+  - cancelReason: String
+  - completedAt: DateTime
+  - createdAt: DateTime
+  - updatedAt: DateTime
+  + calculateTotal(): Integer
+  + transitionTo(newStatus: OrderStatus): void
+  + cancel(reason: String): void
+  + holdInventory(): void
+  + releaseInventory(): void
+}
+
+class OrderItem {
+  - id: UUID
+  - orderId: UUID
+  - productId: UUID
+  - position: Integer
+  - name: String
+  - imageUrl: String
+  - size: ProductSizeCode
+  - basePrice: Integer
+  - sizePrice: Integer
+  - unitPrice: Integer
+  - qty: Integer
+  - lineTotal: Integer
+  - ice: String
+  - sugar: String
+  - note: String
+  + calculateLineTotal(): Integer
+}
+
+class OrderItemTopping {
+  - orderItemId: UUID
+  - toppingId: UUID
+  - name: String
+  - extraPrice: Integer
+}
+
+class OrderStatusHistory {
+  - id: UUID
+  - orderId: UUID
+  - fromStatus: OrderStatus
+  - toStatus: OrderStatus
+  - version: Integer
+  - createdAt: DateTime
+}
+
+class Payment {
+  - id: UUID
+  - userId: UUID
+  - orderId: UUID
+  - amount: Integer
+  - method: PaymentMethod
+  - status: PaymentStatus
+  - gatewayStatus: PaymentStatus
+  - appliedAt: DateTime
+  - idempotencyKey: UUID
+  - createdAt: DateTime
+  - updatedAt: DateTime
+  + process(): PaymentStatus
+  + isReplay(): Boolean
+  + recordGatewayOutcome(outcome: PaymentStatus): void
+}
+
+class Promotion {
+  - code: String
+  - discountType: String
+  - discountValue: Integer
+  - minOrderValue: Integer
+  - maxDiscount: Integer
+  - validFrom: DateTime
+  - validTo: DateTime
+  - active: Boolean
+  + isValid(orderTotal: Integer): Boolean
+  + applyDiscount(orderTotal: Integer): Integer
+}
+
+class LoyaltyTransaction {
+  - id: UUID
+  - userId: UUID
+  - orderId: UUID
+  - points: Integer
+  - type: String
+  - createdAt: DateTime
+  + recordPoints(userId: UUID, pts: Integer): void
+}
+
+class Cart {
+  - id: UUID
+  - userId: UUID
+  - createdAt: DateTime
+  - updatedAt: DateTime
+  + clear(): void
+}
+
+class CartItem {
+  - id: UUID
+  - cartId: UUID
+  - productId: UUID
+  - size: ProductSizeCode
+  - toppingIds: UUID[]
+  - ice: String
+  - sugar: String
+  - note: String
+  - configKey: String
+  - quantity: Integer
+  + calculatePrice(): Integer
+}
+
+' Relationships & Multiplicities
+User "1" -- "0..*" Order : places >
+User "1" -- "0..1" Cart : owns >
+User "1" -- "0..*" Payment : initiates >
+User "1" -- "0..*" LoyaltyTransaction : earns/redeems >
+
+Order "1" *-- "1..*" OrderItem : contains >
+Order "1" -- "0..*" Payment : settled by >
+Order "1" *-- "1..*" OrderStatusHistory : tracks >
+Order "0..*" -- "0..1" Promotion : applies >
+Order "1" -- "0..1" LoyaltyTransaction : generates >
+
+OrderItem "0..*" -- "1" Product : references >
+OrderItem "1" *-- "0..*" OrderItemTopping : includes >
+OrderItemTopping "0..*" -- "1" Topping : references >
+
+Product "1" *-- "1..*" ProductSize : configures >
+Product "1" *-- "0..*" ProductTopping : offers >
+ProductTopping "0..*" -- "1" Topping : associates >
+
+Cart "1" *-- "0..*" CartItem : contains >
+CartItem "0..*" -- "1" Product : references >
+
+@enduml
+

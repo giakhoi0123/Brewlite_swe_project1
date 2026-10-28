@@ -51,7 +51,10 @@ export class OrdersService {
     return this.transaction(async (tx) => {
       const products = await tx.product.findMany({
         where: { id: { in: [...new Set(dto.items.map((i) => i.productId))] } },
-        include: { sizes: true, toppings: { include: { topping: true } } },
+        include: {
+          sizes: { include: { recipe: true } },
+          toppings: { include: { topping: { include: { recipe: true } } } },
+        },
       });
       const items = dto.items.map((item, position) => {
         const product = products.find((p) => p.id === item.productId);
@@ -118,7 +121,9 @@ export class OrdersService {
       );
       if (discountAmount > subtotal)
         throw new BadRequestException('Giảm giá vượt tổng đơn');
+      const ingredientUsage = this.inventory.demand(dto.items, products);
       await this.inventory.reserve(tx, items, products);
+      await this.inventory.reserveIngredients(tx, ingredientUsage);
       const order = await tx.order.create({
         data: {
           userId,
@@ -128,6 +133,8 @@ export class OrdersService {
           promotionCode,
           status: OrderStatus.PENDING,
           inventoryHeld: true,
+          ingredientInventory: true,
+          ingredientUsage: { create: ingredientUsage },
           items: { create: items },
           statusHistory: {
             create: { toStatus: OrderStatus.PENDING, version: 1 },
@@ -310,9 +317,17 @@ export class OrdersService {
     });
     if (changed.count !== 1)
       throw new ConflictException('Đơn hàng vừa thay đổi. Vui lòng tải lại');
-    if (release && order.inventoryHeld)
+    if (release && order.inventoryHeld) {
       await this.inventory.restore(tx, order.items);
-    if (reserve) await this.inventory.reserve(tx, order.items);
+      // A drink already being prepared cannot return its ingredients to usable stock.
+      if (order.ingredientInventory && order.status !== OrderStatus.PREPARING)
+        await this.inventory.restoreIngredients(tx, order.ingredientUsage);
+    }
+    if (reserve) {
+      await this.inventory.reserve(tx, order.items);
+      if (order.ingredientInventory)
+        await this.inventory.reserveIngredients(tx, order.ingredientUsage);
+    }
     await tx.orderStatusHistory.create({
       data: {
         orderId: id,

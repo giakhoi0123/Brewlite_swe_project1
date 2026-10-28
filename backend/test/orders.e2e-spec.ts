@@ -1,3 +1,4 @@
+import { ingredientFixture, recipeFixture } from './fixtures/ingredients';
 import { jest } from '@jest/globals';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -24,6 +25,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
   const updateMany = jest.fn(async (_args: unknown) => ({ count: 1 }));
   const create = jest.fn(async ({ data }: { data: any }) => ({
     id: orderId,
+    user: { fullName: 'Orders test' },
     ...data,
     createdAt: new Date('2026-10-15T00:00:00Z'),
     items: data.items.create.map((i: any) => ({
@@ -34,6 +36,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
   }));
   const findMany = jest.fn(async (_args: unknown) => []);
   const db = {
+    ingredient: { findMany: async () => [ingredientFixture()], updateMany: async () => ({ count: 1 }) },
     user: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         [customer, staff].includes(where.id)
@@ -54,8 +57,8 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
           price: 29000,
           stock: 5,
           version: 1,
-          sizes: [{ code: 'M', extraPrice: 5000, available: true }],
-          toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa' } }],
+          sizes: [{ code: 'M', extraPrice: 5000, available: true, recipe: recipeFixture() }],
+          toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa', recipe: recipeFixture() } }],
         },
       ],
       updateMany,
@@ -276,6 +279,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
     findFirst.mockResolvedValue({
       id: orderId,
       userId: customer,
+      user: { fullName: 'Orders test' },
       status: 'PENDING',
       subtotal: 68000,
       discountAmount: 0,

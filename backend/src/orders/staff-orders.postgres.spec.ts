@@ -1,3 +1,4 @@
+import { seedFixtureRecipes } from '../../test/fixtures/ingredients';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -126,6 +127,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
     await app.init();
   });
   beforeEach(async () => {
+    await seedFixtureRecipes(db, staffId, [productId], [toppingId]);
     await db.order.deleteMany({
       where: { userId: { in: [customerId, otherId] } },
     });
@@ -141,6 +143,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
     });
     await db.product.deleteMany({ where: { id: productId } });
     await db.topping.deleteMany({ where: { id: toppingId } });
+    await db.ingredient.deleteMany({ where: { id: staffId } });
     await db.user.deleteMany({
       where: { id: { in: [customerId, staffId, otherId] } },
     });

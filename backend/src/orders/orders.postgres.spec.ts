@@ -1,3 +1,4 @@
+import { seedFixtureRecipes } from '../../test/fixtures/ingredients';
 import { randomUUID } from 'node:crypto';
 import { ConflictException, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -64,6 +65,7 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
     }
   });
   beforeEach(async () => {
+    await seedFixtureRecipes(db, userId, productIds, [toppingId]);
     await db.order.deleteMany({ where: { userId } });
     await db.product.updateMany({
       where: { id: { in: productIds } },
@@ -76,6 +78,7 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
     await db.order.deleteMany({ where: { userId } });
     await db.product.deleteMany({ where: { id: { in: productIds } } });
     await db.topping.deleteMany({ where: { id: toppingId } });
+    await db.ingredient.deleteMany({ where: { id: userId } });
     await db.user.deleteMany({ where: { id: userId } });
     await db.$disconnect();
   });
@@ -221,7 +224,8 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
       where: { id: productIds[0] },
       data: {
         price: 30000,
-        sizes: { create: { code: 'L', name: 'Large', extraPrice: 9000 } },
+        sizes: { create: { code: 'L', name: 'Large', extraPrice: 9000,
+          recipe: { create: { ingredientId: userId, amount: 15 } } } },
       },
     });
     process.env.JWT_SECRET = 'orders-postgres-http-test-only';

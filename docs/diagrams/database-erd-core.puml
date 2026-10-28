@@ -1,0 +1,146 @@
+@startuml database-erd-core
+title Sơ đồ ERD Trọng tâm: Quản lý Nguyên vật liệu, Định mức Ly & Topping và Trừ kho
+hide circle
+skinparam roundcorner 5
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam dpi 150
+
+skinparam class {
+  BackgroundColor White
+  ArrowColor #334155
+  BorderColor #475569
+}
+
+' ============================================================
+' 1. SẢN PHẨM & CẤU HÌNH (Vàng nhạt)
+' ============================================================
+class "products\n(Sản phẩm)" as products #FEF3C7 {
+  * **id** : uuid <<PK>>
+  --
+  * name : varchar(255)
+  * price : int
+  * stock : int (Giới hạn bán)
+}
+
+class "product_sizes\n(Size ly)" as product_sizes #FEF3C7 {
+  * **id** : uuid <<PK>>
+  --
+  * # product_id : uuid <<FK>>
+  * code : ProductSizeCode (S, M, L)
+  * name : varchar(50)
+  * extra_price : int
+}
+
+class "toppings\n(Topping)" as toppings #FEF3C7 {
+  * **id** : uuid <<PK>>
+  --
+  * name : varchar(255)
+}
+
+class "product_toppings" as product_toppings #FEF3C7 {
+  * # **product_id** : uuid <<PK, FK>>
+  * # **topping_id** : uuid <<PK, FK>>
+  --
+  * extra_price : int
+}
+
+' ============================================================
+' 2. KHO NGUYÊN LIỆU & ĐỊNH MỨC CÔNG THỨC (Xanh ngọc / Mint)
+' ============================================================
+class "ingredients\n(Nguyên vật liệu trong kho)" as ingredients #D1FAE5 {
+  * **id** : uuid <<PK>>
+  --
+  * name : varchar(120) <<UQ>>
+  * unit : IngredientUnit (G / ML / PIECE)
+  * stock : decimal(12,3) (Tồn kho thực tế)
+  * version : int (Khóa lạc quan)
+}
+
+class "product_recipes\n(Định mức 1 ly theo Size)" as product_recipes #D1FAE5 {
+  * # **product_size_id** : uuid <<PK, FK>>
+  * # **ingredient_id** : uuid <<PK, FK>>
+  --
+  * amount : decimal(12,3) (Lượng cho 1 ly)
+}
+
+class "topping_recipes\n(Định mức 1 phần Topping)" as topping_recipes #D1FAE5 {
+  * # **topping_id** : uuid <<PK, FK>>
+  * # **ingredient_id** : uuid <<PK, FK>>
+  --
+  * amount : decimal(12,3) (Lượng cho 1 phần)
+}
+
+class "order_ingredient_usage\n(Snapshot nguyên liệu đã trừ)" as order_ingredient_usage #D1FAE5 {
+  * # **order_id** : uuid <<PK, FK>>
+  * # **ingredient_id** : uuid <<PK, FK>>
+  --
+  * amount : decimal(12,3) (Tổng lượng đã trừ)
+}
+
+' ============================================================
+' 3. ĐƠN HÀNG & CHI TIẾT (Cam nhạt)
+' ============================================================
+class "orders\n(Đơn hàng)" as orders #FFEDD5 {
+  * **id** : uuid <<PK>>
+  --
+  * # user_id : uuid <<FK>>
+  * status : OrderStatus
+  * subtotal : int
+  * total : int
+  * ingredient_inventory : boolean
+}
+
+class "order_items\n(Ly nước đã đặt)" as order_items #FFEDD5 {
+  * **id** : uuid <<PK>>
+  --
+  * # order_id : uuid <<FK>>
+  * # product_id : uuid <<FK>>
+  * size : ProductSizeCode
+  * qty : int (Số lượng ly)
+  * unit_price : int
+  * line_total : int
+}
+
+class "order_item_toppings\n(Topping chọn cho từng ly)" as order_item_toppings #FFEDD5 {
+  * # **order_item_id** : uuid <<PK, FK>>
+  * # **topping_id** : uuid <<PK, FK>>
+  --
+  * extra_price : int
+}
+
+' ============================================================
+' LIÊN KẾT RÕ RÀNG, TINH GỌN (THEO LUỒNG NGHIỆP VỤ)
+' ============================================================
+
+' Công thức 1 ly theo size
+products ||-down-|{ product_sizes
+product_sizes ||-right-o{ product_recipes
+ingredients ||-left-o{ product_recipes
+
+' Công thức topping
+products ||-right-o{ product_toppings
+toppings ||-left-o{ product_toppings
+toppings ||-down-o{ topping_recipes
+ingredients ||-right-o{ topping_recipes
+
+' Đơn hàng & Chi tiết từng ly
+orders ||-down-|{ order_items
+products ||-down-o{ order_items
+order_items ||-right-o{ order_item_toppings
+toppings ||-down-o{ order_item_toppings
+
+' Trừ kho nguyên liệu (Snapshot)
+orders ||-right-o{ order_ingredient_usage
+ingredients ||-down-o{ order_ingredient_usage
+
+note bottom of order_ingredient_usage
+  <b>Công thức trừ kho đơn hàng:</b>
+  Nhu cầu = Σ [ Số ly × (Định mức size + Σ Định mức topping) ]
+  Trừ kho nguyên tử bằng Optimistic Locking;
+  Hủy đơn hoàn kho (trừ khi đang pha PREPARING).
+end note
+
+@enduml
+

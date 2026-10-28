@@ -1,3 +1,4 @@
+import { recipeFixture } from '../../test/fixtures/ingredients';
 import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -43,7 +44,7 @@ describe('Products HTTP contract', () => {
   });
 
   it('returns HTTP 200 and the public array without authentication', async () => {
-    findMany.mockResolvedValue([product]);
+    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: recipeFixture() }] }] as any);
 
     const response = await request(app.getHttpServer())
       .get('/api/products')
@@ -71,7 +72,7 @@ describe('Products HTTP contract', () => {
   });
 
   it('allows the configured local frontend origin to read the response', async () => {
-    findMany.mockResolvedValue([product]);
+    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: recipeFixture() }] }] as any);
     await request(app.getHttpServer())
       .get('/api/products')
       .set('Origin', 'http://localhost:3001')
