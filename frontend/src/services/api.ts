@@ -117,14 +117,77 @@ export const apiLoyalty: LoyaltyService = {
       return { points: response.user.loyaltyPoints };
     }
   },
-  redeem: async (_userId, option: RewardOption) =>
-    request<{ success: boolean; code: string; remainingPoints: number }>(
+
+  /**
+   * Bộ xử lý tham số linh hoạt chống lỗi 400 Bad Request & nhầm lẫn thông số gói đổi điểm
+   */
+  redeem: async (...args: any[]) => {
+    let points = 50;
+    let discount = 10000;
+    let minOrder = 0;
+
+    const validArgs = args.filter((a) => a !== null && a !== undefined);
+
+    // 1. Trường hợp tham số truyền vào là Object
+    const objArg = validArgs.find((a) => typeof a === "object");
+    if (objArg) {
+      points = Number(objArg.points || objArg.pointsToRedeem || 50);
+      discount = Number(
+        objArg.discountAmount ||
+          objArg.discount ||
+          (points >= 200 ? 50000 : points >= 100 ? 20000 : 10000),
+      );
+      minOrder = Number(
+        objArg.minOrderValue ?? (discount >= 50000 ? 100000 : 0),
+      );
+    } else {
+      // 2. Trường hợp tham số truyền vào là các số rời
+      const numArgs = validArgs.filter((a) => typeof a === "number");
+
+      if (numArgs.length === 1) {
+        // Ví dụ: redeem(50) hoặc redeem(200)
+        points = numArgs[0];
+        discount = points >= 200 ? 50000 : points >= 100 ? 20000 : 10000;
+        minOrder = discount >= 50000 ? 100000 : 0;
+      } else if (numArgs.length >= 2) {
+        // Kiểm tra xem số đầu tiên có phải là số điểm (thường <= 1000)
+        if (numArgs[0] <= 1000) {
+          // Ví dụ: redeem(50, 10000, 0) hoặc redeem(200, 50000, 100000)
+          points = numArgs[0];
+          discount = numArgs[1];
+          minOrder = numArgs[2] ?? (discount >= 50000 ? 100000 : 0);
+        } else {
+          // Nếu số đầu tiên lớn (> 1000), có thể là tiền giảm giá hoặc tham số bị lệch
+          discount = numArgs[0];
+          points = discount >= 50000 ? 200 : discount >= 20000 ? 100 : 50;
+          minOrder = numArgs[1] ?? (discount >= 50000 ? 100000 : 0);
+        }
+      }
+    }
+
+    // Đảm bảo dữ liệu hợp lệ trước khi gửi API
+    if (isNaN(points) || points <= 0) points = 50;
+    if (isNaN(discount) || discount <= 0) {
+      discount = points >= 200 ? 50000 : points >= 100 ? 20000 : 10000;
+    }
+    if (isNaN(minOrder) || minOrder < 0) {
+      minOrder = discount >= 50000 ? 100000 : 0;
+    }
+
+    console.log(`🎁 [REDEEM API CALL]: Points=${points}, Discount=${discount}đ, MinOrder=${minOrder}đ`);
+
+    return request<{ success: boolean; voucherCode: string; code: string; remainingPoints: number }>(
       "/loyalty/redeem",
       {
         method: "POST",
-        body: JSON.stringify({ rewardOptionId: option.id }),
+        body: JSON.stringify({
+          pointsToRedeem: points,
+          discountAmount: discount,
+          minOrderValue: minOrder,
+        }),
       },
-    ),
+    );
+  },
 };
 
 export const apiBarista: BaristaOrderService = {

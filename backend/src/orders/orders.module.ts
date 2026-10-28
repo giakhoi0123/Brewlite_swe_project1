@@ -10,7 +10,7 @@ import { PromotionsController } from './promotions.controller';
 
 @Module({
   imports: [AuthModule, PrismaModule, InventoryModule],
-  controllers: [OrdersController, StaffOrdersController, PromotionsController],
+  controllers: [OrdersController, StaffOrdersController],
   providers: [
     OrdersService,
     { provide: ORDER_DISCOUNT, useClass: PromotionDiscount },

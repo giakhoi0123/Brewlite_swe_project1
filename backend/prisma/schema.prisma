@@ -272,3 +272,21 @@ model LoyaltyLog {
   @@index([userId, createdAt])
   @@map("loyalty_logs")
 }
+
+model Promotion {
+  id                String    @id @default(uuid())
+  code              String    @unique
+  name              String?
+  description       String?
+  discountType      String    @default("FIXED_AMOUNT")
+  discountValue     Float
+  minOrderValue     Float     @default(0)
+  maxDiscountAmount Float?
+  startDate         DateTime? @default(now())
+  endDate           DateTime?
+  usageLimit        Int?
+  usageCount        Int       @default(0)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}

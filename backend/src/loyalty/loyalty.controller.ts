@@ -1,48 +1,22 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-  BadRequestException,
-} from '@nestjs/common';
-import { Role } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
+import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { LoyaltyService } from './loyalty.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('loyalty')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.CUSTOMER)
 export class LoyaltyController {
   constructor(private readonly loyaltyService: LoyaltyService) {}
 
-  @Get('me')
-  async getMine(@Req() req: { user: { userId: string } }) {
-    return this.loyaltyService.getPoints(req.user.userId);
-  }
-
-  @Get(':userId')
-  async getPoints(@Param('userId') userId: string) {
-    return this.loyaltyService.getPoints(userId);
-  }
-
   @Post('redeem')
+  @UseGuards(JwtAuthGuard)
   async redeem(
-    @Req() req: { user: { userId: string } },
-    @Body() body: { rewardOptionId?: string; id?: string; rewardId?: string; optionId?: string },
+    @Body() body: { pointsToRedeem: number; discountAmount: number; minOrderValue?: number },
+    @Req() req: any,
   ) {
-    const userId = req.user.userId;
-    const optionId =
-      body?.rewardOptionId || body?.id || body?.rewardId || body?.optionId;
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
+    const points = Number(body.pointsToRedeem);
+    const discount = Number(body.discountAmount);
+    const minOrder = Number(body.minOrderValue || 0);
 
-    if (!optionId) {
-      throw new BadRequestException('Chưa xác định được gói quà muốn đổi');
-    }
-
-    return this.loyaltyService.redeem(userId, optionId);
+    return this.loyaltyService.redeemPoints(userId, points, discount, minOrder);
   }
 }

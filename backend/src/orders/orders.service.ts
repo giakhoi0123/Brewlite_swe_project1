@@ -134,12 +134,20 @@ export class OrdersService {
         include: orderInclude,
       });
 
-      // 💡 BỔ SUNG: ĐÁNH DẤU MÃ VOUCHER ĐÃ ĐƯỢC SỬ DỤNG
+      // ĐÁNH DẤU MÃ VOUCHER ĐÃ ĐƯỢC SỬ DỤNG VÀ TĂNG LỢT SỬ DỤNG NGUYÊN TỬ
       if (promotionCode) {
         try {
           const db = tx as any;
 
-          // 1. Cập nhật bảng UserCoupon (nếu có)
+          // 1. Cập nhật bảng Promotion (nếu dùng model Promotion chuẩn)
+          if (db.promotion) {
+            await db.promotion.updateMany({
+              where: { code: promotionCode },
+              data: { usageCount: { increment: 1 } },
+            });
+          }
+
+          // 2. Cập nhật bảng UserCoupon (nếu có)
           if (db.userCoupon) {
             await db.userCoupon.updateMany({
               where: { code: promotionCode, userId },
@@ -147,7 +155,7 @@ export class OrdersService {
             });
           }
 
-          // 2. Tạo record trong CouponUsage (nếu có)
+          // 3. Tạo record trong CouponUsage (nếu có)
           if (db.couponUsage) {
             await db.couponUsage.create({
               data: {
@@ -158,7 +166,7 @@ export class OrdersService {
             });
           }
 
-          // 3. Cập nhật bảng LoyaltyTransaction (nếu có)
+          // 4. Cập nhật bảng LoyaltyTransaction (nếu có)
           if (db.loyaltyTransaction) {
             await db.loyaltyTransaction.updateMany({
               where: { code: promotionCode, userId },
@@ -166,7 +174,7 @@ export class OrdersService {
             });
           }
         } catch (e) {
-          // Bỏ qua nếu bảng phụ chưa có
+          // Bỏ qua nếu bảng phụ không tồn tại
         }
       }
 
@@ -288,14 +296,28 @@ export class OrdersService {
     if (to === OrderStatus.PAID && order.status !== OrderStatus.PAID) {
       const pointsToEarn = Math.floor(order.total / 10000);
       if (pointsToEarn > 0) {
-        await tx.user.update({
-          where: { id: order.userId },
-          data: {
-            loyaltyPoints: {
-              increment: pointsToEarn,
-            },
-          },
-        });
+        const db = tx as any;
+        if (db.user) {
+          try {
+            await db.user.update({
+              where: { id: order.userId },
+              data: {
+                totalLoyaltyPoints: {
+                  increment: pointsToEarn,
+                },
+              },
+            });
+          } catch (e) {
+            await db.user.update({
+              where: { id: order.userId },
+              data: {
+                loyaltyPoints: {
+                  increment: pointsToEarn,
+                },
+              },
+            });
+          }
+        }
         console.log(
           `[LOYALTY] Đã cộng ${pointsToEarn} điểm cho user ${order.userId} từ đơn hàng ${order.id}`,
         );
