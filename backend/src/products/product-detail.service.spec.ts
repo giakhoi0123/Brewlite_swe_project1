@@ -21,7 +21,7 @@ describe('Product detail service', () => {
     expect(detail.defaultSizeId).toBe(record.sizes[1].id);
     expect(detail.sizes.map((size) => size.code)).toEqual(['S', 'M', 'L']);
     expect(detail.sizes[2].available).toBe(false);
-    expect(detail.toppings[1]).toEqual({ ...record.toppings[1].topping, extraPrice: 6000, available: false });
+    expect(detail.toppings[1]).toEqual({ id: record.toppings[1].topping.id, name: record.toppings[1].topping.name, extraPrice: 6000, available: false });
     expect(detail.sizes[0]).not.toHaveProperty('isDefault');
   });
 

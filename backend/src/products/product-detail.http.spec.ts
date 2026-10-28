@@ -34,7 +34,7 @@ describe('Product detail HTTP', () => {
       expect(Object.keys(size).sort()).toEqual(['available', 'code', 'extraPrice', 'id', 'name']);
       expect(Number.isInteger(size.extraPrice) && size.extraPrice >= 0).toBe(true);
     }
-    expect(response.body.toppings).toEqual(record.toppings.map(({ topping, ...option }) => ({ ...topping, ...option })));
+    expect(response.body.toppings).toEqual(record.toppings.map(({ topping, ...option }) => ({ id: topping.id, name: topping.name, ...option })));
     expect(response.body.stock).toBe(record.stock);
   });
 

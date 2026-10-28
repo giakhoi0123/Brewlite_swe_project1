@@ -24,7 +24,7 @@ describe('Payments HTTP contract', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate: (context: {
-          switchToHttp(): { getRequest(): { user?: { userId: string } } };
+          switchToHttp(): { getRequest(): { user?: { userId: string; role: Role } } };
         }) => {
           context.switchToHttp().getRequest().user = {
             userId: 'customer-1',

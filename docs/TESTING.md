@@ -232,3 +232,22 @@ npm --prefix backend test -- --runInBand src/payments/payments.postgres.spec.ts
 ```
 
 Không trỏ hai biến trên vào database demo/chung vì suite tạo và xóa fixture của riêng nó nhưng migration vẫn thay đổi schema. T08 giữ IN_PROGRESS cho đến khi browser API E2E đầy đủ và QA thủ công hoàn tất.
+
+
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
+
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
+
+## TV4 nghiệm thu theo báo cáo hoàn chỉnh — 2026-10-18
+
+**25 suites / 272 tests PASS, 0 skipped**, bật đầy đủ suite PostgreSQL trên database UUID riêng, đủ 11 migrations, tự dọn sau test. Hai bài mới trong `staff-orders.postgres.spec.ts` xác minh hai CUSTOMER tranh stock=1 qua HTTP và xác nhận COMPLETED đồng thời chỉ ghi một timestamp/history. Backend build local/Docker, lint và full TypeScript check PASS.
+
+`node backend/scripts/verify-tv4-browser.cjs`: build frontend Webpack/API mode, backend thật, hai BrowserContext login thật, checkout + gateway Payment mô phỏng → queue PAID → PREPARING → READY → COMPLETED; khách refresh kiểm tra từng trạng thái. **PASS tại 1440/768/390**. Hủy/terminal history/detail kiểm bằng cookie hai phiên qua API thật; không nhận là UI hủy/lịch sử đã chạy. DB riêng tự dọn, không thay DB ứng dụng. [Hướng dẫn, ma trận và ảnh/log](TV4_ACCEPTANCE.md).
+
+Lượt xác minh trước commit/push: chạy lại đầy đủ backend và browser trên, frontend service tests **14/14 PASS**, frontend build cấu hình local PASS. `npm.cmd --prefix frontend run lint` **FAIL 1 lỗi** `react-hooks/preserve-manual-memoization` ở `src/app/profile/page.tsx:21`, giống `origin/main`, không nằm trong diff TV4. Backend lint/full typecheck PASS. Runner browser ghi chung stdout/stderr an toàn và đối chiếu lịch sử theo `version`.
+
+## Backend Barista TV4 — bằng chứng trước khi nhập main
+
+Commit `abd7343`: Prisma generate, backend build local/Docker và lint PASS; `verify-orders-postgres.cjs` chạy **19 suites/191 tests PASS, 0 skipped**, gồm 22 bài PostgreSQL và 9 migrations trên database UUID riêng đã dọn. Kiểm tra detail/role, hủy PENDING/PAID/PAYMENT_FAILED có lý do, reason validation, chặn status bypass, terminal immutability, completedAt, active + terminal list, cancel races, rollback và migration dữ liệu cũ.
+
+Sau khi nhập `origin/main:b87db13` ngày 2026-10-18, lần chạy đầu tìm thấy một fixture `payment-status.postgres.spec.ts` còn gọi `staffTransition(...,'CANCELLED')`; production API từ chối đúng vì thiếu reason. Fixture được đổi sang `staffCancel(...,'Khách yêu cầu hủy')`, không thay logic Payment. Chạy lại trên image mới: Prisma generate, backend build local/Docker, lint và **25 suites/270 tests PASS, 0 skipped**. Script áp đủ 11 migration trên PostgreSQL tạm `brewlite_orders_test_<uuid>` rồi xóa DB thành công. Frontend Webpack production build PASS và unit **14/14 PASS**; unit cần chạy ngoài sandbox trên máy Windows vì `tsx` trong sandbox báo `uv_os_get_passwd ENOMEM`. Đây là bằng chứng tích hợp sau merge; chưa chạy browser E2E ở lượt cập nhật này.

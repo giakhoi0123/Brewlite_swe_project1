@@ -51,7 +51,10 @@ export class OrdersService {
     return this.transaction(async (tx) => {
       const products = await tx.product.findMany({
         where: { id: { in: [...new Set(dto.items.map((i) => i.productId))] } },
-        include: { sizes: true, toppings: { include: { topping: true } } },
+        include: {
+          sizes: { include: { recipe: true } },
+          toppings: { include: { topping: { include: { recipe: true } } } },
+        },
       });
       const items = dto.items.map((item, position) => {
         const product = products.find((p) => p.id === item.productId);
@@ -118,7 +121,9 @@ export class OrdersService {
       );
       if (discountAmount > subtotal)
         throw new BadRequestException('Giảm giá vượt tổng đơn');
+      const ingredientUsage = this.inventory.demand(dto.items, products);
       await this.inventory.reserve(tx, items, products);
+      await this.inventory.reserveIngredients(tx, ingredientUsage);
       const order = await tx.order.create({
         data: {
           userId,
@@ -128,8 +133,12 @@ export class OrdersService {
           promotionCode,
           status: OrderStatus.PENDING,
           inventoryHeld: true,
+          ingredientInventory: true,
+          ingredientUsage: { create: ingredientUsage },
           items: { create: items },
-          statusHistory: { create: { toStatus: OrderStatus.PENDING, version: 1 } },
+          statusHistory: {
+            create: { toStatus: OrderStatus.PENDING, version: 1 },
+          },
         } satisfies Prisma.OrderUncheckedCreateInput,
         include: orderInclude,
       });
@@ -220,44 +229,68 @@ export class OrdersService {
   async staffList() {
     return (
       await this.prisma.order.findMany({
-        where: { status: { in: ['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] } },
+        where: {
+          status: {
+            in: ['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'],
+          },
+        },
         include: orderInclude,
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       })
     ).map(orderResponse);
   }
 
+  async staffGet(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: orderInclude,
+    });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    return orderResponse(order);
+  }
+
+  async staffCancel(id: string, reason: string) {
+    return this.transaction(async (tx) =>
+      orderResponse(
+        await this.transitionInTransaction(
+          tx,
+          id,
+          OrderStatus.CANCELLED,
+          reason,
+        ),
+      ),
+    );
+  }
+
   async staffTransition(id: string, to: OrderStatus) {
-    if (
-      !(
-        ['PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] as OrderStatus[]
-      ).includes(to)
-    ) {
-      throw new BadRequestException('Barista không được xác nhận thanh toán');
+    if (!(['PREPARING', 'READY', 'COMPLETED'] as OrderStatus[]).includes(to)) {
+      throw new BadRequestException(
+        'Chỉ cho phép PREPARING, READY hoặc COMPLETED; hủy đơn phải dùng API cancel kèm lý do',
+      );
     }
     return this.transaction(async (tx) =>
       orderResponse(await this.transitionInTransaction(tx, id, to)),
     );
   }
 
-  async staffCancel(id: string, reason: string) {
-    const trimmed = reason.trim();
-    if (!trimmed) throw new BadRequestException('Cần ghi lý do hủy đơn');
-    return this.transaction(async (tx) =>
-      orderResponse(await this.transitionInTransaction(tx, id, OrderStatus.CANCELLED, trimmed)),
-    );
-  }
-
   /** Internal TV5/TV6 integration only. Caller MUST propagate errors to roll back its transaction.
    * Verify ownership in PaymentsModule; persist payment/idempotency/loyalty in the same tx.
    * UNKNOWN must not call this method. Retry PAYMENT_FAILED -> PENDING before gateway attempt.
+   * CANCELLED requires a reason as the fourth argument, including internal callers.
    */
   async transitionInTransaction(
     tx: Prisma.TransactionClient,
     id: string,
     to: OrderStatus,
-    cancelReason?: string,
+    reason?: string,
   ) {
+    const cancelReason = typeof reason === 'string' ? reason.trim() : '';
+    if (
+      to === OrderStatus.CANCELLED &&
+      (!cancelReason || Array.from(cancelReason).length > 300)
+    ) {
+      throw new BadRequestException('Lý do hủy phải có từ 1 đến 300 ký tự');
+    }
     const order = await tx.order.findUnique({
       where: { id },
       include: orderInclude,
@@ -268,6 +301,7 @@ export class OrdersService {
       to === OrderStatus.CANCELLED || to === OrderStatus.PAYMENT_FAILED;
     const reserve =
       order.status === OrderStatus.PAYMENT_FAILED && to === OrderStatus.PENDING;
+    const transitionedAt = new Date();
     // Version also prevents ABA races across PAYMENT_FAILED -> PENDING retry cycles.
     const changed = await tx.order.updateMany({
       where: { id, status: order.status, version: order.version },
@@ -275,20 +309,32 @@ export class OrdersService {
         status: to,
         version: { increment: 1 },
         inventoryHeld: release ? false : reserve ? true : order.inventoryHeld,
-        ...(to === OrderStatus.CANCELLED && cancelReason ? { cancelReason } : {}),
+        ...(to === OrderStatus.CANCELLED ? { cancelReason } : {}),
+        ...(to === OrderStatus.COMPLETED
+          ? { completedAt: transitionedAt }
+          : {}),
       },
     });
     if (changed.count !== 1)
       throw new ConflictException('Đơn hàng vừa thay đổi. Vui lòng tải lại');
-    if (release && order.inventoryHeld)
+    if (release && order.inventoryHeld) {
       await this.inventory.restore(tx, order.items);
-    if (reserve) await this.inventory.reserve(tx, order.items);
+      // A drink already being prepared cannot return its ingredients to usable stock.
+      if (order.ingredientInventory && order.status !== OrderStatus.PREPARING)
+        await this.inventory.restoreIngredients(tx, order.ingredientUsage);
+    }
+    if (reserve) {
+      await this.inventory.reserve(tx, order.items);
+      if (order.ingredientInventory)
+        await this.inventory.reserveIngredients(tx, order.ingredientUsage);
+    }
     await tx.orderStatusHistory.create({
       data: {
         orderId: id,
         fromStatus: order.status,
         toStatus: to,
         version: order.version + 1,
+        createdAt: transitionedAt,
       },
     });
 

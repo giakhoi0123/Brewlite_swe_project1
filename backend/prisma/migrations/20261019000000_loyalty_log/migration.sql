@@ -1,4 +1,4 @@
-ALTER TABLE "orders" ADD COLUMN "cancel_reason" TEXT;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "cancel_reason" TEXT;
 
 CREATE TABLE "loyalty_logs" (
   "id" UUID NOT NULL,

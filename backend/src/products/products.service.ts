@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException, NotFoundException } from '@ne
 import type { Product } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { productDetailSelect, type ProductDetail } from './product-detail';
+import { recipeCapacity } from '../inventory/recipe-capacity';
 
 export type ProductListItem = Pick<Product, 'id' | 'name' | 'price' | 'imageUrl' | 'stock' | 'description'>;
 
@@ -9,11 +10,14 @@ export type ProductListItem = Pick<Product, 'id' | 'name' | 'price' | 'imageUrl'
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Promise<ProductListItem[]> {
-    return this.prisma.product.findMany({
-      select: { id: true, name: true, price: true, imageUrl: true, stock: true, description: true },
+  async findAll(): Promise<ProductListItem[]> {
+    const products = await this.prisma.product.findMany({
+      select: { id: true, name: true, price: true, imageUrl: true, stock: true, description: true,
+        sizes: { select: { available: true, recipe: { include: { ingredient: true } } } } },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
+    return products.map(({ sizes, ...product }) => ({ ...product,
+      stock: Math.min(product.stock, Math.max(0, ...sizes.filter((s) => s.available).map((s) => recipeCapacity(s.recipe)))) }));
   }
 
   async findOne(id: string): Promise<ProductDetail> {
@@ -31,18 +35,22 @@ export class ProductsService {
       throw new InternalServerErrorException();
     }
 
+    const sizes = product.sizes.map((size) => ({
+      id: size.id, code: size.code, name: size.name, extraPrice: size.extraPrice,
+      available: size.available && recipeCapacity(size.recipe) > 0,
+    }));
+    const defaultSize = sizes.find((s) => s.id === defaults[0].id && s.available)
+      ?? sizes.find((s) => s.available) ?? sizes.find((s) => s.id === defaults[0].id)!;
     return {
       id: product.id,
       name: product.name,
       description: product.description,
       imageUrl: product.imageUrl,
       price: product.price,
-      stock: product.stock,
-      sizes: product.sizes.map((size) => ({
-        id: size.id, code: size.code, name: size.name, extraPrice: size.extraPrice, available: size.available,
-      })),
-      toppings: product.toppings.map(({ topping, extraPrice, available }) => ({ ...topping, extraPrice, available })),
-      defaultSizeId: defaults[0].id,
+      stock: Math.min(product.stock, Math.max(0, ...product.sizes.filter((s) => s.available).map((s) => recipeCapacity(s.recipe)))),
+      sizes,
+      toppings: product.toppings.map(({ topping, extraPrice, available }) => ({ id: topping.id, name: topping.name, extraPrice, available: available && recipeCapacity(topping.recipe) > 0 })),
+      defaultSizeId: defaultSize.id,
     };
   }
 }

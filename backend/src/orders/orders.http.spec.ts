@@ -1,3 +1,4 @@
+import { ingredientFixture, recipeFixture } from '../../test/fixtures/ingredients';
 import { jest } from '@jest/globals';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -20,6 +21,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
   const updateMany = jest.fn(async (_args: unknown) => ({ count: 1 }));
   const create = jest.fn(async ({ data }: { data: any }) => ({
     id: orderId,
+    user: { fullName: 'Customer test' },
     ...data,
     createdAt: new Date('2026-10-15T00:00:00Z'),
     items: data.items.create.map((i: any) => ({
@@ -30,6 +32,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
   }));
   const findMany = jest.fn(async (_args: unknown) => []);
   const db = {
+    ingredient: { findMany: async () => [ingredientFixture()], updateMany: async () => ({ count: 1 }) },
     user: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         [customer, staff].includes(where.id)
@@ -50,13 +53,13 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
           price: 29000,
           stock: 5,
           version: 1,
-          sizes: [{ code: 'M', extraPrice: 5000, available: true }],
-          toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa' } }],
+          sizes: [{ code: 'M', extraPrice: 5000, available: true, recipe: recipeFixture() }],
+          toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa', recipe: recipeFixture() } }],
         },
       ],
       updateMany,
     },
-    order: { create, findFirst, findMany },
+    order: { create, findFirst, findMany, findUnique: findFirst },
     $connect: async () => {},
     $disconnect: async () => {},
     $transaction: async (
@@ -207,6 +210,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
       `/orders/${orderId}`,
       `/orders/${orderId}/status`,
       '/staff/orders',
+      `/staff/orders/${orderId}`,
     ]) {
       await request(app.getHttpServer()).get(`/api${path}`).expect(401);
     }
@@ -247,7 +251,13 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
       .set('Origin', 'http://localhost:3000')
       .send({ status: 'CANCELLED' })
       .expect(403);
-    for (const status of ['PAID', 'PENDING', 'PAYMENT_FAILED', 'UNKNOWN']) {
+    for (const status of [
+      'PAID',
+      'PENDING',
+      'PAYMENT_FAILED',
+      'UNKNOWN',
+      'CANCELLED',
+    ]) {
       await request(app.getHttpServer())
         .patch(`/api/staff/orders/${orderId}/status`)
         .set('Cookie', cookie(staff))
@@ -261,6 +271,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
     findFirst.mockResolvedValue({
       id: orderId,
       userId: customer,
+      user: { fullName: 'Customer test' },
       status: 'PENDING',
       subtotal: 68000,
       discountAmount: 0,
@@ -273,5 +284,64 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
       .set('Cookie', cookie())
       .expect('Content-Type', /json/)
       .expect(200, { status: 'PENDING' });
+  });
+
+  it.each([
+    {},
+    { reason: null },
+    { reason: 123 },
+    { reason: ['x'] },
+    { reason: '' },
+    { reason: ' \n\t ' },
+    { reason: 'x'.repeat(301) },
+    { reason: 'Hết nguyên liệu', status: 'CANCELLED' },
+  ])(
+    'rejects invalid cancellation payload %# before accessing an order',
+    async (body) => {
+      await request(app.getHttpServer())
+        .patch(`/api/staff/orders/${orderId}/cancel`)
+        .set('Cookie', cookie(staff))
+        .set('Origin', 'http://localhost:3000')
+        .send(body)
+        .expect(400);
+      expect(findFirst).not.toHaveBeenCalled();
+      expect(updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('protects staff detail and cancellation with role, session and Origin', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/staff/orders/${orderId}`)
+      .set('Cookie', cookie())
+      .expect(403);
+    await request(app.getHttpServer())
+      .get(`/api/staff/orders/${orderId}`)
+      .set('Cookie', cookie(staff))
+      .expect(404);
+    await request(app.getHttpServer())
+      .get('/api/staff/orders/not-a-uuid')
+      .set('Cookie', cookie(staff))
+      .expect(400);
+    const cancel = () =>
+      request(app.getHttpServer()).patch(`/api/staff/orders/${orderId}/cancel`);
+    await cancel().send({ reason: 'Hết nguyên liệu' }).expect(401);
+    await cancel()
+      .set('Cookie', cookie())
+      .set('Origin', 'http://localhost:3000')
+      .send({ reason: 'Hết nguyên liệu' })
+      .expect(403);
+    for (const origin of ['', 'https://foreign.example']) {
+      await cancel()
+        .set('Cookie', cookie(staff))
+        .set('Origin', origin)
+        .send({ reason: 'Hết nguyên liệu' })
+        .expect(403);
+    }
+    await request(app.getHttpServer())
+      .patch('/api/staff/orders/not-a-uuid/cancel')
+      .set('Cookie', cookie(staff))
+      .set('Origin', 'http://localhost:3000')
+      .send({ reason: 'Hết nguyên liệu' })
+      .expect(400);
   });
 });

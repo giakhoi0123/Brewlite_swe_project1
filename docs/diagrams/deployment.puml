@@ -1,0 +1,100 @@
+@startuml deployment
+title Deployment Diagram: Hệ thống BrewLite (Local, CI & Production)
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam node {
+  backgroundColor #F8F9FA
+  borderColor #333333
+}
+skinparam component {
+  backgroundColor #E3F2FD
+  borderColor #1565C0
+}
+skinparam database {
+  backgroundColor #E8F5E9
+  borderColor #2E7D32
+}
+
+node "Client Tier (Mobile / Desktop)" as ClientNode {
+  artifact "Web Browser / PWA Client" as Browser {
+    component "Next.js UI Application\n(React 18, Tailwind, Zustand)" as FE_App
+    component "Service Worker\n(PWA Cache & Offline Shell)" as SW
+    component "Cookie Jar\n(HttpOnly brewlite_session)" as Cookies
+  }
+}
+
+cloud "Internet & Network Security" as CloudNet {
+  component "Reverse Proxy & TLS Termination\n(HTTPS :443 -> HTTP :3000/:3001)" as SSL_Proxy
+}
+
+node "Production Environment (Cloud Host / Docker Compose)" as ProdHost {
+  node "Internal Docker Network: brewlite_network" as DockerNet {
+    
+    node "Frontend Container: brewlite_web" as WebContainer {
+      component "Next.js Production Server\nNode.js v20 (Port 3000)" as NextServer
+      component "Static Assets & ISR Cache" as WebStatic
+    }
+
+    node "Backend API Container: brewlite_api" as ApiContainer {
+      component "NestJS Application Server\nNode.js v20 (Port 3001)" as NestServer
+      component "Prisma Client (ORM & Query Engine)" as PrismaEngine
+      component "Health Check Endpoint\n(GET /health)" as HealthCheck
+      component "Structured Logger & Winston" as Logger
+    }
+
+    node "Database Container: brewlite_postgres" as DbContainer {
+      database "PostgreSQL 15 Alpine\n(Port 5432 nội bộ, không public)" as PostgresDb {
+        frame "Database: brewlite" {
+          [users, products, orders, order_items,\npayments, carts, order_status_history]
+        }
+      }
+    }
+    
+    storage "Persistent Volume Storage" as StorageVolume {
+      file "brewlite_pg (Docker Volume)\n[Dữ liệu tồn tại bền vững qua restart]" as DataVol
+    }
+  }
+
+  node "Secrets & Configuration Manager" as SecretNode {
+    file ".env / CI Secrets\n(JWT_SECRET, DATABASE_URL,\nPORT, FRONTEND_ORIGIN)" as EnvSecrets
+  }
+}
+
+node "CI/CD & Registry (GitHub Actions)" as CI_CD {
+  component "GitHub Actions Runner\n(Install -> Lint -> Test -> Build)" as CI_Runner
+  component "Container Registry (GHCR / Docker Hub)\n(Docker Images tagged SHA/SemVer)" as Registry
+}
+
+node "External Simulated Services" as ExternalGateways {
+  component "Simulated Payment Service\n(Ví / Thẻ mô phỏng - Sandbox)" as MockPayService
+}
+
+' Connections
+FE_App --> SSL_Proxy : HTTPS (TLS 1.3) :443\n(REST API requests & Navigation)
+Cookies ..> FE_App : Injected with credentials
+
+SSL_Proxy --> NextServer : HTTP :3000 (UI Page Requests)
+SSL_Proxy --> NestServer : HTTP :3001 (/api/*)
+
+NextServer ..> EnvSecrets : Read env configs
+NestServer ..> EnvSecrets : Read DB & JWT secrets
+NestServer --> MockPayService : Internal Mock Adapter / HTTP
+NestServer --> HealthCheck : Probed by load balancer / CI smoke test
+NestServer --> Logger : Output JSON logs (no secrets)
+
+NestServer --> PrismaEngine : Query calls
+PrismaEngine --> PostgresDb : TCP :5432 (Internal connection pool)
+PostgresDb --> DataVol : Persistent data mount (/var/lib/postgresql/data)
+
+CI_Runner --> Registry : Push Docker Image (Commit SHA)
+Registry --> ProdHost : Pull & deploy new image via CD pipeline
+
+note right of DbContainer
+  **Ràng buộc bảo mật (NFR-02):**
+  - Database không mở public cổng 5432 ra Internet.
+  - Chỉ backend container trong cùng Docker network mới kết nối được.
+  - Dữ liệu không mất khi restart container nhờ persistent volume.
+end note
+
+@enduml
+

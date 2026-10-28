@@ -1,5 +1,13 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## Yêu cầu Assignment 1 phục vụ báo cáo — 2026-10-27
+
+Đã đọc đề gốc `BrewLite-CongNghePhanMem (3).pdf` và báo cáo nhóm `BrewLite_Assignment1 (1).pdf`; lưu nguồn, tiêu chí 10 task, Scrum/DoD, NFR, US01–US16 và điểm cần đối chiếu tại [ASSIGNMENT1_REQUIREMENTS.md](ASSIGNMENT1_REQUIREMENTS.md). Đọc ghi chú này khi làm báo cáo Assignment 1. Đề yêu cầu Ví/Thẻ mock; VNPAY Sandbox không tự thay thế Task 8. Barista là mở rộng nhưng state machine Task 10 vẫn bắt buộc. Nhận định trong PDF báo cáo gắn với main `2c45463`, không tự áp thành hiện trạng nhánh hiện có. Lượt này chỉ ghi nhớ tài liệu theo yêu cầu người dùng.
+
+## Đồng bộ 2026-10-26
+
+Nhánh hiện hành feature/orders-and-inventory đã nhập origin/main:2c45463 với VNPAY, Loyalty/Promotion và giỏ Zustand. Giữ API chi tiết và completedAt của TV4; hủy PREPARING theo main mới. Trạng thái kiểm chứng và giới hạn migration ở PROJECT_STATUS.md; các mô tả gateway mock phía dưới là lịch sử.
+
 ## Cập nhật VNPAY — 2026-10-21
 
 Làm việc trên nhánh hiện có `feature/payment-demo-persistence`. Payment đang được chuyển từ mock đồng bộ sang VNPAY WebPay 2.1.0: checkout chỉ chọn `VNPAY_QR`, `POST /payments` tạo Payment PROCESSING và URL HMAC-SHA512, trang hosted của VNPAY hiển thị QR, IPN là nguồn xác nhận chính và QueryDR có chữ ký là fallback khi IPN trễ/mất; Return chỉ điều hướng về màn hình frontend poll Order. Không đưa `VNPAY_HASH_SECRET` vào frontend và không tự mã hóa payment URL thành QR.
@@ -25,3 +33,18 @@ Nguồn giao diện: `stitch/*/code.html`, ảnh tham chiếu `screen.webp` đã
 Backend Prisma `backend/prisma/schema.prisma`, migration `backend/prisma/migrations`, auth `backend/src/auth`, products `backend/src/products`, seed Barista qua biến môi trường. Role CUSTOMER/BARISTA. Mọi đơn mới PENDING, thanh toán xác nhận mới PAID; PAYMENT_FAILED giữ giỏ; UNKNOWN không tự thành công; PAID → PREPARING → READY → COMPLETED. Staff có thể hủy với lý do theo state machine hiện hành. Giá tiền số nguyên VND; backend tính lại giá và tồn kho.
 
 Baseline 2026-10-17: backend Prisma generate/build/lint và 18 suites/165 tests không cần DB qua; hai suite/18 test PostgreSQL Payment mock qua trên database tạm riêng với đủ 9 migration. Đây là bằng chứng lịch sử trước VNPAY, không xác nhận gateway/IPN mới. Kết quả kiểm tra hiện hành được ghi ở `PROJECT_STATUS.md` và `TESTING.md`.
+
+
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
+
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
+
+## TV4 đối chiếu báo cáo và nghiệm thu — 2026-10-18, mới nhất
+
+Giữ nhánh `feature/orders-and-inventory`, nền `6851515`. Báo cáo `(2).docx` mục 12.1 giao Điệp T06/T10A/T10C/backend Barista; đã có đủ nghiệp vụ. Lượt này bổ sung hai bài race HTTP/PostgreSQL và `backend/scripts/verify-tv4-browser.cjs`; không đổi backend nghiệp vụ hoặc frontend. 272/272 backend tests, build/lint/full typecheck PASS. Browser hai phiên login thật, API mode, checkout/payment gateway mô phỏng và staff→customer sync PASS ở 1440/768/390. DB UUID riêng đã dọn.
+
+Xem [TV4_ACCEPTANCE.md](TV4_ACCEPTANCE.md). Backend READY_FOR_REVIEW; TV1 còn nối UI hủy/history/KPI và bỏ thông báo chờ TV4. Runner build lại `.next` cho URL thử nghiệm 33221; sau lượt này đã build lại với cấu hình local và PASS. Nếu chạy lại runner, nhớ trả build về cấu hình API ứng dụng. Kết quả này không xác nhận DB ứng dụng đã migrate hay thay đổi đã push. Các mô tả nhánh cũ dưới đây là lịch sử.
+
+## Backend Barista TV4 — trạng thái được giữ khi nhập main 2026-10-18
+
+Nhánh `feature/orders-and-inventory` giữ API staff detail/cancel reason và terminal history từ commit `abd7343` khi nhập `origin/main:b87db13`. Order có `cancelReason`/`completedAt` qua migration `20261016000100_staff_order_details`; chỉ PENDING/PAID/PAYMENT_FAILED được hủy. Reason, trạng thái, hoàn kho và history nằm cùng transaction/CAS; completedAt ghi lúc READY→COMPLETED. Sau merge đã sửa một fixture Payment dùng lối hủy cũ, rồi backend build local/Docker, lint và **25 suites/270 tests PASS** trên PostgreSQL thật với đủ 11 migrations; DB tạm đã dọn.

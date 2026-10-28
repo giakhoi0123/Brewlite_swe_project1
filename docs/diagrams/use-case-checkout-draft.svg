@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="610" viewBox="0 0 1120 610" role="img" aria-labelledby="title desc">
+  <title id="title">BrewLite — UC-CHK: Đặt và thanh toán đơn hàng</title>
+  <desc id="desc">Khách hàng tương tác với Đặt và thanh toán đơn hàng trong ranh giới BrewLite. Use-case này include Tạo đơn hàng và Thanh toán Ví/Thẻ mô phỏng. Dịch vụ thanh toán mô phỏng liên kết với Thanh toán. Bản đề xuất chờ Duy review.</desc>
+  <defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1 1 L10 6 L1 11" fill="none" stroke="#334155" stroke-width="1.5"/></marker></defs>
+  <rect width="1120" height="610" fill="white"/>
+  <g font-family="Arial, sans-serif" fill="#172033" font-size="18">
+    <text x="560" y="40" text-anchor="middle" font-size="25" font-weight="bold">BrewLite — UC-CHK: Đặt và thanh toán đơn hàng</text>
+    <rect x="220" y="75" width="640" height="385" rx="4" fill="#f8fafc" stroke="#334155" stroke-width="2"/>
+    <text x="540" y="109" text-anchor="middle" font-weight="bold">Hệ thống BrewLite</text>
+    <g fill="none" stroke="#334155" stroke-width="2">
+      <circle cx="100" cy="190" r="19"/><path d="M100 209 V271 M65 232 H135 M100 271 L72 310 M100 271 L128 310"/>
+      <circle cx="1010" cy="305" r="19"/><path d="M1010 324 V386 M975 347 H1045 M1010 386 L982 425 M1010 386 L1038 425"/>
+      <ellipse cx="412" cy="247" rx="164" ry="64" fill="white"/>
+      <ellipse cx="710" cy="176" rx="124" ry="45" fill="white"/>
+      <ellipse cx="710" cy="354" rx="124" ry="53" fill="white"/>
+      <path d="M135 247 H248 M834 354 H975"/>
+      <path d="M552 214 L597 191 M547 283 L600 327" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+    </g>
+    <text x="100" y="342" text-anchor="middle">Khách hàng</text>
+    <text x="1010" y="455" text-anchor="middle"><tspan x="1010">Dịch vụ thanh toán</tspan><tspan x="1010" dy="25">mô phỏng</tspan></text>
+    <text x="412" y="235" text-anchor="middle"><tspan x="412" font-weight="bold">UC-CHK</tspan><tspan x="412" dy="28">Đặt và thanh toán đơn hàng</tspan></text>
+    <text x="710" y="182" text-anchor="middle">Tạo đơn hàng</text>
+    <text x="710" y="347" text-anchor="middle"><tspan x="710">Thanh toán Ví/Thẻ</tspan><tspan x="710" dy="25">(mô phỏng)</tspan></text>
+    <text x="510" y="160" font-size="16">«include»</text>
+    <text x="498" y="345" font-size="16">«include»</text>
+    <g font-size="16" fill="#475569">
+      <text x="42" y="514">Bản đề xuất 24/10/2026 — chờ Duy review. Actor, use-case và quan hệ đồng bộ với tệp PlantUML.</text>
+      <text x="42" y="541">Đăng nhập là điều kiện trước lệnh ghi; nhánh chưa đăng nhập: A01. Retry, gửi lặp và UNKNOWN: xem đặc tả.</text>
+      <text x="42" y="568">Quan hệ include không biểu diễn thứ tự thực hiện hoặc nhánh ngoại lệ.</text>
+    </g>
+  </g>
+</svg>

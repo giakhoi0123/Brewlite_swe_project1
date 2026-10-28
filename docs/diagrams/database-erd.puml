@@ -1,0 +1,251 @@
+@startuml database-erd
+title Sơ đồ ERD Cơ sở dữ liệu BrewLite (Bố cục tối ưu, trực quan)
+hide circle
+skinparam roundcorner 5
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam dpi 150
+
+skinparam class {
+  BackgroundColor White
+  ArrowColor #475569
+  BorderColor #64748B
+}
+
+' ============================================================
+' 1. NHÓM TÀI KHOẢN & NGƯỜI DÙNG (Tím nhạt)
+' ============================================================
+class "users" as users #F3E8FF {
+  * **id** : uuid <<PK>>
+  --
+  * email : varchar(255) <<UQ>>
+  * password_hash : varchar(255)
+  * full_name : varchar(255)
+  phone : varchar(20)
+  * role : Role
+  * loyalty_points : int
+  * session_version : int
+  * status : UserStatus
+  * created_at : timestamptz
+}
+
+' ============================================================
+' 2. NHÓM MENU & SẢN PHẨM (Vàng nhạt)
+' ============================================================
+class "products" as products #FEF3C7 {
+  * **id** : uuid <<PK>>
+  --
+  * name : varchar(255)
+  * price : int
+  * image_url : varchar(500)
+  * stock : int
+  * version : int
+}
+
+class "product_sizes" as product_sizes #FEF3C7 {
+  * **id** : uuid <<PK>>
+  --
+  * # product_id : uuid <<FK>>
+  * code : ProductSizeCode
+  * name : varchar(50)
+  * extra_price : int
+  * available : boolean
+  * is_default : boolean
+}
+
+class "toppings" as toppings #FEF3C7 {
+  * **id** : uuid <<PK>>
+  --
+  * name : varchar(255)
+}
+
+class "product_toppings" as product_toppings #FEF3C7 {
+  * # **product_id** : uuid <<PK, FK>>
+  * # **topping_id** : uuid <<PK, FK>>
+  --
+  * extra_price : int
+  * available : boolean
+}
+
+' ============================================================
+' 3. NHÓM KHO NGUYÊN VẬT LIỆU & CÔNG THỨC (Xanh ngọc / Mint)
+' ============================================================
+class "ingredients" as ingredients #D1FAE5 {
+  * **id** : uuid <<PK>>
+  --
+  * name : varchar(120) <<UQ>>
+  * unit : IngredientUnit
+  * stock : decimal(12,3)
+  * version : int
+}
+
+class "product_recipes" as product_recipes #D1FAE5 {
+  * # **product_size_id** : uuid <<PK, FK>>
+  * # **ingredient_id** : uuid <<PK, FK>>
+  --
+  * amount : decimal(12,3)
+}
+
+class "topping_recipes" as topping_recipes #D1FAE5 {
+  * # **topping_id** : uuid <<PK, FK>>
+  * # **ingredient_id** : uuid <<PK, FK>>
+  --
+  * amount : decimal(12,3)
+}
+
+class "order_ingredient_usage" as order_ingredient_usage #D1FAE5 {
+  * # **order_id** : uuid <<PK, FK>>
+  * # **ingredient_id** : uuid <<PK, FK>>
+  --
+  * amount : decimal(12,3)
+}
+
+' ============================================================
+' 4. NHÓM ĐƠN HÀNG & CHI TIẾT (Cam nhạt)
+' ============================================================
+class "orders" as orders #FFEDD5 {
+  * **id** : uuid <<PK>>
+  --
+  * # user_id : uuid <<FK>>
+  * status : OrderStatus
+  * version : int
+  * subtotal : int
+  * discount_amount : int
+  * total : int
+  promotion_code : varchar(50)
+  * inventory_held : boolean
+  * ingredient_inventory : boolean
+  cancel_reason : varchar(300)
+  completed_at : timestamptz
+  * created_at : timestamptz
+}
+
+class "order_items" as order_items #FFEDD5 {
+  * **id** : uuid <<PK>>
+  --
+  * # order_id : uuid <<FK>>
+  * # product_id : uuid <<FK>>
+  * position : int
+  * name : varchar(255)
+  * size : ProductSizeCode
+  * unit_price : int
+  * qty : int
+  * line_total : int
+  * ice : varchar(50)
+  * sugar : varchar(50)
+  note : text
+}
+
+class "order_item_toppings" as order_item_toppings #FFEDD5 {
+  * # **order_item_id** : uuid <<PK, FK>>
+  * # **topping_id** : uuid <<PK, FK>>
+  --
+  * name : varchar(255)
+  * extra_price : int
+}
+
+class "order_status_history" as order_status_history #FFEDD5 {
+  * **id** : uuid <<PK>>
+  --
+  * # order_id : uuid <<FK>>
+  from_status : OrderStatus
+  * to_status : OrderStatus
+  * version : int
+  * created_at : timestamptz
+}
+
+' ============================================================
+' 5. NHÓM THANH TOÁN, GIỎ HÀNG & TÍCH ĐIỂM (Xanh lam nhạt)
+' ============================================================
+class "payments" as payments #E0E7FF {
+  * **id** : uuid <<PK>>
+  --
+  * # user_id : uuid <<FK>>
+  * # order_id : uuid <<FK>>
+  * amount : int
+  * method : PaymentMethod
+  * status : PaymentStatus
+  * idempotency_key : uuid
+  vnp_txn_ref : varchar(100)
+  vnp_transaction_no : varchar(100)
+  * created_at : timestamptz
+}
+
+class "loyalty_logs" as loyalty_logs #E0E7FF {
+  * **id** : uuid <<PK>>
+  --
+  * # user_id : uuid <<FK>>
+  * # order_id : uuid <<FK, UQ>>
+  * points : int
+  * created_at : timestamptz
+}
+
+class "carts" as carts #F1F5F9 {
+  * **id** : uuid <<PK>>
+  --
+  * # user_id : uuid <<FK, UQ>>
+  * updated_at : timestamptz
+}
+
+class "cart_items" as cart_items #F1F5F9 {
+  * **id** : uuid <<PK>>
+  --
+  * # cart_id : uuid <<FK>>
+  * # product_id : uuid <<FK>>
+  * size : ProductSizeCode
+  * config_key : varchar(255)
+  * quantity : int
+}
+
+class "Promotion" as promotions #F1F5F9 {
+  * **id** : varchar(36) <<PK>>
+  --
+  * code : varchar(50) <<UQ>>
+  * discountValue : float
+  * minOrderValue : float
+  * isActive : boolean
+}
+
+' ============================================================
+' ĐIỀU HƯỚNG QUAN HỆ (BỎ CHỮ TRÊN ĐƯỜNG NỐI ĐỂ KHÔNG BỊ ĐÈ RỐI)
+' ============================================================
+
+' 1. Sản phẩm, Size & Topping
+products ||--down-|{ product_sizes
+products ||--right-o{ product_toppings
+toppings ||--left-o{ product_toppings
+
+' 2. Định mức nguyên vật liệu (Product & Topping Recipe)
+product_sizes ||--down-o{ product_recipes
+ingredients ||--up-o{ product_recipes
+
+toppings ||--down-o{ topping_recipes
+ingredients ||--right-o{ topping_recipes
+
+' 3. Đơn hàng & Chi tiết món
+orders ||--down-|{ order_items
+products ||--down-o{ order_items
+order_items ||--right-o{ order_item_toppings
+toppings ||--down-o{ order_item_toppings
+
+' 4. Đơn hàng & Kho nguyên liệu (Snapshot trừ kho)
+orders ||--left-o{ order_ingredient_usage
+ingredients ||--down-o{ order_ingredient_usage
+
+' 5. Đơn hàng & Lịch sử
+orders ||--down-o{ order_status_history
+
+' 6. Khách hàng & Giao dịch
+users ||--down-o{ orders
+users ||--right-o{ payments
+orders ||--right-o{ payments
+orders ||--right-o| loyalty_logs
+users ||--down-o{ loyalty_logs
+
+' 7. Giỏ hàng
+users ||--left-o| carts
+carts ||--down-o{ cart_items
+products ||--left-o{ cart_items
+
+@enduml

@@ -1,0 +1,61 @@
+{
+  "startedAt": "2026-10-18T12:48:37.202Z",
+  "baseCommit": "6851515044d50e51ad169819b3c762f9583ab7ff",
+  "workingTree": "M README.md\n M backend/src/orders/staff-orders.postgres.spec.ts\n M docs/API_CONTRACT.md\n M docs/IMPLEMENTATION_PLAN.md\n M docs/PROJECT_CONTEXT.md\n M docs/PROJECT_STATUS.md\n M docs/TEAM_HANDOFF.md\n M docs/TESTING.md\n?? TV4_CODE_GIAI_THICH.md\n?? backend/scripts/verify-tv4-browser.cjs\n?? docs/TV4_ACCEPTANCE.md\n?? docs/evidence/tv4-acceptance/\n?? package-lock.json",
+  "dataMode": "api",
+  "gateway": "MockPaymentGateway (server outcome PAID)",
+  "results": [
+    {
+      "width": 1440,
+      "passed": true,
+      "orderId": "270c77e7-8b3e-4423-8403-bed8fc021645",
+      "cancelledOrderId": "40ef1cdc-96fd-4f17-b7b0-f7f2aaaacd62",
+      "checks": [
+        "Two real logins with distinct HttpOnly sessions; CUSTOMER staff-list 403",
+        "UI checkout -> PENDING -> real Payment API PAID (mock gateway)",
+        "PAID queue/configuration; unpaid order excluded",
+        "UI-confirmed PAID -> PREPARING -> READY -> COMPLETED; customer refresh each step",
+        "Single persisted completedAt matches final history event",
+        "API: empty cancel reason 400; reason persisted; repeated/terminal cancel 409",
+        "API: terminal history and staff detail; customer sees same cancelReason",
+        "Cancelled reservation restored once; completed stock remains consumed"
+      ]
+    },
+    {
+      "width": 768,
+      "passed": true,
+      "orderId": "c7ce7e14-b3f6-4d0f-93bc-c57c8bf94371",
+      "cancelledOrderId": "46f0f4be-7cd4-4cc5-8777-91ed215cc734",
+      "checks": [
+        "Two real logins with distinct HttpOnly sessions; CUSTOMER staff-list 403",
+        "UI checkout -> PENDING -> real Payment API PAID (mock gateway)",
+        "PAID queue/configuration; unpaid order excluded",
+        "UI-confirmed PAID -> PREPARING -> READY -> COMPLETED; customer refresh each step",
+        "Single persisted completedAt matches final history event",
+        "API: empty cancel reason 400; reason persisted; repeated/terminal cancel 409",
+        "API: terminal history and staff detail; customer sees same cancelReason",
+        "Cancelled reservation restored once; completed stock remains consumed"
+      ]
+    },
+    {
+      "width": 390,
+      "passed": true,
+      "orderId": "27f28b18-010b-4c0b-8e30-cde9fac65cad",
+      "cancelledOrderId": "8ac033bd-dcc9-41d3-9a9b-2405b3a286f4",
+      "checks": [
+        "Two real logins with distinct HttpOnly sessions; CUSTOMER staff-list 403",
+        "UI checkout -> PENDING -> real Payment API PAID (mock gateway)",
+        "PAID queue/configuration; unpaid order excluded",
+        "UI-confirmed PAID -> PREPARING -> READY -> COMPLETED; customer refresh each step",
+        "Single persisted completedAt matches final history event",
+        "API: empty cancel reason 400; reason persisted; repeated/terminal cancel 409",
+        "API: terminal history and staff detail; customer sees same cancelReason",
+        "Cancelled reservation restored once; completed stock remains consumed"
+      ]
+    }
+  ],
+  "passed": true,
+  "browser": "155.0.4283.62",
+  "isolatedDatabaseRemoved": true,
+  "finishedAt": "2026-10-18T12:49:17.853Z"
+}

@@ -1,0 +1,96 @@
+@startuml sequence-checkout
+title Sequence Diagram: Đặt hàng & Thanh toán (UC-CHK) kèm Idempotency
+autonumber
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+
+actor "Khách hàng\n(Customer)" as C
+participant "Next.js UI\n(Frontend)" as UI
+participant "NestJS API\n(Backend)" as API
+database "PostgreSQL\n(Prisma ORM)" as DB
+participant "Payment Service\n(Mock Gateway)" as PAY
+
+== 1. Xác thực & Khởi tạo Đơn hàng (POST /api/orders) ==
+C -> UI: Chọn thanh toán Ví/Thẻ, bấm "Thanh toán ngay"
+activate UI
+UI -> API: POST /api/orders { items: [...], promotionCode }\n(Header: Cookie session JWT)
+activate API
+
+API -> API: Kiểm tra JWT (sessionVersion, userStatus ACTIVE)
+API -> DB: BEGIN TRANSACTION
+activate DB
+API -> DB: SELECT id, stock, version FROM products WHERE id IN (...) FOR UPDATE
+DB --> API: Trả thông tin tồn kho hiện tại
+
+alt Sản phẩm hết hàng (stock < qty)
+  API -> DB: ROLLBACK
+  API --> UI: 409 Conflict { message: "Sản phẩm X không đủ tồn kho" }
+  UI --> C: Hiển thị lỗi hết hàng, yêu cầu sửa giỏ
+else Đủ tồn kho khả dụng
+  API -> DB: UPDATE products SET stock = stock - qty, version = version + 1
+  API -> DB: INSERT INTO orders (id, user_id, status='PENDING', inventory_held=true, subtotal, total)
+  API -> DB: INSERT INTO order_items (...) // Snapshot giá, size, topping
+  API -> DB: INSERT INTO order_status_history (order_id, to_status='PENDING', version=1)
+  API -> DB: COMMIT TRANSACTION
+  deactivate DB
+  API --> UI: 201 Created { id: "order-123", status: "PENDING", total: 64000 }
+  deactivate API
+end
+
+== 2. Xử lý Thanh toán với Idempotency Key (POST /api/payments) ==
+UI -> UI: Sinh Idempotency-Key = UUIDv4()
+UI -> API: POST /api/payments\n{ orderId: "order-123", method: "WALLET", idempotencyKey: "key-uuid" }
+activate API
+
+API -> DB: SELECT * FROM payments WHERE user_id = $userId AND idempotency_key = "key-uuid"
+activate DB
+DB --> API: Kết quả tìm kiếm (nếu đã từng gửi)
+
+alt Trường hợp Replay (Trùng Idempotency Key đã xử lý)
+  API --> UI: 200 OK (Trả về kết quả giao dịch trước, KHÔNG gọi gateway, KHÔNG trừ tiền lần 2)
+  UI --> C: Hiển thị kết quả thanh toán tương ứng
+else Giao dịch mới (Key chưa từng tồn tại)
+  API -> DB: BEGIN TRANSACTION
+  API -> DB: INSERT INTO payments (status='PROCESSING', idempotency_key='key-uuid')
+  API -> DB: SELECT * FROM orders WHERE id = "order-123" FOR UPDATE
+  
+  API -> PAY: processPayment({ orderId, amount: 64000, method: "WALLET" })
+  activate PAY
+
+  alt Cổng thanh toán trả về THÀNH CÔNG (PAID)
+    PAY --> API: { success: true, gatewayStatus: "PAID", transactionId: "txn-999" }
+    API -> DB: UPDATE payments SET status='PAID', gateway_status='PAID', applied_at=NOW()
+    API -> DB: UPDATE orders SET status='PAID', version=version+1
+    API -> DB: UPDATE users SET loyalty_points = loyalty_points + floor(64000/10000)
+    API -> DB: DELETE FROM cart_items WHERE cart_id = $userCartId
+    API -> DB: INSERT INTO order_status_history (to_status='PAID', version=2)
+    API -> DB: COMMIT TRANSACTION
+    API --> UI: 200 OK { status: "PAID", orderId: "order-123", pointsEarned: 6 }
+    UI --> C: Chuyển hướng màn hình Xác nhận đơn thành công (/orders/order-123)
+  else Cổng thanh toán trả về THẤT BẠI (PAYMENT_FAILED)
+    PAY --> API: { success: false, gatewayStatus: "PAYMENT_FAILED", reason: "Số dư ví không đủ" }
+    API -> DB: UPDATE payments SET status='PAYMENT_FAILED', gateway_status='PAYMENT_FAILED'
+    API -> DB: UPDATE orders SET status='PAYMENT_FAILED', inventory_held=false
+    API -> DB: UPDATE products SET stock = stock + qty // Hoàn trả kho ngay lập tức
+    API -> DB: INSERT INTO order_status_history (to_status='PAYMENT_FAILED', version=2)
+    API -> DB: COMMIT TRANSACTION
+    API --> UI: 402 Payment Required { status: "PAYMENT_FAILED", message: "Giao dịch bị từ chối" }
+    UI --> C: Hiển thị lỗi thanh toán, cung cấp nút "Thử thanh toán lại" (với idempotencyKey mới)
+  else Kết quả KHÔNG RÕ / Timeout (UNKNOWN)
+    PAY --> API: Timeout / Network Failure
+    deactivate PAY
+    API -> DB: UPDATE payments SET status='PROCESSING', gateway_status='UNKNOWN'
+    API -> DB: // Giữ nguyên order PENDING, giữ nguyên reservation kho
+    API -> DB: COMMIT TRANSACTION
+    deactivate DB
+    API --> UI: 202 Accepted { status: "UNKNOWN", message: "Giao dịch đang chờ đối soát" }
+    UI --> C: Thông báo giao dịch đang xử lý, kiểm tra lịch sử đơn
+  end
+  deactivate API
+end
+deactivate UI
+
+@enduml
+

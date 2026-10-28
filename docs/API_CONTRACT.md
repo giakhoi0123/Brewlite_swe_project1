@@ -1,5 +1,19 @@
 # Hợp đồng API BrewLite
 
+## Kho nguyên vật liệu — 2026-10-28
+
+Đã thêm [hợp đồng nguyên liệu và định mức](INGREDIENT_INVENTORY.md): API BARISTA `GET/POST /staff/inventory`, `POST /staff/inventory/:id/receipts`, `GET /staff/inventory/recipes`, `PUT /staff/inventory/product-sizes/:id/recipe` và `PUT /staff/inventory/toppings/:id/recipe`. Decimal trả dạng chuỗi; lượng gửi là số tối đa 3 chữ số lẻ. PUT thay toàn bộ công thức trong transaction; nhập kho là phép cộng không có idempotency key.
+
+`POST /orders` giữ nguyên DTO size/toppingIds/quantity, nhưng đơn mới bắt buộc có định mức đầy đủ. Mỗi topping đã chọn là một phần/ly; nhân số ly và cộng chung nguyên liệu toàn đơn. Giữ Product stock lẫn nguyên liệu trong cùng transaction; thiếu kho/công thức trả 409. Hoàn/retry dùng snapshot nguyên liệu đã lưu; hủy PREPARING không hoàn nguyên liệu đã pha. Đơn lịch sử trước migration tiếp tục cơ chế Product stock cũ. Catalog giữ response shape, tính stock/availability theo cả công thức và giới hạn Product stock. Giỏ chưa tạo đơn không giữ kho; Auth thật và mock không đổi.
+
+Migration/seed đã áp local ngày 28/10; ghi chú “chưa áp migration” bên dưới là lịch sử. Chi tiết checksum Orders cũ, seed minh họa và bằng chứng kiểm thử ở tài liệu liên kết.
+
+## Đồng bộ main vào nhánh Orders — 2026-10-26
+
+Nhập `origin/main:2c45463`: giữ hợp đồng VNPAY mới, Promotions/Loyalty và giỏ Zustand từ main. API staff detail, reason trim 1–300 ký tự và `completedAt` lưu cùng sự kiện COMPLETED của TV4 được giữ. Ma trận hiện hành cho phép hủy cả PREPARING theo cập nhật main; không hoàn tiền tự động. Các ghi chú giới hạn hủy trước ngày này là lịch sử.
+
+Hai nhánh cùng thêm `orders.cancel_reason`: migration `20261019000000_loyalty_log` dùng `ADD COLUMN IF NOT EXISTS` để chạy tiếp sau migration staff của TV4. Chưa áp migration vào database ứng dụng; DB đã áp bản Loyalty gốc cần đối chiếu lịch sử/checksum và cột staff trước triển khai, không tự sửa `_prisma_migrations`. Docker daemon chưa chạy trong lượt đồng bộ này.
+
 ## VNPAY WebPay 2.1.0 / VNPAY-QR — 2026-10-21
 
 Payment hiện được cấu hình cho VNPAY Sandbox/TEST theo luồng bất đồng bộ, không còn nhận kết quả demo từ client. Backend tạo URL có chữ ký HMAC-SHA512. `VNPAY_BANK_CODE` là cấu hình backend tùy chọn: khi để trống, request không có `vnp_BankCode` và trang hosted của VNPAY hiển thị các phương thức terminal được cấp; chỉ đặt `VNPAYQR` khi VNPAY đã bật kênh QR cho merchant TEST. `VNPAY_HASH_SECRET` chỉ tồn tại ở backend.
@@ -104,10 +118,10 @@ Order đã thanh toán trả thêm `paymentMethod:"WALLET"|"CARD"|"VNPAY_QR"`, l
 - GET `/orders/:id/status`: TV4, cùng auth/ownership; trả JSON `{ "status": "PENDING" }`. REST adapter unwrap thành `OrderStatus` theo interface frontend. Đã có backend.
 - POST `/promotions/validate`: TV6, `{code,subtotal}` → `{code,discount}`.
 - GET `/loyalty/me`: TV6, `{points}`.
-- GET `/staff/orders`: TV4, BARISTA, `Order[]` trạng thái PAID/PREPARING/READY, cũ nhất trước. Đã có backend.
-- PATCH `/staff/orders/:id/status`: TV4, BARISTA, `{status:"PREPARING"|"READY"|"COMPLETED"|"CANCELLED"}` → `Order`; 400 payload/UUID sai, 401/403 auth/Origin, 404 không tồn tại, 409 chuyển trạng thái sai hoặc xung đột. Không cho staff đặt PAID/PENDING/PAYMENT_FAILED. Đã có backend.
-- GET `/staff/orders/:id`: TV4, chỉ BARISTA; frontend adapter đã chuẩn bị, backend chưa có.
-- PATCH `/staff/orders/:id/cancel`: TV4, chỉ BARISTA, yêu cầu lý do; frontend adapter đã chuẩn bị, backend chưa có.
+- GET `/staff/orders`: TV4, BARISTA, `Order[]` trạng thái PAID/PREPARING/READY/COMPLETED/CANCELLED, sắp xếp `createdAt ASC, id ASC`. Đã có backend; frontend lọc queue và lịch sử từ cùng danh sách.
+- PATCH `/staff/orders/:id/status`: TV4, BARISTA, `{status:"PREPARING"|"READY"|"COMPLETED"}` → `Order`; 400 payload/UUID sai, 401/403 auth/Origin, 404 không tồn tại, 409 chuyển trạng thái sai hoặc xung đột. Không cho staff đặt PAID/PENDING/PAYMENT_FAILED/CANCELLED qua endpoint này.
+- GET `/staff/orders/:id`: TV4, chỉ BARISTA; trả chi tiết `Order` ở mọi trạng thái; 400 UUID sai, 404 không tồn tại.
+- PATCH `/staff/orders/:id/cancel`: TV4, chỉ BARISTA, `{reason:string}` bắt buộc 1–300 ký tự sau trim; 400 payload/UUID sai, 401/403 auth/Origin, 404 không tồn tại, 409 sai trạng thái hoặc xung đột. Trả `Order` CANCELLED và lý do đã lưu.
 - GET `/barista/dashboard`: TV1, endpoint mẫu kiểm tra guard BARISTA; đã triển khai, không phải Orders API.
 
 ## Kiểu chung
@@ -121,16 +135,22 @@ Xem `frontend/src/types/domain.ts`: `User`, `Role`, `Product`, `ProductSize`, `T
 - Payment retry/idempotency: TV5 xác định thời hạn khóa và semantics của trạng thái UNKNOWN. Payment retention/cleanup và thời hạn coi bản ghi `PROCESSING` là treo vẫn cần nhóm thống nhất; quy tắc replay và `UNKNOWN` đã chốt ở trên.
 - Barista cancellation khi PREPARING: chưa được phép trong UI demo.
 
-## Hợp đồng Staff Orders: phần đã có và phần còn mở rộng
+## Hợp đồng Staff Orders — backend TV4 mở rộng 2026-10-16
 
 | Endpoint | Input | Output cần có | Kiểm tra server |
 |---|---|---|---|
-| GET `/staff/orders` | Cookie/JWT BARISTA | `Order[]` PAID/PREPARING/READY | Đã có backend; 401 thiếu phiên, 403 CUSTOMER; lịch sử terminal chưa có |
-| GET `/staff/orders/:id` | ID đường dẫn | `Order` hoặc 404 | Chưa có backend |
+| GET `/staff/orders` | Cookie/JWT BARISTA | `Order[]` PAID/PREPARING/READY/COMPLETED/CANCELLED | 401 thiếu phiên, 403 CUSTOMER; không đưa PENDING/PAYMENT_FAILED vào queue |
+| GET `/staff/orders/:id` | UUID đường dẫn | `Order` ở mọi trạng thái hoặc 404 | Chỉ BARISTA; 400 UUID sai, 404 không tồn tại |
 | PATCH `/staff/orders/:id/status` | `{status: "PREPARING"|"READY"|"COMPLETED"}` | `Order` mới nhất | Đã có backend; sai bước 409, transaction chống race |
-| PATCH `/staff/orders/:id/cancel` | `{reason: string}` (1–300 ký tự) | `Order` với `status:"CANCELLED",cancelReason` | Chưa có backend; không dùng PATCH status=CANCELLED để bỏ qua lý do |
+| PATCH `/staff/orders/:id/cancel` | `{reason: string}` (1–300 ký tự sau trim) | `Order` với `status:"CANCELLED",cancelReason` | Chỉ từ PENDING/PAID/PAYMENT_FAILED; 409 sai bước/race/lặp; PATCH status=CANCELLED trả 400 |
 
-`Order` trả `id,userId,items,subtotal,discount,total,status,createdAt`; UI có thể dùng thêm `customerName,cancelReason,completedAt`. Backend hiện chưa trả các trường mở rộng này. `completedAt` cần là thời điểm bàn giao nếu KPI “đã giao hôm nay” phải chính xác. Các item cần `quantity,name,size,toppingNames,ice,sugar,note,unitPrice`. Danh sách chờ pha chỉ nhận PAID; mọi endpoint Orders CUSTOMER phải kiểm tra ownership trên server.
+`Order` trả `id,userId,items,subtotal,discount,total,status,createdAt,customerName`; `customerName` là tên hiện tại của chủ đơn. `cancelReason` và `completedAt` chỉ xuất hiện khi có giá trị trong DB (không trả null). `completedAt` là ISO UTC tại lần chuyển READY → COMPLETED, cùng thời điểm sự kiện lịch sử, không phải thời điểm đặt đơn. Cả API staff và API khách trả các trường mở rộng này; khách chỉ đọc đơn của chính mình. Không trả user relation, email, password hash hay thông tin phiên. Item giữ nguyên snapshot `quantity,name,size,toppingNames,ice,sugar,note,unitPrice`.
+
+Migration `20261016000100_staff_order_details` thêm `orders.cancel_reason` (VARCHAR 300, nullable) và `orders.completed_at` (nullable). Đơn COMPLETED cũ được lấy thời điểm từ sự kiện COMPLETED có sẵn trong `order_status_history`; không có sự kiện thì giữ null. Đơn CANCELLED cũ không được tự tạo lý do giả. Không sửa migration đã áp dụng.
+
+Hủy lưu reason, tăng version, chuyển trạng thái, hoàn kho nếu còn giữ và ghi lịch sử trong cùng transaction. Hủy lặp hoặc thua race trả 409, không đổi reason và không hoàn kho lần hai. PREPARING/READY/COMPLETED không được hủy. Hủy PAID không đồng nghĩa hoàn tiền: tích hợp hoàn tiền vẫn thuộc TV5 và chưa có. Hàm nội bộ `transitionInTransaction(tx,id,'CANCELLED',reason)` cũng bắt buộc reason; các transition khác giữ nguyên chữ ký 3 tham số.
+
+Danh sách hiện chưa phân trang; dùng cho quy mô demo hiện tại, UI lọc PAID cho hàng chờ và COMPLETED/CANCELLED cho lịch sử. TV1 cần bật các nhánh API mode đang ẩn history/KPI/nút hủy trong `barista-board.tsx`, sau đó chạy browser E2E; backend hoàn tất không tự bật các nhánh giao diện này.
 
 Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie `brewlite_session` được ký JWT với `sessionVersion`; phiên cũ 401 sau logout. Migration `20261016000000_session_version` chỉ thêm cột mặc định 0, không xóa dữ liệu.
 ## Orders/Inventory TV4 — contract triển khai 2026-10-15
@@ -150,3 +170,12 @@ Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie 
 `ORDER_DISCOUNT` là injection token cho interface `OrderDiscount.calculate(tx,{userId,subtotal,promotionCode?}): Promise<number>`. TV6 thay provider `NoPromotionDiscount` trong OrdersModule bằng implementation tính/giữ lượt dùng ưu đãi trong cùng tx. Giá trị giảm phải là số nguyên từ 0 đến subtotal. Hiện không có mã → giảm 0; có mã → 422, **không** áp dụng mã demo BREW10 trên backend.
 
 Các writer tồn kho khác (TV2) phải tăng Product.version mỗi lần đổi stock; thay đổi catalog liên quan khi đang nhận đơn cần thống nhất cùng cơ chế version. Không gọi InventoryService.restore độc lập với CAS Order, tránh hoàn kho nhiều lần. Migration mới: `20261015000100_orders_inventory`; có FK, index và CHECK giá/số lượng/version, được tạo bằng Prisma diff offline, chưa apply lên DB tại phiên này.
+
+
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
+
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
+
+## TV4 kiểm chứng hợp đồng — 2026-10-18
+
+Không thay JSON/endpoint trong lượt đối chiếu báo cáo `(2).docx`. Staff list/detail/cancel/status, `cancelReason?`, `completedAt?` bên dưới đã được kiểm chứng cùng Orders/Inventory: 272 backend tests PASS và browser hai phiên API thật tại 1440/768/390. List vẫn gồm PAID/PREPARING/READY/COMPLETED/CANCELLED; UI lọc PAID cho hàng chờ và terminal cho history. Hủy chỉ PENDING/PAID/PAYMENT_FAILED, không phải refund. UI API mode hủy/history/KPI còn do TV1 bật. [Bằng chứng TV4](TV4_ACCEPTANCE.md).

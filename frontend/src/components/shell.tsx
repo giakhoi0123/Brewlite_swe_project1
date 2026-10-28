@@ -70,7 +70,7 @@ export function Header() {
       )}
       {dataMode === "hybrid" && (
         <div className="demo">
-         
+
         </div>
       )}
     </>

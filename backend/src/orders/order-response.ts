@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 
 export const orderInclude = {
+  ingredientUsage: true,
+  user: { select: { fullName: true } },
   items: {
     orderBy: { position: 'asc' },
     include: {
@@ -23,6 +25,7 @@ export function orderResponse(order: OrderRecord) {
   return {
     id: order.id,
     userId: order.userId,
+    customerName: order.user.fullName,
     status: order.status,
     subtotal: order.subtotal,
     discount: order.discountAmount,
@@ -33,8 +36,8 @@ export function orderResponse(order: OrderRecord) {
       ? { paymentMethod: order.payments[0].method }
       : {}),
     createdAt: order.createdAt.toISOString(),
-    ...(order.status === 'COMPLETED'
-      ? { completedAt: order.updatedAt.toISOString() }
+    ...(order.completedAt
+      ? { completedAt: order.completedAt.toISOString() }
       : {}),
     items: order.items.map((item) => ({
       key: item.id,

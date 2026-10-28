@@ -36,9 +36,9 @@ function CheckoutContent() {
   const submitting = useRef(false);
 
   // Helper hàm chuẩn hóa Promotion response từ Backend để tránh dính NaN
-  const normalizePromotion = (res: any): Promotion | null => {
+  const normalizePromotion = (res: unknown): Promotion | null => {
     if (!res) return null;
-    const rawData = res.data || res;
+    const rawData = (res && typeof res === 'object' && 'data' in res ? (res as { data: Record<string, unknown> }).data : res) as Record<string, unknown>;
     const discountVal = Number(
       rawData.discountAmount ??
         rawData.discountValue ??
@@ -49,8 +49,8 @@ function CheckoutContent() {
     const validDiscount = isNaN(discountVal) ? 0 : discountVal;
 
     return {
-      ...rawData,
-      code: rawData.code || code,
+
+      code: (typeof rawData.code === "string" ? rawData.code : "") || code,
       discount: validDiscount,
     };
   };

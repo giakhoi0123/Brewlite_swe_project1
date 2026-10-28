@@ -13,7 +13,7 @@ import type {
   Product,
   Promotion,
   OrderStatus,
-  RewardOption,
+
 } from "@/types/domain";
 
 type ApiListProduct = Pick<
@@ -121,7 +121,7 @@ export const apiLoyalty: LoyaltyService = {
   /**
    * Bộ xử lý tham số linh hoạt chống lỗi 400 Bad Request & nhầm lẫn thông số gói đổi điểm
    */
-  redeem: async (...args: any[]) => {
+  redeem: async (...args: unknown[]) => {
     let points = 50;
     let discount = 10000;
     let minOrder = 0;
@@ -129,7 +129,7 @@ export const apiLoyalty: LoyaltyService = {
     const validArgs = args.filter((a) => a !== null && a !== undefined);
 
     // 1. Trường hợp tham số truyền vào là Object
-    const objArg = validArgs.find((a) => typeof a === "object");
+    const objArg = validArgs.find((a): a is Record<string, unknown> => typeof a === "object");
     if (objArg) {
       points = Number(objArg.points || objArg.pointsToRedeem || 50);
       discount = Number(

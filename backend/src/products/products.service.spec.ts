@@ -1,3 +1,4 @@
+import { recipeFixture } from '../../test/fixtures/ingredients';
 import { jest } from '@jest/globals';
 import { PrismaService } from '../prisma.service';
 import { ProductsService, type ProductListItem } from './products.service';
@@ -21,12 +22,12 @@ describe('ProductsService', () => {
       stock: 10,
       description: 'Sample',
     }];
-    findMany.mockResolvedValue(products);
+    findMany.mockResolvedValue(products.map((p) => ({ ...p, sizes: [{ available: true, recipe: recipeFixture() }] })));
 
     await expect(service.findAll()).resolves.toEqual(products);
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(findMany).toHaveBeenCalledWith({
-      select: { id: true, name: true, price: true, imageUrl: true, stock: true, description: true },
+      select: { id: true, name: true, price: true, imageUrl: true, stock: true, description: true, sizes: { select: { available: true, recipe: { include: { ingredient: true } } } } },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
   });

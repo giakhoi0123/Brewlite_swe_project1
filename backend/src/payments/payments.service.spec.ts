@@ -26,6 +26,8 @@ function payment(status: Payment['status'] = 'PROCESSING'): Payment {
     amount: 98000,
     method: 'VNPAY_QR',
     status,
+    gatewayStatus: null,
+    appliedAt: null,
     idempotencyKey,
     vnpTxnRef: '0123456789abcdef0123456789abcdef',
     paymentUrl:

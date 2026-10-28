@@ -1,3 +1,4 @@
+import { seedFixtureRecipes } from '../../test/fixtures/ingredients';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -78,6 +79,7 @@ describeDatabase('Task 06: authenticated order creation on PostgreSQL', () => {
   });
 
   beforeEach(async () => {
+    await seedFixtureRecipes(db, staffId, productIds, [toppingId]);
     await db.order.deleteMany({ where: { userId: { in: [customer, otherCustomer] } } });
     await db.cartItem.deleteMany({ where: { cart: { userId: customer } } });
     await db.product.updateMany({ where: { id: { in: productIds } }, data: { stock: 6, version: 1 } });
@@ -92,6 +94,7 @@ describeDatabase('Task 06: authenticated order creation on PostgreSQL', () => {
         await db.cart.deleteMany({ where: { userId: { in: [customer, otherCustomer] } } });
         await db.product.deleteMany({ where: { id: { in: productIds } } });
         await db.topping.deleteMany({ where: { id: toppingId } });
+        await db.ingredient.deleteMany({ where: { id: staffId } });
         await db.user.deleteMany({ where: { id: { in: [customer, otherCustomer, staffId] } } });
       }
     } finally {
@@ -185,9 +188,14 @@ describeDatabase('Task 06: authenticated order creation on PostgreSQL', () => {
   });
 
   it('uses the current discount provider while persisting a PENDING order', async () => {
-    const response = await post({ items: [line()], promotionCode: 'WELCOME10' }).expect(201);
-    expect(response.body).toMatchObject({ status: 'PENDING', subtotal: 90000, discount: 10000, total: 80000 });
-    expect(await db.order.findUniqueOrThrow({ where: { id: response.body.id } })).toMatchObject({ discountAmount: 10000, total: 80000 });
+    // The provider now reads persisted promotions, rather than hard-coded demo codes.
+    const code = `TEST-${randomUUID()}`;
+    const promotion = await db.promotion.create({ data: { code, discountValue: 10000, minOrderValue: 50000 } });
+    try {
+      const response = await post({ items: [line()], promotionCode: code }).expect(201);
+      expect(response.body).toMatchObject({ status: 'PENDING', subtotal: 90000, discount: 10000, total: 80000 });
+      expect(await db.order.findUniqueOrThrow({ where: { id: response.body.id } })).toMatchObject({ discountAmount: 10000, total: 80000 });
+    } finally { await db.promotion.delete({ where: { id: promotion.id } }); }
   });
 
   it('lets BARISTA cancel a PREPARING order with a persisted reason over HTTP', async () => {

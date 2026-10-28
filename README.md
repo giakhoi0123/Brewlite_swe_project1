@@ -8,7 +8,7 @@
 - Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout vô hiệu JWT cũ bằng `users.session_version`, bcrypt, cookie HttpOnly JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
 - Orders/Inventory và Staff Orders đã có backend TV4 trên `main`; API staff hỗ trợ danh sách, chuyển trạng thái và hủy có lý do. Payment dùng VNPAY WebPay 2.1.0: backend ký HMAC-SHA512, ưu tiên IPN và dùng QueryDR có chữ ký làm fallback khi IPN bị trễ/mất; kết quả hợp lệ cập nhật Payment/Order trong transaction. `VNPAY_BANK_CODE` là cấu hình backend tùy chọn; mặc định để trống để trang hosted hiển thị các phương thức terminal được cấp. Promotions/Loyalty đã có endpoint backend và migration `LoyaltyLog`; các giới hạn còn lại được ghi trong `docs/PROJECT_STATUS.md`.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
-- Barista KDS theo Stitch có 5 màn: `/barista/dashboard`, `/barista/orders`, `/barista/preparing`, `/barista/ready`, `/barista/history`. Mock chia sẻ dữ liệu với lịch sử khách hàng; API mode dùng backend TV4 cho queue/transition nhưng history và hủy có lý do còn chờ endpoint. Hồ sơ thành viên chưa phát hành voucher hoặc chính sách đổi điểm.
+- Barista KDS theo Stitch có 5 màn: `/barista/dashboard`, `/barista/orders`, `/barista/preparing`, `/barista/ready`, `/barista/history`. API mode dùng backend TV4 cho queue/transition; endpoint history/hủy có lý do đã có, TV1 còn bật các nhánh UI tương ứng và KPI. Hồ sơ thành viên chưa phát hành voucher hoặc chính sách đổi điểm.
 
 ## Cấu trúc
 
@@ -177,3 +177,12 @@ TV1 duy trì kiến trúc, UI, auth và docs; TV2 Products; TV3 options/cart; TV
 ## Đọc tiếp
 
 Bắt đầu với `docs/PROJECT_STRUCTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, rồi `docs/INTEGRATION_GUIDE.md`. Trạng thái hiện hành ở `docs/PROJECT_STATUS.md`. Hạn chế chính: QueryDR Sandbox đã xác minh và lưu một giao dịch test, nhưng IPN HTTPS trên portal chưa được cấu hình nên E2E callback IPN thật chưa được xác nhận; ảnh gốc Stitch cần mạng (có SVG dự phòng offline). Các bằng chứng mock cũ không xác nhận tích hợp VNPAY.
+
+
+## Lịch sử riêng nhánh TV4 trước khi nhập main ngày 2026-10-26
+
+Các bằng chứng dưới đây thuộc code và gateway mock ở thời điểm ghi nhận, không xác nhận phiên bản VNPAY hiện tại.
+
+> TV4, cập nhật 2026-10-18: đối chiếu báo cáo hoàn chỉnh `(2).docx`; backend Orders/Inventory/State Machine/Barista sẵn sàng review. **272/272 backend tests, 25 suites, 0 skipped** và browser khách–Barista hai phiên API thật tại **1440/768/390 PASS**. Build/lint/typecheck backend PASS; frontend Webpack/API build PASS. UI API mode hủy/lịch sử/KPI còn cần TV1 nối endpoint đã có. [Ma trận yêu cầu, bằng chứng và cách chạy lại](docs/TV4_ACCEPTANCE.md). Mốc Task 06 bên dưới là lịch sử.
+
+> Task 06 đã kiểm chứng lại trên nhánh `feature/task-06-orders`, code `2c8adc2` sau khi nhập main `bacb7a6`: 247/247 backend tests trên PostgreSQL thật (0 skipped), frontend unit 14/14 và browser Orders API 4/4 tại 1440/768/390. Cập nhật [PR #16](https://github.com/giakhoi0123/Brewlite_swe_project1/pull/16), chưa merge; giữ đủ 5 commit cũ. Xem [bằng chứng kiểm chứng lại](docs/TASK06_REVIEW_VERIFICATION.md). Task 06 dừng ở PENDING, không dùng browser này để chốt Payment. Lint frontend toàn repo còn lỗi profile có sẵn.

@@ -10,6 +10,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { OrdersService } from './orders.service';
 import { PromotionDiscount } from './order-discount';
 import type { CreateOrderDto } from './dto/create-order.dto';
+import { ingredientFixture, recipeFixture } from '../../test/fixtures/ingredients';
 
 describe('Orders service', () => {
   const productId = '10000000-0000-4000-8000-000000000001';
@@ -21,13 +22,13 @@ describe('Orders service', () => {
     price: 29000,
     stock: 5,
     version: 1,
-    sizes: [{ code: 'M', extraPrice: 5000, available: true }],
+    sizes: [{ code: 'M', extraPrice: 5000, available: true, recipe: recipeFixture() }],
     toppings: [
       {
         toppingId,
         available: true,
         extraPrice: 6000,
-        topping: { name: 'Kem sữa' },
+        topping: { name: 'Kem sữa', recipe: recipeFixture() },
       },
     ],
   });
@@ -36,6 +37,7 @@ describe('Orders service', () => {
   const stockUpdate = jest.fn(async (_args: unknown) => ({ count: 1 }));
   const createOrder = jest.fn(async ({ data }: { data: any }) => ({
     id: 'order',
+    user: { fullName: 'Orders test' },
     ...data,
     createdAt: new Date('2026-10-15T00:00:00Z'),
     items: data.items.create.map((i: any, index: number) => ({
@@ -49,6 +51,7 @@ describe('Orders service', () => {
   const history = jest.fn(async (_args: unknown) => ({}));
   const restore = jest.fn(async (_args: unknown) => ({}));
   const tx = {
+    ingredient: { findMany: async () => [ingredientFixture()], updateMany: async () => ({ count: 1 }) },
     product: {
       findMany: jest.fn(async () => products),
       updateMany: stockUpdate,
@@ -202,6 +205,7 @@ describe('Orders service', () => {
         tx as unknown as Prisma.TransactionClient,
         'order',
         to,
+        to === 'CANCELLED' ? 'Hết nguyên liệu' : undefined,
       );
       expect(updateOrder).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -215,6 +219,7 @@ describe('Orders service', () => {
           fromStatus: 'PENDING',
           toStatus: to,
           version: 4,
+          createdAt: expect.any(Date),
         },
       });
     },
@@ -226,6 +231,7 @@ describe('Orders service', () => {
       tx as unknown as Prisma.TransactionClient,
       'order',
       'CANCELLED',
+      'Khách yêu cầu hủy',
     );
     expect(restore).not.toHaveBeenCalled();
   });
@@ -249,6 +255,7 @@ describe('Orders service', () => {
         tx as unknown as Prisma.TransactionClient,
         'order',
         'CANCELLED',
+        'Hết nguyên liệu',
       ),
     ).rejects.toThrow(ConflictException);
     expect(restore).not.toHaveBeenCalled();
