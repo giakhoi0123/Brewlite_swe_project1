@@ -276,6 +276,7 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
   });
 
   it('releases stock on failed IPN and atomically reserves it before a retry URL', async () => {
+    await db.ingredient.update({ where: { id: userId }, data: { stock: 50, version: 1 } });
     const order = await createOrder();
     const failed = await pay(order.id, randomUUID()).expect(201);
     await request(app.getHttpServer())
@@ -286,17 +287,17 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
       await db.order.findUniqueOrThrow({ where: { id: order.id } }),
     ).toMatchObject({ status: 'PAYMENT_FAILED', inventoryHeld: false });
     expect(
-      (await db.product.findUniqueOrThrow({ where: { id: productId } })).stock,
-    ).toBe(5);
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock.toNumber(),
+    ).toBe(50);
 
-    await db.product.update({ where: { id: productId }, data: { stock: 0 } });
+    await db.ingredient.update({ where: { id: userId }, data: { stock: 0 } });
     await pay(order.id, randomUUID()).expect(409);
     expect(await db.payment.count({ where: { orderId: order.id } })).toBe(1);
     expect(
       await db.order.findUniqueOrThrow({ where: { id: order.id } }),
     ).toMatchObject({ status: 'PAYMENT_FAILED', inventoryHeld: false });
 
-    await db.product.update({ where: { id: productId }, data: { stock: 5 } });
+    await db.ingredient.update({ where: { id: userId }, data: { stock: 50 } });
     const retry = await pay(order.id, randomUUID()).expect(201);
     expect(retry.body.status).toBe('PROCESSING');
     const retriedOrder = await db.order.findUniqueOrThrow({
@@ -313,7 +314,7 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
       'PENDING',
     ]);
     expect(
-      (await db.product.findUniqueOrThrow({ where: { id: productId } })).stock,
-    ).toBe(4);
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock.toNumber(),
+    ).toBe(40);
   });
 });

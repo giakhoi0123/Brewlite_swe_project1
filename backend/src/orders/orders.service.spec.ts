@@ -35,6 +35,8 @@ describe('Orders service', () => {
   let products: ReturnType<typeof product>[];
   let dto: CreateOrderDto;
   const stockUpdate = jest.fn(async (_args: unknown) => ({ count: 1 }));
+  const ingredientUpdate = jest.fn(async (_args: unknown) => ({ count: 1 }));
+  const findIngredients = jest.fn(async () => [ingredientFixture()]);
   const createOrder = jest.fn(async ({ data }: { data: any }) => ({
     id: 'order',
     user: { fullName: 'Orders test' },
@@ -51,7 +53,7 @@ describe('Orders service', () => {
   const history = jest.fn(async (_args: unknown) => ({}));
   const restore = jest.fn(async (_args: unknown) => ({}));
   const tx = {
-    ingredient: { findMany: async () => [ingredientFixture()], updateMany: async () => ({ count: 1 }) },
+    ingredient: { findMany: findIngredients, updateMany: ingredientUpdate },
     product: {
       findMany: jest.fn(async () => products),
       updateMany: stockUpdate,
@@ -88,6 +90,8 @@ describe('Orders service', () => {
     jest.clearAllMocks();
     products = [product()];
     stockUpdate.mockResolvedValue({ count: 1 });
+    ingredientUpdate.mockResolvedValue({ count: 1 });
+    findIngredients.mockResolvedValue([ingredientFixture()]);
     updateOrder.mockResolvedValue({ count: 1 });
     dto = {
       items: [
@@ -113,7 +117,7 @@ describe('Orders service', () => {
     );
   });
 
-  it('calculates DB prices, creates PENDING, snapshots options and reserves stock', async () => {
+  it('calculates DB prices, creates PENDING, snapshots options and reserves ingredients stock', async () => {
     const result = await service.create('customer', dto);
     expect(result).toMatchObject({
       status: 'PENDING',
@@ -129,10 +133,15 @@ describe('Orders service', () => {
       toppingNames: ['Kem sữa'],
       note: 'Ít nóng',
     });
-    expect(stockUpdate).toHaveBeenCalledWith({
-      where: { id: productId, version: 1, stock: { gte: 2 } },
-      data: { stock: { decrement: 2 }, version: { increment: 1 } },
-    });
+    // Product.stock is no longer reserved
+    expect(stockUpdate).not.toHaveBeenCalled();
+    // Ingredient.stock is reserved with optimistic lock
+    expect(ingredientUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: ingredientFixture().id }),
+        data: expect.objectContaining({ stock: { decrement: expect.any(Object) } }),
+      }),
+    );
     expect(createOrder.mock.calls[0][0].data.statusHistory.create).toEqual({
       toStatus: 'PENDING',
       version: 1,
@@ -163,14 +172,18 @@ describe('Orders service', () => {
       BadRequestException,
     );
     expect(stockUpdate).not.toHaveBeenCalled();
+    expect(ingredientUpdate).not.toHaveBeenCalled();
     expect(createOrder).not.toHaveBeenCalled();
   });
 
   it.each(['insufficient', 'version conflict'])(
-    'rejects %s stock without creating an order',
+    'rejects %s ingredient stock without creating an order',
     async (scenario) => {
-      if (scenario === 'insufficient') products[0].stock = 1;
-      else stockUpdate.mockResolvedValue({ count: 0 });
+      if (scenario === 'insufficient') {
+        findIngredients.mockResolvedValueOnce([{ ...ingredientFixture(), stock: new Prisma.Decimal(0) }]);
+      } else {
+        ingredientUpdate.mockResolvedValueOnce({ count: 0 });
+      }
       await expect(service.create('customer', dto)).rejects.toThrow(
         ConflictException,
       );
@@ -184,6 +197,7 @@ describe('Orders service', () => {
       BadRequestException,
     );
     expect(stockUpdate).not.toHaveBeenCalled();
+    expect(ingredientUpdate).not.toHaveBeenCalled();
   });
 
   it('bounds integer money before writing stock', async () => {
@@ -192,6 +206,7 @@ describe('Orders service', () => {
       BadRequestException,
     );
     expect(stockUpdate).not.toHaveBeenCalled();
+    expect(ingredientUpdate).not.toHaveBeenCalled();
   });
 
   it('hides other customers orders as 404', async () => {
@@ -210,12 +225,14 @@ describe('Orders service', () => {
       status,
       version: 3,
       inventoryHeld: held,
+      ingredientInventory: true,
+      ingredientUsage: [{ ingredientId: ingredientFixture().id, amount: new Prisma.Decimal(20) }],
       items: [{ productId, qty: 2 }],
     };
   }
 
   it.each(['CANCELLED', 'PAYMENT_FAILED'] as OrderStatus[])(
-    'releases stock after winning order CAS for %s',
+    'releases ingredient stock after winning order CAS for %s',
     async (to) => {
       findOrder.mockResolvedValue(order('PENDING'));
       await service.transitionInTransaction(
@@ -229,7 +246,15 @@ describe('Orders service', () => {
           where: { id: 'order', status: 'PENDING', version: 3 },
         }),
       );
-      expect(restore).toHaveBeenCalledTimes(1);
+      // Product stock restore is no longer called
+      expect(restore).not.toHaveBeenCalled();
+      // Ingredient stock is restored
+      expect(ingredientUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: ingredientFixture().id }),
+          data: expect.objectContaining({ stock: { increment: expect.any(Object) } }),
+        }),
+      );
       expect(history).toHaveBeenCalledWith({
         data: {
           orderId: 'order',
@@ -251,16 +276,18 @@ describe('Orders service', () => {
       'Khách yêu cầu hủy',
     );
     expect(restore).not.toHaveBeenCalled();
+    expect(ingredientUpdate).not.toHaveBeenCalled();
   });
 
-  it('reacquires stock before retrying payment', async () => {
+  it('reacquires ingredient stock before retrying payment', async () => {
     findOrder.mockResolvedValue(order('PAYMENT_FAILED', false));
     await service.transitionInTransaction(
       tx as unknown as Prisma.TransactionClient,
       'order',
       'PENDING',
     );
-    expect(stockUpdate).toHaveBeenCalledTimes(1);
+    expect(ingredientUpdate).toHaveBeenCalledTimes(1);
+    expect(stockUpdate).not.toHaveBeenCalled();
     expect(restore).not.toHaveBeenCalled();
   });
 
@@ -276,6 +303,7 @@ describe('Orders service', () => {
       ),
     ).rejects.toThrow(ConflictException);
     expect(restore).not.toHaveBeenCalled();
+    expect(ingredientUpdate).not.toHaveBeenCalled();
     expect(history).not.toHaveBeenCalled();
   });
 

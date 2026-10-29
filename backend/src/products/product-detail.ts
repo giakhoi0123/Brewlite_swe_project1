@@ -19,7 +19,7 @@ export const productDetailSelect = {
 
 export type ProductDetailRecord = Prisma.ProductGetPayload<{ select: typeof productDetailSelect }>;
 export type ProductDetail = Omit<ProductDetailRecord, 'sizes' | 'toppings'> & {
-  sizes: Omit<ProductDetailRecord['sizes'][number], 'isDefault' | 'recipe'>[];
+  sizes: (Omit<ProductDetailRecord['sizes'][number], 'isDefault' | 'recipe'> & { stock: number })[];
   toppings: { id: string; name: string; extraPrice: number; available: boolean }[];
   defaultSizeId: string;
 };

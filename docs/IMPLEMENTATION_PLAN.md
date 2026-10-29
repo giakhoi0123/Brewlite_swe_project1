@@ -1,5 +1,38 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Cảnh báo nguyên liệu thiếu khi đạt giới hạn mua (Product Detail) — 2026-10-30
+
+- [x] Backend Preview API (`POST /products/preview`): Cung cấp endpoint chỉ đọc, không khóa kho, tính trần số lượng theo công thức (size + toppings) và giỏ hàng hiện tại.
+- [x] Đánh giá thiếu hụt đa nguyên liệu (`nextShortages` & `currentShortages`): Chi tiết từng nguyên liệu thiếu (tên, tổng nhu cầu, tồn khả dụng, lượng thiếu, đơn vị chuẩn).
+- [x] Phân loại trạng thái nguyên nhân: Phân biệt rõ thiếu nguyên liệu, chạm trần 99 ly, size ngừng bán hoặc thiếu công thức.
+- [x] Frontend Real-time Preview: Tích hợp gọi preview khi đổi size, topping hoặc số lượng trên trang `products/[id]/page.tsx` với cơ chế chống race condition (`active` flag).
+- [x] Component `Quantity`: Nâng cấp prop `canAdd` tự động khóa nút "+" và làm mờ khi không thể thêm ly tiếp theo mà không cần click/hover.
+- [x] Hiển thị cảnh báo trực quan: Tự động render thông báo cảnh báo ngay dưới ô số lượng với tên nguyên liệu in đậm và lượng thiếu chuẩn xác; hỗ trợ xuất hiện ngay khi load trang nếu số lượng khởi tạo đã chạm trần.
+- [x] Giữ tính hợp lệ của số lượng đang chọn: Cho phép mua/thêm giỏ hàng số lượng hợp lệ hiện có dù nút "+" đã bị vô hiệu hóa.
+- [x] Kiểm thử toàn diện: Unit tests backend preview (7/7 PASS), HTTP preview tests (4/4 PASS), Frontend unit tests (29/29 PASS), strict TypeScript check (0 errors).
+
+
+## Nâng cấp kiểm tra & trừ/cộng kho gom danh sách nguyên liệu thiếu — 2026-10-29
+
+- [x] Tính tổng nhu cầu định mức nguyên vật liệu của tất cả các món trong đơn (size + toppings) nhân số lượng (`InventoryService.demand`).
+- [x] Gom toàn bộ danh sách tên các nguyên liệu không đủ tồn kho (`stock < demand` hoặc thiếu) trong `reserveIngredients` và ném `ConflictException` với định dạng: `"Không đủ nguyên vật liệu: <Tên 1>, <Tên 2>. Vui lòng chọn món khác hoặc giảm số lượng!"`.
+- [x] Đảm bảo tính toàn vẹn Atomic: không trừ bất kỳ nguyên liệu nào khi có thiếu hụt; giữ transaction CAS optimistic locking khi trừ kho.
+- [x] Lưu snapshot `OrderIngredientUsage` và hoàn kho (`restoreIngredients`) chuẩn xác khi hủy đơn/thất bại.
+- [x] Đồng bộ `assertCartAvailability` trong `backend/src/inventory/cart-availability.ts`.
+- [x] Viết unit tests và integration tests kiểm chứng: đủ nguyên liệu trừ kho thành công, thiếu 1 nguyên liệu báo đúng tên, thiếu nhiều nguyên liệu gom đủ tên, atomic zero-deduction, hoàn kho sau hủy.
+
+## Sửa sức bán theo size — 2026-10-29
+
+Phạm vi T02/T04/T05/T06/10C (owner giữ TV2/TV1+TV3/TV4), sửa theo yêu cầu trực tiếp: thêm tồn từng UUID size, kiểm tra nguyên liệu toàn giỏ trước thao tác lưu, giữ kiểm tra transaction lúc tạo đơn. Không sửa Payment/Auth/Promotion nghiệp vụ. **IMPLEMENTED / TESTED — READY_FOR_REVIEW**, không nâng toàn dự án lên VERIFIED_COMPLETE.
+
+- [x] Xác minh schema/công thức, nguồn đơn vị, giữ chỗ, DTO, UI, giỏ và Orders; không cần migration.
+- [x] API `sizes[].stock`, `POST /products/availability`; UI và backend cart kiểm tra nguyên liệu dùng chung/topping.
+- [x] Backend build/lint; PostgreSQL riêng 17 migration, 36 suites/384 tests PASS, 0 skipped. Frontend build/typecheck, 29 unit tests, browser fixture 4/4 ở 1440/768/390; lint 0 lỗi/1 warning cũ.
+- [x] Khởi động Docker/PostgreSQL; runner tạo DB UUID riêng, kiểm chứng migration/race/rollback và tự dọn DB test. Không sửa DB ứng dụng.
+- [ ] Browser nối API/DB thật chưa chạy trong lượt này (UI dùng API interception, backend HTTP/PostgreSQL kiểm độc lập). Backend full test typecheck còn 3 lỗi cũ của MailService test, ngoài phạm vi.
+
+Chi tiết và bước chạy lại: [SIZE_AVAILABILITY_FIX.md](SIZE_AVAILABILITY_FIX.md). Không đổi trạng thái nghiệm thu các phần khác theo kết quả fixture.
+
 ## TV4 — kho nguyên vật liệu — 2026-10-28
 
 Đã triển khai mở rộng T06/10C theo yêu cầu mới: Ingredient, công thức mỗi size/topping, snapshot nguyên liệu theo Order, giữ/hoàn/retry transaction + optimistic locking, API nhân viên và availability catalog. [Thiết kế, API và giới hạn](INGREDIENT_INVENTORY.md). PostgreSQL riêng: **16 migrations, 28 suites/335 tests PASS, 0 skipped**; frontend **23/23**, backend full test typecheck PASS. Database local đã migrate/seed 17 nguyên liệu, 30 size, 2 topping; giữ nguyên ba đơn lịch sử.

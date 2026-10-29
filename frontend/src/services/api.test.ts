@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { apiOrders, apiPayments, apiBarista, apiLoyalty } from './api';
+import { apiProducts, apiOrders, apiPayments, apiBarista, apiLoyalty } from './api';
 import { authService } from './auth';
 import { ApiError } from './http';
 import type { CartItem } from '../types/domain';
@@ -12,6 +12,29 @@ const item: CartItem = {
   size: 'M', toppingIds: ['topping'], toppingNames: ['Untrusted topping'], unitPrice: 1,
   quantity: 2, ice: '70% đá', sugar: '50% ít ngọt', note: 'Ít nóng',
 };
+
+test('product adapter preserves size UUID/stock/default and posts the entire cart without prices', async () => {
+  const sizes = [
+    { id: 'small', code: 'S', stock: 36, available: true, name: 'Nhỏ', extraPrice: 0 },
+    { id: 'large', code: 'L', stock: 12, available: true, name: 'Lớn', extraPrice: 9000 },
+  ];
+  globalThis.fetch = async (_url, init) => {
+    assert.equal(init?.cache, 'no-store');
+    return Response.json({ id: 'coffee', stock: 36, sizes, defaultSizeId: 'large', toppings: [] });
+  };
+  const p = await apiProducts.get('coffee');
+  assert.deepEqual(p?.sizes, sizes.map((s) => ({ ...s, isDefault: s.id === 'large' })));
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith('/products/availability'));
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.items.length, 2);
+    assert.equal(body.items[1].size, 'L');
+    assert.equal(body.items[1].quantity, 12);
+    assert.equal(body.items[0].unitPrice, undefined);
+    return Response.json({ message: 'Không đủ nguyên vật liệu' }, { status: 409 });
+  };
+  await assert.rejects(apiProducts.validateCart([item, { ...item, size: 'L', quantity: 12 }]), /Không đủ/);
+});
 
 test('orders adapter posts options and cookie credentials, never client price/owner/discount', async () => {
   let call: { url: string; init?: RequestInit } | undefined;

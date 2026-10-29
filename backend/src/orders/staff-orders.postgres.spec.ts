@@ -42,7 +42,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
     patch(id, 'status', { status });
   const row = (id: string) => db.order.findUniqueOrThrow({ where: { id } });
   const stock = async () =>
-    (await db.product.findUniqueOrThrow({ where: { id: productId } })).stock;
+    Math.floor((await db.ingredient.findUniqueOrThrow({ where: { id: staffId } })).stock.toNumber() / 15);
   const history = (id: string) =>
     db.orderStatusHistory.findMany({
       where: { orderId: id },
@@ -128,6 +128,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
   });
   beforeEach(async () => {
     await seedFixtureRecipes(db, staffId, [productId], [toppingId]);
+    await db.ingredient.update({ where: { id: staffId }, data: { stock: 300, version: 1 } });
     await db.order.deleteMany({
       where: { userId: { in: [customerId, otherId] } },
     });
@@ -197,7 +198,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
         inventoryHeld: false,
         version: before.version + 1,
       });
-      expect(await stock()).toBe(20);
+      expect(await stock()).toBe(status === 'PREPARING' ? 19 : 20);
       const events = await history(id);
       expect(events.at(-1)).toMatchObject({
         fromStatus: status,
@@ -215,7 +216,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
         cancelReason: 'Hết nguyên liệu',
         version: before.version + 1,
       });
-      expect(await stock()).toBe(20);
+      expect(await stock()).toBe(status === 'PREPARING' ? 19 : 20);
       expect(await history(id)).toHaveLength(events.length);
     },
   );
@@ -360,7 +361,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
   });
 
   it('UC16: two customers compete for the last unit through HTTP; only one order is persisted', async () => {
-    await db.product.update({ where: { id: productId }, data: { stock: 1 } });
+    await db.ingredient.update({ where: { id: staffId }, data: { stock: 15, version: 1 } });
     const payload = {
       items: [
         {
@@ -384,7 +385,7 @@ describeDatabase('Staff Orders HTTP with PostgreSQL', () => {
     );
     expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
     expect(results.find((r) => r.status === 409)!.body.message).toMatch(
-      /tồn kho|Tồn kho/,
+      /tồn kho|Tồn kho|nguyên vật liệu|Kho nguyên liệu/,
     );
     const stored = await db.order.findMany({
       where: { items: { some: { productId } } },

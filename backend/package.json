@@ -29,7 +29,8 @@
     "prisma:seed": "prisma db seed",
     "prisma:seed-customization": "tsx prisma/seed-customization.ts",
     "prisma:seed-inventory": "tsx prisma/seed-inventory.ts",
-    "prisma:migrate": "prisma migrate deploy"
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:studio": "prisma studio"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

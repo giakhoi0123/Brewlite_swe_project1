@@ -46,6 +46,8 @@ function SizeControl({
 export default function CartPage() {
   const {
       items,
+      busy: cartBusy,
+      error: cartError,
       setQuantity,
       changeSize,
       remove,
@@ -59,29 +61,36 @@ export default function CartPage() {
     [code, setCode] = useState(""),
     [promotion, setPromotion] = useState<Promotion | null>(null),
     [promoError, setPromoError] = useState(""),
-    [promoBusy, setPromoBusy] = useState(false);
+    [promoBusy, setPromoBusy] = useState(false),
+    [availabilityError, setAvailabilityError] = useState(""),
+    [checkedItems, setCheckedItems] = useState<CartItem[] | null>(null),
+    [revision, setRevision] = useState(0);
   const count = items.reduce((n, i) => n + i.quantity, 0),
     subtotal = cartTotal(items),
     discount = Math.min(promotion?.discount || 0, subtotal);
-  // Kiểm tra sớm theo tồn kho của danh sách sản phẩm; backend vẫn kiểm lại khi POST /orders.
   const stockIssue = (item: CartItem) => {
     const product = products.find((p) => p.id === item.productId);
-    if (!product) return "";
-    const total = items
-      .filter((i) => i.productId === item.productId)
-      .reduce((n, i) => n + i.quantity, 0);
-    if (total <= product.stock) return "";
-    return product.stock === 0
-      ? `${product.name} đang hết hàng`
-      : `${product.name} chỉ còn ${product.stock} phần`;
+    const size = product?.sizes.find((s) => s.code === item.size);
+    if (size?.stock === undefined) return "Chưa tải được tồn khả dụng";
+    if (size.stock === 0) return `Size ${item.size}: Hết hàng`;
+    return item.quantity > size.stock ? `Size ${item.size} chỉ còn ${size.stock} phần` : "";
   };
-  const hasIssue = items.some((i) => stockIssue(i));
+  const checking = checkedItems !== items;
+  const hasIssue = checking || !!availabilityError || items.some((i) => stockIssue(i));
   useEffect(() => {
-    services.products
-      .list()
-      .then(setProducts)
-      .catch(() => setProducts([]));
-  }, []);
+    let active = true;
+    setCheckedItems(null);
+    setAvailabilityError("");
+    Promise.all([
+      Promise.all([...new Set(items.map((i) => i.productId))].map((id) => services.products.get(id))).then((rows) => {
+        if (active) setProducts(rows.filter((p): p is Product => !!p));
+      }),
+      services.products.validateCart(items),
+    ]).catch((e) => {
+      if (active) setAvailabilityError(e instanceof Error ? e.message : 'Không thể kiểm tra nguyên liệu');
+    }).finally(() => { if (active) setCheckedItems(items); });
+    return () => { active = false; };
+  }, [items, revision, cartError]);
   // Mã đã lưu được kiểm tra lại mỗi khi tạm tính thay đổi để ưu đãi luôn khớp giỏ.
   useEffect(() => {
     if (!promoCode || !subtotal) {
@@ -184,7 +193,7 @@ export default function CartPage() {
                     <div className="ct-options">
                       <SizeControl
                         item={i}
-                        sizes={i.sizeOptions ?? product?.sizes ?? []}
+                        sizes={product?.sizes ?? []}
                         onChange={(size, unit) => changeSize(i.key, size, unit)}
                       />
                       <span className="ct-chip">
@@ -213,6 +222,8 @@ export default function CartPage() {
                       <div className="ct-item-right">
                         <Quantity
                           value={i.quantity}
+                          disabled={cartBusy}
+                          max={product?.sizes.find((s) => s.code === i.size)?.stock ?? 0}
                           onChange={(n) => setQuantity(i.key, n)}
                         />
                         <div className="ct-line-total">
@@ -298,14 +309,17 @@ export default function CartPage() {
                 <p className="success">Đã áp dụng {promotion.code}.</p>
               )}
             </div>
-            {hasIssue && (
+            {checking && <p role="status">Đang kiểm tra nguyên liệu...</p>}
+            {cartError && <p role="alert" className="error">{cartError}</p>}
+            {availabilityError && <p role="alert" className="error">{availabilityError} <button onClick={() => setRevision((n) => n + 1)}>Kiểm tra lại</button></p>}
+            {hasIssue && !checking && (
               <p className="error ct-summary-note">
                 Vui lòng giảm số lượng các món được đánh dấu trước khi đặt hàng.
               </p>
             )}
             <button
               className="ct-primary"
-              disabled={loading || hasIssue}
+              disabled={loading || hasIssue || cartBusy}
               onClick={() =>
                 router.push(user ? "/checkout" : "/login?next=%2Fcheckout")
               }

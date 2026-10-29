@@ -44,15 +44,22 @@ export function ErrorState({
 export function Quantity({
   value,
   onChange,
+  max = 99,
+  disabled = false,
+  canAdd = true,
 }: {
   value: number;
   onChange: (n: number) => void;
+  max?: number;
+  disabled?: boolean;
+  canAdd?: boolean;
 }) {
+  const atMax = value >= Math.min(99, max) || !canAdd;
   return (
     <div className="quantity">
       <button
         aria-label="Giảm số lượng"
-        disabled={value <= 1}
+        disabled={disabled || value <= 1}
         onClick={() => onChange(value - 1)}
       >
         −
@@ -60,7 +67,7 @@ export function Quantity({
       <span>{value}</span>
       <button
         aria-label="Tăng số lượng"
-        disabled={value >= 99}
+        disabled={disabled || atMax}
         onClick={() => onChange(value + 1)}
       >
         +

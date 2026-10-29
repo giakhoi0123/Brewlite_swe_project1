@@ -122,7 +122,6 @@ export class OrdersService {
       if (discountAmount > subtotal)
         throw new BadRequestException('Giảm giá vượt tổng đơn');
       const ingredientUsage = this.inventory.demand(dto.items, products);
-      await this.inventory.reserve(tx, items, products);
       await this.inventory.reserveIngredients(tx, ingredientUsage);
       const order = await tx.order.create({
         data: {
@@ -311,7 +310,6 @@ export class OrdersService {
     if (changed.count !== 1)
       throw new ConflictException('Đơn hàng vừa thay đổi. Vui lòng tải lại');
     if (release && order.inventoryHeld) {
-      await this.inventory.restore(tx, order.items);
       // A drink already being prepared cannot return its ingredients to usable stock.
       if (order.ingredientInventory && order.status !== OrderStatus.PREPARING)
         await this.inventory.restoreIngredients(tx, order.ingredientUsage);
@@ -343,7 +341,6 @@ export class OrdersService {
       }
     }
     if (reserve) {
-      await this.inventory.reserve(tx, order.items);
       if (order.ingredientInventory)
         await this.inventory.reserveIngredients(tx, order.ingredientUsage);
 

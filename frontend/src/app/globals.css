@@ -333,6 +333,11 @@ body { color: #27211e; }
 .pd-page .quantity button, .ct-page .quantity button { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #2b18101a; font-size: 16px; }
 .pd-page .quantity span, .ct-page .quantity span { min-width: 30px; font-size: 17px; font-weight: 700; }
 .pd-card .error { margin: 10px 0 0; font-size: 13px; }
+.pd-notice { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--s-variant); }
+.pd-notice strong { color: var(--s-ink); font-weight: 700; }
+.pd-notice.error { color: #b42318; }
+.pd-notice.warning { color: #b54708; }
+.pd-page .quantity button:disabled, .ct-page .quantity button:disabled { opacity: 0.35; cursor: not-allowed; }
 .pd-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
 .pd-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; border: 0; border-radius: 99px; color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; box-shadow: 0 6px 16px #2b181024; transition: .15s; }
 .pd-btn:hover:not(:disabled) { transform: translateY(-1px); }

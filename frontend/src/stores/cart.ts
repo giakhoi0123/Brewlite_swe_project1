@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { CartItem, ProductSize } from "@/types/domain";
 import { itemKey } from "@/types/domain";
+import { services } from "@/services";
 /**
  * Giỏ hàng chỉ nằm ở trình duyệt (Zustand persist → localStorage), dùng chung cho khách và người đã đăng nhập.
  * Giá ở đây chỉ để hiển thị: `POST /orders` nhận cấu hình món và backend tính lại giá, kiểm tồn kho.
@@ -10,9 +11,11 @@ import { itemKey } from "@/types/domain";
 type CartStore = {
   items: CartItem[];
   promoCode: string;
-  add: (item: CartItem) => void;
-  setQuantity: (key: string, quantity: number) => void;
-  changeSize: (key: string, size: ProductSize["code"], unitPrice: number) => void;
+  busy: boolean;
+  error: string;
+  add: (item: CartItem) => Promise<boolean>;
+  setQuantity: (key: string, quantity: number) => Promise<boolean>;
+  changeSize: (key: string, size: ProductSize["code"], unitPrice: number) => Promise<boolean>;
   remove: (key: string) => void;
   /** Trả Promise để luồng thanh toán (`clearCartAfterPaidOrder`) chờ xóa xong. */
   clear: () => Promise<boolean>;
@@ -30,21 +33,40 @@ const merge = (items: CartItem[], item: CartItem) =>
           : i,
       )
     : [...items, { ...item, quantity: clampQuantity(item.quantity) }];
+
+async function checkedChange(change: (state: CartStore) => { items: CartItem[] }, reduction = false) {
+  const before = useCart.getState();
+  if (before.busy) return false;
+  const next = change(before);
+  useCart.setState({ busy: true, error: '' });
+  try {
+    if (!reduction) await services.products.validateCart(next.items);
+    // A remove/clear/other-tab hydration while checking must never be overwritten.
+    if (useCart.getState().items !== before.items) throw new Error('Giỏ hàng vừa thay đổi. Vui lòng thử lại');
+    useCart.setState(next);
+    return true;
+  } catch (error) {
+    useCart.setState({ error: error instanceof Error ? error.message : 'Không thể kiểm tra nguyên liệu' });
+    return false;
+  } finally { useCart.setState({ busy: false }); }
+}
 export const useCart = create<CartStore>()(
   persist(
-    (set) => ({
+    (set, get): CartStore => ({
       items: [],
       promoCode: "",
-      add: (item) => set((s) => ({ items: merge(s.items, item) })),
+      busy: false,
+      error: '',
+      add: (item) => checkedChange((s) => ({ items: merge(s.items, item) })),
       setQuantity: (key, quantity) =>
-        set((s) => ({
+        checkedChange((s) => ({
           items: s.items.map((i) =>
             i.key === key ? { ...i, quantity: clampQuantity(quantity) } : i,
           ),
-        })),
+        }), quantity <= (get().items.find((i) => i.key === key)?.quantity ?? 0)),
       // Đổi size tạo khóa mới; trùng một dòng khác thì gộp, không thì giữ nguyên vị trí.
       changeSize: (key, size, unitPrice) =>
-        set((s) => {
+        checkedChange((s) => {
           const current = s.items.find((i) => i.key === key);
           if (!current || current.size === size) return s;
           const next: CartItem = {
@@ -70,7 +92,7 @@ export const useCart = create<CartStore>()(
       remove: (key) =>
         set((s) => ({ items: s.items.filter((i) => i.key !== key) })),
       clear: async () => {
-        set({ items: [], promoCode: "" });
+        set({ items: [], promoCode: "", error: '' });
         return true;
       },
       setPromoCode: (promoCode) => set({ promoCode }),

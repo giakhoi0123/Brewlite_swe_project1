@@ -1,5 +1,81 @@
 # Trạng thái dự án
 
+## Tính năng Xem trước Tồn kho & Cảnh báo Nguyên liệu Thiếu theo Real-time — 2026-10-30
+
+**IMPLEMENTED / FULL TESTS PASS**: Đã hoàn thiện tính năng cảnh báo chi tiết nguyên liệu thiếu khi người dùng tăng số lượng đạt trần khả dụng tại trang chi tiết món (`frontend/src/app/products/[id]/page.tsx`), áp dụng toàn diện cho mọi size S/M/L và toppings:
+1. **Hành vi nghiệp vụ (UX/Business Rules)**:
+   - Khi tăng số lượng đến giới hạn mua (ví dụ kho còn 250ml sữa, Latte S cần 50ml/ly, người dùng chọn 5 ly):
+     - Nút "+" tự động mờ và vô hiệu hóa (`disabled`, `canAdd = false`).
+     - Tự động hiển thị ngay dưới ô số lượng thông báo rõ ràng: `"Không thể thêm ly size S: **Sữa tươi** không đủ cho ly tiếp theo (thiếu 50ML)."`.
+     - 5 ly đang chọn vẫn hợp lệ và được phép thêm vào giỏ / mua ngay (`valid = true`).
+     - Không cần người dùng phải click hay hover vào nút "+" bị vô hiệu hóa.
+     - Không báo nhầm "size S hết hàng" khi số lượng đang chọn vẫn mua được.
+   - Nếu thiếu nhiều nguyên liệu cho ly tiếp theo, gom và hiển thị đầy đủ tên nguyên liệu in đậm cùng lượng thiếu (ví dụ: `Cà phê thiếu 5G; Sữa tươi thiếu 50ML`).
+   - Tự động kiểm tra và hiển thị cảnh báo ngay khi tải trang nếu số lượng mặc định đã đạt trần mua.
+   - Phân biệt rõ các trạng thái: Thiếu nguyên liệu cho ly tiếp theo (`nextShortages`), không đủ nguyên liệu cho số lượng đang chọn (`currentShortages`), size bị ngừng bán (`UNAVAILABLE_SIZE`), công thức không hợp lệ (`INVALID_RECIPE`), hoặc chạm trần nghiệp vụ 99 ly (`MAX_REACHED`).
+2. **Backend Read-only Selection Preview Endpoint**:
+   - Bổ sung `POST /api/products/preview` (read-only, `Cache-Control: no-store`, không trừ/giữ kho).
+   - Module tính toán `backend/src/products/selection-preview.ts` tính đúng công thức size + topping, trừ tồn nguyên liệu đã bị chiếm bởi các món khác trong giỏ, và tự động gộp số lượng với món trùng cấu hình trong giỏ hàng.
+   - Unit tests `backend/src/products/selection-preview.spec.ts`: **7/7 tests PASS**.
+   - HTTP tests `backend/src/products/availability.http.spec.ts`: **4/4 tests PASS**.
+3. **Frontend Tích hợp Real-time**:
+   - `frontend/src/services/api.ts` & `mock.ts`: Cung cấp hàm `previewSelection`.
+   - `frontend/src/components/ui.tsx`: Nâng cấp component `Quantity` hỗ trợ cờ `canAdd`.
+   - `frontend/src/app/globals.css`: Bổ sung styles cho `.pd-notice`, `.pd-notice.warning`, `.pd-notice.error`.
+   - `frontend/src/app/products/[id]/page.tsx`: Gọi preview theo thời gian thực (với cơ chế hủy race condition khi người dùng đổi size/topping liên tục), tự động hiển thị thông báo, khóa/mở nút thêm vào giỏ.
+4. **Kiểm thử nghiệm thu**:
+   - Frontend unit tests: **29/29 tests PASS**.
+   - Frontend TypeScript check (`tsc --noEmit`): **0 errors**.
+   - Backend build (`nest build`): **0 errors**.
+   - Backend test suites: **30 passed / 328 tests PASS** (và 3 postgres integration suites PASS 100% khi chạy trên PostgreSQL Docker thật).
+
+
+## Cơ chế gom danh sách nguyên liệu thiếu & kiểm tra kho toàn vẹn — 2026-10-29
+
+**IMPLEMENTED / FULL TESTS PASS**: Đã nâng cấp toàn diện cơ chế kiểm tra và trừ/cộng kho nguyên vật liệu theo Recipe:
+1. **Gom toàn bộ nguyên liệu thiếu (Multi-shortage aggregation)**:
+   - Trong `InventoryService.reserveIngredients` và `assertCartAvailability`: Thay vì ném lỗi ngay khi gặp nguyên liệu đầu tiên thiếu, hệ thống duyệt qua toàn bộ danh sách nguyên liệu cần dùng của đơn hàng/giỏ hàng.
+   - Thu thập tất cả tên nguyên liệu thiếu (`stock < demand` hoặc không tìm thấy).
+   - Ném `ConflictException` với thông điệp gom đầy đủ các tên nguyên liệu thiếu phân tách bằng dấu phẩy:
+     `"Không đủ nguyên vật liệu: <Tên 1>, <Tên 2>. Vui lòng chọn món khác hoặc giảm số lượng!"`.
+2. **Tính toàn vẹn Atomic (Atomic rollback & zero partial deduction)**:
+   - Kiểm tra toàn bộ tồn kho trước khi thực hiện bất kỳ lệnh trừ (`decrement`) nào. Nếu có bất kỳ nguyên liệu nào thiếu, tuyệt đối không trừ kho và transaction bị hủy bỏ hoàn toàn.
+   - Trừ kho an toàn trong Database Transaction có kiểm tra Optimistic Locking (`version` CAS).
+   - Lưu snapshot sử dụng vào `OrderIngredientUsage` và hoàn trả kho (`increment` + tăng `version`) chuẩn xác khi đơn bị hủy hoặc thanh toán thất bại.
+3. **Đồng bộ kiểm tra giỏ hàng (Cart Availability)**:
+   - Cập nhật hàm preview `assertCartAvailability` trong `backend/src/inventory/cart-availability.ts` gom toàn bộ tên nguyên liệu thiếu đồng bộ định dạng thông báo.
+4. **Kiểm thử nghiệm thu**:
+   - Backend unit tests `src/inventory/ingredients.spec.ts`: PASS 100% (kiểm chứng case đủ nguyên liệu, thiếu 1 nguyên liệu, thiếu nhiều nguyên liệu gom đầy đủ tên, hoàn kho sau hủy, optimistic lock CAS, và cart preview).
+   - Backend test suites: **29/29 suites PASS, 320 tests PASS**.
+   - Backend build: **0 errors**. Lint: **0 warnings, 0 errors**.
+   - Frontend unit tests: **29/29 tests PASS**.
+
+## Chuyển đổi 100% tồn khả dụng sang Nguyên vật liệu (Bỏ Product.stock) — 2026-10-29
+
+**IMPLEMENTED / FULL TESTS PASS**: Đã loại bỏ hoàn toàn cơ chế trần bán / tồn kho tĩnh `Product.stock` và chuyển toàn bộ việc tính toán sức bán, kiểm tra giỏ hàng và trừ kho sang 100% Nguyên vật liệu thực tế:
+1. **Catalog & Product Detail**:
+   - `findOne(id)`: `sizes[].stock` lấy 100% từ công thức nguyên liệu `recipeCapacity(size.recipe)`, xóa bỏ hoàn toàn `Math.min(product.stock, ...)`. `sizes[].available` chỉ phụ thuộc vào `size.available && recipeCapacity(size.recipe) > 0`. `product.stock` tóm tắt = `Math.max(0, ...sizes.map(s => s.stock))`.
+   - `findAll()`: Thuộc tính `stock` trả về cho danh sách Menu lấy trực tiếp `Math.max(0, ...sizes.filter(s => s.available).map(s => recipeCapacity(s.recipe)))`.
+2. **Cart & Inventory Availability**:
+   - Trong `assertCartAvailability`: Bỏ kiểm tra `totals.get(product.id) > product.stock` và bỏ `stockMessage(product)`. Việc xác thực giỏ hàng tập trung 100% vào nhu cầu nguyên vật liệu (`usage`) so với tồn khả dụng `Ingredient.stock`.
+   - Trong `CartService`: Bỏ `assertStock()`, chuẩn hóa việc thêm/sửa món dựa trên `validateCart` và atomic transaction rollback.
+3. **Orders & Checkout**:
+   - Trong `OrdersService.create`: Bỏ gọi `this.inventory.reserve(tx, items, products)`, không trừ `Product.stock`. Chỉ giữ lại `this.inventory.reserveIngredients(tx, ingredientUsage)` với CAS optimistic locking.
+   - Khi hủy đơn (`cancel`) hoặc hoàn kho (`restore`): Bỏ hoàn `Product.stock`, chỉ hoàn trả nguyên liệu qua `restoreIngredients`.
+4. **Prisma Schema**:
+   - Giữ cột `Product.stock Int @default(0)` để tương thích schema cũ, không làm đứt gãy DB hay bắt buộc migration phá vỡ.
+5. **Kiểm thử nghiệm thu**:
+   - Backend: **29/29 test suites PASS, 314/315 tests PASS** (1 test E2E postgres container opt-in).
+   - Frontend: **29/29 unit tests PASS**, TypeScript strict typecheck 0 lỗi. NestJS backend build 0 lỗi.
+
+## Sức bán theo size và kiểm tra toàn giỏ — 2026-10-29
+
+**IMPLEMENTED / TESTED — READY_FOR_REVIEW** trên nhánh `main`: API chi tiết thêm `sizes[].stock` theo UUID size; UI dùng tồn size, điều chỉnh số lượng khi đổi size, phân biệt chưa tải/lỗi với hết hàng. Thêm `POST /products/availability` kiểm tra toàn giỏ (size + topping + nguyên liệu chung), không giữ hàng; Zustand kiểm tra trước khi thêm/tăng/đổi size. Backend `/cart` cũng kiểm tra nguyên liệu trong transaction Serializable. Checkout giữ kiểm tra/trừ kho nguyên tử sẵn có và cung cấp đường quay về giỏ để tải tồn mới khi lỗi.
+
+Kiểm chứng lượt này: backend build/lint PASS; **36 suites / 384 tests PASS, 0 skipped trên PostgreSQL tạm riêng**, đủ 17 migration; frontend build/typecheck PASS, **29 unit tests PASS**, lint 0 lỗi/1 warning có sẵn tại checkout (`normalizePromotion`); Playwright Edge **4/4 PASS** với API interception ở 1440/768/390, đã xem ảnh chi tiết/giỏ. Không dùng browser fixture làm bằng chứng API/DB thật. Backend full test typecheck còn 3 lỗi có sẵn tại `src/mail/mail.service.spec.ts:50–52` (`callArg: unknown`), file không sửa.
+
+Ban đầu Docker/DB chưa chạy; đã khởi động Docker Desktop và service postgres của repo, chạy runner `test:ingredients:postgres` thành công rồi tự dọn database tạm. Đã kiểm chứng race nguyên liệu chung/rollback trên PostgreSQL thật. Không migration mới, không đổi schema/dữ liệu ứng dụng, không commit/push/deploy; không nâng toàn dự án lên VERIFIED_COMPLETE. [Nguyên nhân, file sửa, API trước/sau, lệnh kiểm thử và QA thủ công](SIZE_AVAILABILITY_FIX.md).
+
 ## Khôi phục xác thực, Vouchers cá nhân & Đơn hàng — 2026-10-29
 
 **IMPLEMENTED / FULL TESTS PASS**: Đã khắc phục triệt để các lỗi nghiệp vụ và hoàn thành 6 Phase theo yêu cầu kiểm toán:

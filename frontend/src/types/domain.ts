@@ -7,11 +7,16 @@ export type User = {
   loyaltyPoints: number;
 };
 export type ProductSize = {
+  id?: string;
+  /** Missing means availability has not been loaded; never use product.stock as fallback. */
+  stock?: number;
   code: "S" | "M" | "L";
   name: string;
   extraPrice: number;
   available: boolean;
   isDefault?: boolean;
+  bottleneckIngredient?: string;
+  missingIngredients?: string[];
 };
 export type Topping = {
   id: string;
@@ -45,6 +50,31 @@ export type CartItem = {
   note?: string;
   /** Các size của món, để đổi size ngay trong giỏ. */
   sizeOptions?: ProductSize[];
+};
+export type CartItemInput = {
+  productId: string;
+  size: ProductSize["code"];
+  toppingIds: string[];
+  quantity: number;
+  ice: string;
+  sugar: string;
+  note?: string;
+};
+export type MissingIngredientDetail = {
+  ingredientId: string;
+  name: string;
+  unit: string;
+  stock: number;
+  required: number;
+  shortage: number;
+};
+export type ProductPreviewResult = {
+  valid: boolean;
+  canAddOne: boolean;
+  maxAvailable: number;
+  currentShortages: MissingIngredientDetail[];
+  nextShortages: MissingIngredientDetail[];
+  reason?: 'MAX_REACHED' | 'SHORTAGE' | 'UNAVAILABLE' | 'INVALID_RECIPE' | 'INVALID_SELECTION';
 };
 export type OrderStatus =
   | "PENDING"

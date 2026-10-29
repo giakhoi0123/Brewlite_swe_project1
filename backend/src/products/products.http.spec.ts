@@ -2,6 +2,7 @@ import { recipeFixture } from '../../test/fixtures/ingredients';
 import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { PrismaService } from '../prisma.service';
 import { ProductsModule } from './products.module';
@@ -21,6 +22,11 @@ describe('Products HTTP contract', () => {
     stock: 40,
     description: 'Cà phê và sữa, phục vụ lạnh.',
   };
+  const mockRecipe = () =>
+    recipeFixture().map((r) => ({
+      ...r,
+      ingredient: { ...r.ingredient, stock: new Prisma.Decimal(400) },
+    }));
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [ProductsModule] })
@@ -44,7 +50,7 @@ describe('Products HTTP contract', () => {
   });
 
   it('returns HTTP 200 and the public array without authentication', async () => {
-    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: recipeFixture() }] }] as any);
+    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: mockRecipe() }] }] as any);
 
     const response = await request(app.getHttpServer())
       .get('/api/products')
@@ -72,7 +78,7 @@ describe('Products HTTP contract', () => {
   });
 
   it('allows the configured local frontend origin to read the response', async () => {
-    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: recipeFixture() }] }] as any);
+    findMany.mockResolvedValue([{ ...product, sizes: [{ available: true, recipe: mockRecipe() }] }] as any);
     await request(app.getHttpServer())
       .get('/api/products')
       .set('Origin', 'http://localhost:3001')

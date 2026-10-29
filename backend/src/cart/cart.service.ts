@@ -7,16 +7,16 @@ import {
 } from '@nestjs/common';
 import { Prisma, type ProductSizeCode } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { productDetailSelect, type ProductDetailRecord } from '../products/product-detail';
+import { productDetailSelect } from '../products/product-detail';
 import {
   MAX_LINE_QUANTITY,
   assertSelection,
   cartConfigKey,
   normalizeToppingIds,
   priceSelection,
-  stockMessage,
 } from './cart-pricing';
 import type { CartLineDto, MergeCartDto, UpdateCartItemDto } from './dto/cart-line.dto';
+import { assertCartAvailability } from '../inventory/cart-availability';
 
 const itemInclude = { product: { select: productDetailSelect } } satisfies Prisma.CartItemInclude;
 type CartItemRecord = Prisma.CartItemGetPayload<{ include: typeof itemInclude }>;
@@ -47,18 +47,17 @@ export type MergeResult = CartView & { skipped: { productId: string; reason: str
 
 const sum = (rows: { quantity: number }[]) => rows.reduce((total, row) => total + row.quantity, 0);
 
-/** Chỉ chặn khi tổng số lượng của món tăng lên và vượt tồn kho; giảm luôn được phép. */
-function assertStock(product: ProductDetailRecord, before: number, after: number) {
-  if (after > before && after > product.stock) throw new ConflictException(stockMessage(product));
-}
-
 export function toCartView(items: CartItemRecord[]): CartView {
-  const totals = new Map<string, number>();
-  for (const item of items) totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.quantity);
+  let ingredientIssue = '';
+  try { assertCartAvailability(items, items.map((i) => i.product)); }
+  catch (error) {
+    if (!(error instanceof HttpException)) throw error;
+    ingredientIssue = error.message;
+  }
   const views = items.map((item): CartItemView => {
     const priced = priceSelection(item.product, item);
     const problems = [...priced.problems];
-    if ((totals.get(item.productId) ?? 0) > item.product.stock) problems.push(stockMessage(item.product));
+    if (ingredientIssue) problems.push(ingredientIssue);
     return {
       id: item.id,
       productId: item.productId,
@@ -76,7 +75,7 @@ export function toCartView(items: CartItemRecord[]): CartView {
       unitPrice: priced.unitPrice,
       lineTotal: priced.unitPrice * item.quantity,
       available: problems.length === 0,
-      ...(problems.length ? { issue: problems.join('; ') } : {}),
+      ...(problems.length ? { issue: [...new Set(problems)].join('; ') } : {}),
     };
   });
   return {
@@ -117,17 +116,16 @@ export class CartService {
       const configKey = cartConfigKey({ ...item, size });
       const rows = await this.sameProductRows(tx, item.cartId, item.productId);
       const target = rows.find((row) => row.id !== item.id && row.configKey === configKey);
-      const others = rows.filter((row) => row.id !== item.id && row !== target);
       if (target) {
         // Đổi size trùng với một dòng đã có: gộp vào dòng đó.
         const merged = Math.min(MAX_LINE_QUANTITY, target.quantity + quantity);
-        assertStock(item.product, sum(rows), sum(others) + merged);
         await tx.cartItem.delete({ where: { id: item.id } });
         await tx.cartItem.update({ where: { id: target.id }, data: { quantity: merged } });
       } else {
-        assertStock(item.product, sum(rows), sum(others) + quantity);
         await tx.cartItem.update({ where: { id: item.id }, data: { size, configKey, quantity } });
       }
+      // Reductions can repair a stale cart even when another line is still invalid.
+      if (size !== item.size || quantity > item.quantity) await this.validateCart(tx, item.cartId);
     });
     return this.get(userId);
   }
@@ -169,12 +167,12 @@ export class CartService {
       const rows = await this.sameProductRows(tx, cart.id, product.id);
       const existing = rows.find((row) => row.configKey === configKey);
       const quantity = Math.min(MAX_LINE_QUANTITY, (existing?.quantity ?? 0) + line.quantity);
-      assertStock(product, sum(rows), sum(rows) - (existing?.quantity ?? 0) + quantity);
       if (existing) await tx.cartItem.update({ where: { id: existing.id }, data: { quantity } });
       else
         await tx.cartItem.create({
           data: { cartId: cart.id, productId: product.id, size: line.size, toppingIds, ice: line.ice, sugar: line.sugar, note, configKey, quantity },
         });
+      await this.validateCart(tx, cart.id);
     });
   }
 
@@ -182,12 +180,17 @@ export class CartService {
     return tx.cartItem.findMany({ where: { cartId, productId }, select: { id: true, configKey: true, quantity: true } });
   }
 
+  private async validateCart(tx: Tx, cartId: string) {
+    const items = await tx.cartItem.findMany({ where: { cartId }, include: itemInclude });
+    assertCartAvailability(items, items.map((i) => i.product));
+  }
+
   private async transaction(work: (tx: Tx) => Promise<void>) {
     try {
-      await this.prisma.$transaction(work);
+      await this.prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       // Hai yêu cầu đồng thời cùng tạo một cấu hình: báo client tải lại thay vì lỗi 500.
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
+      if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code))
         throw new ConflictException('Giỏ hàng vừa thay đổi, vui lòng thử lại');
       throw error;
     }

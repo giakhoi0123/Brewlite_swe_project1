@@ -1,5 +1,6 @@
 import { recipeFixture } from '../../test/fixtures/ingredients';
 import { jest } from '@jest/globals';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { ProductsService, type ProductListItem } from './products.service';
 
@@ -22,7 +23,11 @@ describe('ProductsService', () => {
       stock: 10,
       description: 'Sample',
     }];
-    findMany.mockResolvedValue(products.map((p) => ({ ...p, sizes: [{ available: true, recipe: recipeFixture() }] })));
+    const recipe = recipeFixture().map((r) => ({
+      ...r,
+      ingredient: { ...r.ingredient, stock: new Prisma.Decimal(100) },
+    }));
+    findMany.mockResolvedValue(products.map((p) => ({ ...p, sizes: [{ available: true, recipe }] })));
 
     await expect(service.findAll()).resolves.toEqual(products);
     expect(findMany).toHaveBeenCalledTimes(1);

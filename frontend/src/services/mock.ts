@@ -51,6 +51,49 @@ const transitions: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export const mockProducts: ProductService = {
+  async validateCart(items) {
+    await pause();
+    for (const item of items) {
+      const product = demoProducts.find((p) => p.id === item.productId);
+      const size = product?.sizes.find((s) => s.code === item.size);
+      const total = items.filter((i) => i.productId === item.productId).reduce((n, i) => n + i.quantity, 0);
+      if (!product || !size?.available || total > product.stock) throw new Error('Giỏ vượt tồn kho demo');
+    }
+  },
+  async previewSelection(candidate, cartItems = []) {
+    await pause();
+    const product = demoProducts.find((p) => p.id === candidate.productId);
+    const size = product?.sizes.find((s) => s.code === candidate.size);
+    if (!product || !size?.available) {
+      return {
+        valid: false,
+        canAddOne: false,
+        maxAvailable: 0,
+        currentShortages: [],
+        nextShortages: [],
+        reason: 'UNAVAILABLE',
+      };
+    }
+    const matchingCart = cartItems.find((i) => i.productId === candidate.productId && i.size === candidate.size);
+    const existingQty = matchingCart?.quantity ?? 0;
+    const maxAvailable = Math.max(0, Math.min(99 - existingQty, product.stock - existingQty));
+    const mergedQty = existingQty + candidate.quantity;
+    const valid = mergedQty <= Math.min(99, product.stock);
+    const canAddOne = mergedQty + 1 <= Math.min(99, product.stock);
+    const nextShortages = canAddOne
+      ? []
+      : mergedQty + 1 > 99
+        ? []
+        : [{ ingredientId: 'mock-ingredient', name: 'Nguyên liệu demo', unit: 'phần', stock: product.stock, required: mergedQty + 1, shortage: mergedQty + 1 - product.stock }];
+    return {
+      valid,
+      canAddOne,
+      maxAvailable,
+      currentShortages: valid ? [] : [{ ingredientId: 'mock-ingredient', name: 'Nguyên liệu demo', unit: 'phần', stock: product.stock, required: mergedQty, shortage: mergedQty - product.stock }],
+      nextShortages,
+      reason: mergedQty >= 99 ? 'MAX_REACHED' : (!valid || !canAddOne ? 'SHORTAGE' : undefined),
+    };
+  },
   async list() {
     await pause();
     return demoProducts;

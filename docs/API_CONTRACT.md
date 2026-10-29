@@ -1,5 +1,76 @@
 # Hợp đồng API BrewLite
 
+## Endpoint Xem trước Giới hạn & Cảnh báo Nguyên liệu (`POST /products/preview`) — 2026-10-30
+
+Cung cấp API preview chỉ đọc (read-only), không giữ hoặc trừ kho, hỗ trợ Frontend kiểm tra giới hạn mua và cảnh báo nguyên liệu thiếu theo thời gian thực trên trang chi tiết sản phẩm (`products/[id]`):
+- **Endpoint**: `POST /api/products/preview`
+- **Headers**: `Content-Type: application/json`, `Cache-Control: no-store`
+- **Request Body**:
+  ```json
+  {
+    "candidate": {
+      "productId": "uuid",
+      "size": "S | M | L",
+      "quantity": 5,
+      "toppingIds": ["uuid-topping-1"]
+    },
+    "cartItems": [
+      {
+        "productId": "uuid",
+        "size": "M",
+        "quantity": 1,
+        "toppingIds": []
+      }
+    ]
+  }
+  ```
+- **Response** (HTTP 200):
+  ```json
+  {
+    "valid": true,
+    "canAddOne": false,
+    "maxAvailable": 5,
+    "currentShortages": [],
+    "nextShortages": [
+      {
+        "ingredientId": "uuid-milk",
+        "name": "Sữa tươi",
+        "totalNeeded": 300,
+        "available": 250,
+        "shortage": 50,
+        "unit": "ML"
+      }
+    ],
+    "reason": "SHORTAGE"
+  }
+  ```
+- **Quy tắc & Cơ chế**:
+  1. *Candidate merging*: Nếu giỏ hàng đã có dòng trùng cấu hình (`productId`, `size`, `toppingIds`), hệ thống tự gộp số lượng với candidate khi đánh giá.
+  2. *Shared ingredients deduction*: Trừ nhu cầu nguyên liệu của các món khác trong giỏ trước khi tính trần tồn khả dụng còn lại cho món candidate.
+  3. *Distinguish Shortage States*:
+     - `nextShortages`: Danh sách tất cả nguyên liệu không đủ để tăng thêm 1 ly (kèm `name`, `shortage`, `unit`).
+     - `currentShortages`: Danh sách nguyên liệu thiếu cho chính số lượng hiện tại nếu số lượng đó đã vượt trần khả dụng.
+     - `reason`: Phân biệt `SHORTAGE` (thiếu nguyên liệu), `MAX_REACHED` (chạm trần nghiệp vụ 99 ly), `UNAVAILABLE_SIZE` (size bị vô hiệu hóa), `INVALID_RECIPE` (thiếu cấu hình công thức).
+
+
+## Chuyển đổi 100% tồn khả dụng sang Nguyên vật liệu (Bỏ Product.stock) — 2026-10-29
+
+Đã loại bỏ hoàn toàn cơ chế trần bán / tồn kho tĩnh `Product.stock`. Toàn bộ việc tính toán tồn khả dụng, hiển thị sức bán và trừ kho được chuyển giao 100% cho Nguyên vật liệu thực tế (`Ingredient.stock` và `ProductRecipe.amount`).
+
+- `GET /products/:id`:
+  - `sizes[].stock = min_i floor(Ingredient.stock_i / amount_i của size)`, chặn ở 0 khi size ngừng bán hoặc thiếu công thức. Loại bỏ hoàn toàn `min(Product.stock, ...)`.
+  - `sizes[].available = size.available && recipeCapacity(size.recipe) > 0`.
+  - `product.stock` tóm tắt trong response chi tiết: `Math.max(0, ...sizes.map(s => s.stock))`.
+- `GET /products`:
+  - Thuộc tính `stock` tóm tắt của Product cho Menu: `Math.max(0, ...sizes.filter(s => s.available).map(s => recipeCapacity(s.recipe)))`.
+- `POST /products/availability` & Giỏ hàng (`/cart`):
+  - Xác thực giỏ hàng (`assertCartAvailability`) tập trung 100% vào tổng nhu cầu nguyên liệu (`usage`) so với tồn khả dụng `Ingredient.stock` (gồm món và topping dùng chung nguyên liệu).
+  - Loại bỏ hoàn toàn kiểm tra tổng số lượng theo `Product.stock` và thông báo trần món `stockMessage(product)`.
+- `POST /orders` & Quản lý đơn:
+  - Chỉ giữ lại `reserveIngredients(tx, ingredientUsage)` để trừ tồn kho nguyên liệu bằng Optimistic Locking (CAS qua `Ingredient.version` và `stock >= amount`). Không trừ `Product.stock`.
+  - Khi hủy đơn hoặc hoàn kho (`restoreIngredients`): chỉ hoàn trả nguyên liệu, không hoàn `Product.stock`.
+- Prisma Schema: Giữ cột `Product.stock Int @default(0)` để đảm bảo tương thích ngược schema/DB, nhưng logic nghiệp vụ hoàn toàn không dựa vào trường này.
+
 ## Khôi phục mật khẩu, Voucher sở hữu & Quản lý đơn hàng — 2026-10-29
 
 Đã triển khai và kiểm chứng:
@@ -110,13 +181,13 @@ Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng n
 | DELETE `/cart` | Không | 200 `CartView` trống | 401 |
 | POST `/cart/merge` | `{items:[CartLine…]}` (≤ 50) | 200 `CartView & {skipped:[{productId,reason}]}`; dòng lỗi bị bỏ qua | 400 |
 
-`ice` ∈ `100% đá | 70% đá | 30% đá | Không đá`; `sugar` ∈ `100% chuẩn | 70% ngọt vừa | 50% ít ngọt | Không đường`; `note` ≤ 120 ký tự; `quantity` 1–99. Tồn kho được kiểm tra trên tổng số lượng mọi dòng cùng món; chỉ chặn khi tăng, giảm luôn được phép. Nếu tồn kho/tùy chọn thay đổi sau khi thêm, dòng vẫn trả về với `available:false` và `issue`, `valid` của giỏ là `false`.
+`ice` ∈ `100% đá | 70% đá | 30% đá | Không đá`; `sugar` ∈ `100% chuẩn | 70% ngọt vừa | 50% ít ngọt | Không đường`; `note` ≤ 120 ký tự; `quantity` 1–99. Kiểm tra giới hạn bán của món và tổng nguyên liệu của toàn giỏ gồm topping; thêm/tăng/đổi size bị chặn nếu thiếu, giảm/xóa luôn được phép. Nếu tồn kho/tùy chọn thay đổi sau khi thêm, dòng vẫn trả về với `available:false` và `issue`, `valid` của giỏ là `false`.
 
 `CartView` = `{"items":[{"id":"uuid","productId":"uuid","name":"Bạc xỉu","imageUrl":"/...","size":"M","sizeName":"Vừa (M)","sizeOptions":[{"code":"S","name":"Nhỏ","extraPrice":0,"available":true}],"toppingIds":["uuid"],"toppingNames":["Kem sữa"],"ice":"70% đá","sugar":"50% ít ngọt","note":"","quantity":2,"unitPrice":40000,"lineTotal":80000,"available":true}],"totalQuantity":2,"subtotal":80000,"valid":true}`.
 
 ### Ví dụ Products
 `GET /products` → `[{"id":"uuid","name":"Bạc xỉu","price":29000,"imageUrl":"/images/products/sample-milk-coffee.svg","stock":40,"description":"..."}]`.
-`GET /products/uuid` → `{"id":"uuid","name":"Bạc xỉu","price":29000,"stock":40,"description":"...","imageUrl":"/...svg","sizes":[{"id":"uuid","code":"S","name":"Nhỏ","extraPrice":0,"available":true}],"toppings":[{"id":"uuid","name":"Kem sữa","extraPrice":6000,"available":true}],"defaultSizeId":"uuid"}`. Backend trả đủ S/M/L.
+`GET /products/uuid` → `{"id":"uuid","name":"Bạc xỉu","price":29000,"stock":40,"description":"...","imageUrl":"/...svg","sizes":[{"id":"uuid","code":"S","name":"Nhỏ","extraPrice":0,"available":true,"stock":40}],"toppings":[{"id":"uuid","name":"Kem sữa","extraPrice":6000,"available":true}],"defaultSizeId":"uuid"}`. Ví dụ rút gọn; backend trả đủ S/M/L với tồn riêng từng size.
 
 ### Ví dụ Auth
 `POST /auth/register` body `{"name":"An","email":"an@example.test","password":"Password123"}` → `201 {"user":{"id":"uuid","email":"an@example.test","name":"An","role":"CUSTOMER","loyaltyPoints":0}}`; header Set-Cookie. Role gửi từ client bị từ chối 400. Email trùng 409. `POST /auth/login` body `{"email":"an@example.test","password":"Password123"}` → cùng user/cookie; sai mật khẩu 401. Không trả JWT trong JSON.

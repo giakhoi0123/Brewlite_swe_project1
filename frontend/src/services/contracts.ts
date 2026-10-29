@@ -1,5 +1,7 @@
 import type {
   CartItem,
+  CartItemInput,
+  ProductPreviewResult,
   LoyaltyPoints,
   Order,
   OrderStatus,
@@ -12,6 +14,8 @@ import type {
 export interface ProductService {
   list(): Promise<Product[]>;
   get(id: string): Promise<Product | null>;
+  validateCart(items: CartItem[]): Promise<void>;
+  previewSelection(candidate: CartItemInput, cartItems?: CartItem[]): Promise<ProductPreviewResult>;
 }
 
 export interface OrderService {

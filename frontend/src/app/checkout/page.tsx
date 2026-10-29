@@ -307,6 +307,7 @@ function CheckoutContent() {
             {error && (
               <p role="alert" className="error">
                 {error}
+                {!existingOrderId && <> <Link href="/cart">Kiểm tra lại giỏ và tồn khả dụng</Link></>}
               </p>
             )}
             <button

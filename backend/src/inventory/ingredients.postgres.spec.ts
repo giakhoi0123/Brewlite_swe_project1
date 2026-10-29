@@ -100,14 +100,21 @@ database('Ingredient inventory PostgreSQL and HTTP', () => {
     if (savedOrigin === undefined) delete process.env.FRONTEND_ORIGIN; else process.env.FRONTEND_ORIGIN = savedOrigin;
   });
 
-  it('creates an HTTP order with 2 cups and topping; snapshots and reserves all ingredients', async () => {
-    const response = await request(app.getHttpServer()).post('/api/orders')
-      .set('Cookie', customerCookie).set('Origin', origin).send(dto(products[0], 2, [topping])).expect(201);
-    expect(await stocks()).toEqual({ [milk]: '910', [coffee]: '960', [cream]: '980' });
-    const stored = await db.order.findUniqueOrThrow({ where: { id: response.body.id }, include: { ingredientUsage: true } });
-    expect(stored.ingredientInventory).toBe(true);
-    expect(Object.fromEntries(stored.ingredientUsage.map((r) => [r.ingredientId, r.amount.toString()])))
-      .toEqual({ [milk]: '90', [coffee]: '40', [cream]: '20' });
+  it('reports S=36/L=12 by UUID, checks the whole guest cart, and rejects stale checkout', async () => {
+    await db.ingredient.update({ where: { id: coffee }, data: { stock: 360 } });
+    const response = await request(app.getHttpServer()).get(`/api/products/${products[0]}`).expect(200);
+    expect(response.body.sizes.find((s: { code: string }) => s.code === 'S')).toMatchObject({ stock: 36 });
+    expect(response.body.sizes.find((s: { code: string }) => s.code === 'L')).toMatchObject({ stock: 12 });
+    const items = [{ ...dto().items[0], size: 'S', quantity: 20 }, { ...dto().items[0], size: 'L', quantity: 6 }];
+    await request(app.getHttpServer()).post('/api/products/availability').set('Origin', origin).send({ items }).expect(409);
+    await db.ingredient.update({ where: { id: milk }, data: { stock: 200 } });
+    const limited = await request(app.getHttpServer()).get(`/api/products/${products[0]}`).expect(200);
+    expect(limited.body.sizes.find((s: { code: string }) => s.code === 'L').stock).toBe(5);
+    await db.ingredient.update({ where: { id: coffee }, data: { stock: 0 } });
+    await request(app.getHttpServer()).post('/api/orders').set('Cookie', customerCookie)
+      .set('Origin', origin).send(dto()).expect(409);
+    expect(await db.order.count({ where: { userId: customer } })).toBe(0);
+    expect((await db.product.findUniqueOrThrow({ where: { id: products[0] } })).stock).toBe(100);
   });
 
   it('uses size-specific recipes across multiple products and configurations', async () => {
@@ -115,6 +122,21 @@ database('Ingredient inventory PostgreSQL and HTTP', () => {
     input.items.push({ ...dto(products[1]).items[0], size: 'L' });
     await orders.create(customer, input);
     expect(await stocks()).toEqual({ [milk]: '870', [coffee]: '930', [cream]: '980' });
+  });
+
+  it('checks complete server carts on add and size updates and rolls back rejected mutations', async () => {
+    await db.ingredient.update({ where: { id: coffee }, data: { stock: 360 } });
+    const call = (method: 'post' | 'patch', path: string) => request(app.getHttpServer())[method](path)
+      .set('Cookie', customerCookie).set('Origin', origin);
+    try {
+      const added = await call('post', '/api/cart/items').send({ ...dto().items[0], size: 'S', quantity: 20 }).expect(201);
+      await call('post', '/api/cart/items').send({ ...dto().items[0], size: 'L', quantity: 6 }).expect(409);
+      await call('patch', `/api/cart/items/${added.body.items[0].id}`).send({ size: 'L' }).expect(409);
+      const cart = await request(app.getHttpServer()).get('/api/cart').set('Cookie', customerCookie).expect(200);
+      expect(cart.body.items).toHaveLength(1);
+      expect(cart.body.items[0]).toMatchObject({ size: 'S', quantity: 20 });
+      expect((await stocks())[coffee]).toBe('360');
+    } finally { await db.cart.deleteMany({ where: { userId: customer } }); }
   });
 
   it('rejects a missing topping recipe without writing order or stock', async () => {
@@ -133,6 +155,21 @@ database('Ingredient inventory PostgreSQL and HTTP', () => {
     expect(await db.order.count({ where: { userId: customer } })).toBe(0);
   });
 
+  it('collects all missing ingredient names and rolls back order and stock when multiple ingredients are short', async () => {
+    await db.ingredient.update({ where: { id: milk }, data: { stock: 10 } });
+    await db.ingredient.update({ where: { id: coffee }, data: { stock: 5 } });
+    const before = await stocks();
+    const milkName = (await db.ingredient.findUniqueOrThrow({ where: { id: milk } })).name;
+    const coffeeName = (await db.ingredient.findUniqueOrThrow({ where: { id: coffee } })).name;
+
+    await expect(orders.create(customer, dto(products[0], 1))).rejects.toThrow(
+      new RegExp(`Không đủ nguyên vật liệu:.*(${milkName}|${coffeeName}).*(${milkName}|${coffeeName}).*Vui lòng chọn món khác hoặc giảm số lượng!`),
+    );
+    expect(await stocks()).toEqual(before);
+    expect((await db.product.findUniqueOrThrow({ where: { id: products[0] } })).stock).toBe(100);
+    expect(await db.order.count({ where: { userId: customer } })).toBe(0);
+  });
+
   it('does not oversell a shared ingredient when different products race', async () => {
     await db.ingredient.update({ where: { id: milk }, data: { stock: 30 } });
     const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => orders.create(customer, dto(products[i % 2]))));
@@ -140,7 +177,7 @@ database('Ingredient inventory PostgreSQL and HTTP', () => {
     expect((await stocks())[milk]).toBe('0');
     expect(await db.order.count({ where: { userId: customer } })).toBe(1);
     const stock = await db.product.aggregate({ where: { id: { in: products } }, _sum: { stock: true } });
-    expect(stock._sum.stock).toBe(199);
+    expect(stock._sum.stock).toBe(200);
   });
 
   it('releases and retries the original snapshot after recipes change; no double release', async () => {

@@ -84,6 +84,8 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
   });
 
   it('allows exactly one of eight concurrent last-unit orders', async () => {
+    // 1 cup of size M (10) + topping (5) needs 15 units of ingredient
+    await db.ingredient.update({ where: { id: userId }, data: { stock: 15 } });
     const results = await Promise.allSettled(
       Array.from({ length: 8 }, () => service.create(userId, dto())),
     );
@@ -93,33 +95,43 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
         expect(result.reason).toBeInstanceOf(ConflictException);
     expect(await db.order.count({ where: { userId } })).toBe(1);
     expect(
-      (await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
-        .stock,
-    ).toBe(0);
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } }))
+        .stock.toString(),
+    ).toBe('0');
   });
 
-  it('rolls back an earlier product decrement if a later product has no stock', async () => {
-    await db.product.update({
-      where: { id: productIds[1] },
-      data: { stock: 0 },
+  it('rolls back an earlier ingredient decrement if a later product has no ingredient stock', async () => {
+    const secondIngredientId = randomUUID();
+    await db.ingredient.create({
+      data: { id: secondIngredientId, name: 'Second ingredient', unit: 'ML', stock: 0 },
     });
+    const sizes = await db.productSize.findMany({ where: { productId: productIds[1] } });
+    await db.productRecipe.deleteMany({ where: { productSizeId: { in: sizes.map((s) => s.id) } } });
+    await db.productRecipe.createMany({
+      data: sizes.map((size) => ({ productSizeId: size.id, ingredientId: secondIngredientId, amount: 10 })),
+    });
+    const beforeStock = (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock;
     await expect(service.create(userId, dto(productIds))).rejects.toThrow(
       ConflictException,
     );
     expect(await db.order.count({ where: { userId } })).toBe(0);
     expect(
-      await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }),
-    ).toMatchObject({ stock: 1, version: 1 });
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock.toString(),
+    ).toBe(beforeStock.toString());
+    await db.productRecipe.deleteMany({ where: { productSizeId: { in: sizes.map((s) => s.id) } } });
+    await db.ingredient.deleteMany({ where: { id: secondIngredientId } });
   });
 
   it('rolls back inventory if order persistence fails', async () => {
+    const beforeStock = (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock;
     await expect(service.create(randomUUID(), dto())).rejects.toThrow();
     expect(
-      await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }),
-    ).toMatchObject({ stock: 1, version: 1 });
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock.toString(),
+    ).toBe(beforeStock.toString());
   });
 
   it('releases once under concurrent cancellation and writes only one transition', async () => {
+    const beforeStock = (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock;
     const order = await service.create(userId, dto());
     const results = await Promise.allSettled([
       service.staffCancel(order.id, 'Hết nguyên liệu'),
@@ -127,15 +139,16 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(
-      (await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
-        .stock,
-    ).toBe(1);
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock.toString(),
+    ).toBe(beforeStock.toString());
     expect(
       await db.orderStatusHistory.count({ where: { orderId: order.id } }),
     ).toBe(2);
   });
 
   it('keeps failed state if retry cannot reserve, then supports retry and the full lifecycle', async () => {
+    // 1 cup needs 15 units of ingredient
+    await db.ingredient.update({ where: { id: userId }, data: { stock: 15 } });
     const order = await service.create(userId, dto());
     await db.$transaction((tx) =>
       service.transitionInTransaction(tx, order.id, 'PAYMENT_FAILED'),
@@ -164,15 +177,16 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
       await service.staffTransition(order.id, status);
     expect((await service.get(order.id, userId)).status).toBe('COMPLETED');
     expect(
-      (await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
-        .stock,
-    ).toBe(0);
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } }))
+        .stock.toString(),
+    ).toBe('0');
     expect(
       await db.orderStatusHistory.count({ where: { orderId: order.id } }),
     ).toBe(7);
   });
 
   it('rolls back state, history and restored stock if the payment transaction fails', async () => {
+    await db.ingredient.update({ where: { id: userId }, data: { stock: 15 } });
     const order = await service.create(userId, dto());
     await expect(
       db.$transaction(async (tx) => {
@@ -184,9 +198,9 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
       await db.order.findUniqueOrThrow({ where: { id: order.id } }),
     ).toMatchObject({ status: 'PENDING', inventoryHeld: true, version: 1 });
     expect(
-      (await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
-        .stock,
-    ).toBe(0);
+      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } }))
+        .stock.toString(),
+    ).toBe('0');
     expect(
       await db.orderStatusHistory.count({ where: { orderId: order.id } }),
     ).toBe(1);
@@ -272,9 +286,9 @@ describeDatabase('Orders PostgreSQL transactions and concurrency', () => {
         version: 1,
       });
       expect(
-        (await db.product.findUniqueOrThrow({ where: { id: productIds[0] } }))
-          .stock,
-      ).toBe(0);
+        (await db.ingredient.findUniqueOrThrow({ where: { id: userId } }))
+          .stock.toNumber(),
+      ).toBe(1000000 - 20); // 15 for size L + 5 for topping = 20
       await request(app.getHttpServer())
         .get(`/api/orders/${response.body.id}/status`)
         .set('Cookie', cookie)

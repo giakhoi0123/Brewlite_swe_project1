@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { PrismaService } from '../prisma.service';
 import { ProductsModule } from './products.module';
@@ -23,6 +24,7 @@ describe('Product detail HTTP', () => {
 
   it('returns the direct contract without auth, with integer extras and an owned default', async () => {
     const record = productDetailFixture();
+    record.sizes.forEach((s) => s.recipe.forEach((r) => { r.ingredient.stock = new Prisma.Decimal(400); }));
     findUnique.mockResolvedValue(record);
     const response = await request(app.getHttpServer()).get(`/api/products/${record.id}`).expect(200).expect('Content-Type', /json/);
     expect(Object.keys(response.body).sort()).toEqual(['defaultSizeId', 'description', 'id', 'imageUrl', 'name', 'price', 'sizes', 'stock', 'toppings']);
@@ -31,7 +33,7 @@ describe('Product detail HTTP', () => {
     expect(response.body.defaultSizeId).toBe(record.sizes[1].id);
     expect(response.body.sizes.some((size: { id: string; available: boolean }) => size.id === response.body.defaultSizeId && size.available)).toBe(true);
     for (const size of response.body.sizes) {
-      expect(Object.keys(size).sort()).toEqual(['available', 'code', 'extraPrice', 'id', 'name']);
+      expect(Object.keys(size).sort()).toEqual(['available', 'code', 'extraPrice', 'id', 'name', 'stock']);
       expect(Number.isInteger(size.extraPrice) && size.extraPrice >= 0).toBe(true);
     }
     expect(response.body.toppings).toEqual(record.toppings.map(({ topping, ...option }) => ({ id: topping.id, name: topping.name, ...option })));

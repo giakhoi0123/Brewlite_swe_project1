@@ -12,6 +12,7 @@ import type {
   Order,
   Payment,
   Product,
+  ProductPreviewResult,
   Promotion,
   OrderStatus,
 
@@ -34,6 +35,38 @@ const normalize = (p: ApiDetailProduct): Product => ({
 });
 
 export const apiProducts: ProductService = {
+  validateCart: async (items) => {
+    await request('/products/availability', {
+      method: 'POST',
+      body: JSON.stringify({ items: items.map(({ productId, size, toppingIds, quantity, ice, sugar, note }) =>
+        ({ productId, size, toppingIds, quantity, ice, sugar, note })) }),
+    });
+  },
+  previewSelection: async (candidate, cartItems = []) => {
+    return request<ProductPreviewResult>('/products/preview', {
+      method: 'POST',
+      body: JSON.stringify({
+        candidate: {
+          productId: candidate.productId,
+          size: candidate.size,
+          toppingIds: candidate.toppingIds,
+          quantity: candidate.quantity,
+          ice: candidate.ice,
+          sugar: candidate.sugar,
+          note: candidate.note,
+        },
+        cartItems: cartItems.map((i) => ({
+          productId: i.productId,
+          size: i.size,
+          toppingIds: i.toppingIds,
+          quantity: i.quantity,
+          ice: i.ice,
+          sugar: i.sugar,
+          note: i.note,
+        })),
+      }),
+    });
+  },
   list: async () => {
     const rows = await request<ApiListProduct[]>("/products");
     return rows.map((p) => ({
@@ -46,7 +79,7 @@ export const apiProducts: ProductService = {
   get: async (id) => {
     try {
       return normalize(
-        await request<ApiDetailProduct>(`/products/${encodeURIComponent(id)}`),
+        await request<ApiDetailProduct>(`/products/${encodeURIComponent(id)}`, { cache: 'no-store' }),
       );
     } catch (e) {
       if ((e as { status?: number }).status === 404) return null;

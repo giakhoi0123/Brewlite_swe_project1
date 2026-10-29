@@ -4,19 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { services } from "@/services";
 import { useCart } from "@/stores/cart";
-import type { CartItem, Product, ProductSize } from "@/types/domain";
+import type { CartItemInput, Product, ProductPreviewResult, ProductSize } from "@/types/domain";
 import { itemKey, money } from "@/types/domain";
 import { ErrorState, Loading, ProductImage, Quantity } from "@/components/ui";
 import { Icon, type IconName } from "@/components/icons";
+
 const ICE = ["100% đá", "70% đá", "30% đá", "Không đá"],
   SUGAR = ["100% chuẩn", "70% ngọt vừa", "50% ít ngọt", "Không đường"],
   VOLUME: Record<ProductSize["code"], string> = { S: "250ml", M: "350ml", L: "500ml" };
+
 type Story = {
   chips: [IconName, string][];
   cards: [IconName, string, string][];
   scores: [string, number][];
 };
-// Nội dung giới thiệu tĩnh theo nhóm món (không phải dữ liệu đánh giá thật).
+
 const stories: Record<string, Story> = {
   "Cà phê Phin": {
     chips: [["cup", "Pha phin truyền thống"], ["leaf", "Robusta & Arabica"], ["bolt", "Đậm đà caffeine"]],
@@ -49,6 +51,7 @@ const stories: Record<string, Story> = {
     scores: [["Độ đậm", 5], ["Độ béo ngọt", 6.5], ["Hương thơm", 8.5]],
   },
 };
+
 export default function ProductPage({
   params,
 }: {
@@ -57,7 +60,10 @@ export default function ProductPage({
   const { id } = use(params),
     router = useRouter(),
     add = useCart((s) => s.add),
+    cartBusy = useCart((s) => s.busy),
+    cartError = useCart((s) => s.error),
     cartItems = useCart((s) => s.items);
+
   const [product, setProduct] = useState<Product | null>(null),
     [related, setRelated] = useState<Product[]>([]),
     [loading, setLoading] = useState(true),
@@ -69,7 +75,12 @@ export default function ProductPage({
     [sugar, setSugar] = useState(SUGAR[0]),
     [note, setNote] = useState(""),
     [liked, setLiked] = useState(false),
-    [quickAdded, setQuickAdded] = useState("");
+    [quickAdded, setQuickAdded] = useState(""),
+    [preview, setPreview] = useState<ProductPreviewResult | null>(null),
+    [previewLoading, setPreviewLoading] = useState(false),
+    [previewError, setPreviewError] = useState(""),
+    [previewRetryCount, setPreviewRetryCount] = useState(0);
+
   const load = useCallback(() => {
     setLoading(true);
     setError("");
@@ -78,19 +89,60 @@ export default function ProductPage({
       .then((p) => {
         setProduct(p);
         setSize(p?.sizes.find((s) => s.isDefault)?.code || "S");
+        setQuantity(1);
+        setSelected([]);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
   useEffect(() => {
     load();
   }, [load]);
+
   useEffect(() => {
     services.products
       .list()
       .then((list) => setRelated(list.filter((p) => p.id !== id).slice(0, 4)))
       .catch(() => setRelated([]));
   }, [id]);
+
+  // Preview selection dynamically with the backend preview endpoint
+  useEffect(() => {
+    if (!product) return;
+    let active = true;
+    setPreviewLoading(true);
+    setPreviewError("");
+
+    const candidate: CartItemInput = {
+      productId: product.id,
+      size,
+      toppingIds: selected,
+      quantity,
+      ice,
+      sugar,
+      note: note.trim() || undefined,
+    };
+
+    services.products
+      .previewSelection(candidate, cartItems)
+      .then((res) => {
+        if (!active) return;
+        setPreview(res);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setPreviewError(err instanceof Error ? err.message : "Không thể kiểm tra tồn khả dụng");
+      })
+      .finally(() => {
+        if (active) setPreviewLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [product?.id, size, selected, quantity, ice, sugar, note, cartItems, previewRetryCount]);
+
   const chosenSize = product?.sizes.find((s) => s.code === size);
   const chosenToppings = useMemo(
     () => product?.toppings.filter((t) => selected.includes(t.id)) || [],
@@ -100,19 +152,42 @@ export default function ProductPage({
     (product?.price || 0) +
     (chosenSize?.extraPrice || 0) +
     chosenToppings.reduce((n, t) => n + t.extraPrice, 0);
+
   const invalid =
     !!product &&
     (!chosenSize?.available || chosenToppings.some((t) => !t.available));
-  // Tồn kho tính trên tổng số phần của món này đã có trong giỏ (mọi cấu hình) cộng phần định thêm.
-  const inCart = cartItems
-    .filter((i) => i.productId === product?.id)
-    .reduce((n, i) => n + i.quantity, 0);
-  const overStock = !!product && inCart + quantity > product.stock;
-  const blocked = !product || invalid || overStock;
+
+  const stock = chosenSize?.stock;
+  const stockKnown = typeof stock === "number" && Number.isInteger(stock) && stock >= 0;
+
+  const effectiveMaxAvailable = preview ? preview.maxAvailable : (stockKnown ? Math.min(99, stock) : 0);
+  const canAddOne = preview ? preview.canAddOne : (quantity < effectiveMaxAvailable);
+  const isCurrentlyValid = preview ? preview.valid : (stockKnown && stock > 0 && quantity <= effectiveMaxAvailable);
+
+  const blocked = !product || invalid || !stockKnown || cartBusy || previewLoading || !isCurrentlyValid;
+
+  const selectSize = (next: ProductSize) => {
+    setSize(next.code);
+    if (next.stock !== undefined && next.stock > 0 && quantity > next.stock) {
+      setQuantity(Math.min(99, next.stock));
+    }
+  };
+
+  const refreshStock = async () => {
+    try {
+      const fresh = await services.products.get(id);
+      setProduct(fresh);
+      const selectedSize = fresh?.sizes.find((s) => s.code === size);
+      if (selectedSize) selectSize(selectedSize);
+      setPreviewRetryCount((c) => c + 1);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Không thể tải tồn khả dụng'); }
+  };
+
   const story = stories[product?.category || ""] || stories.default;
-  const submit = (next: "/cart" | "/checkout") => {
+
+  const submit = async (next: "/cart" | "/checkout") => {
     if (!product || blocked) return;
-    add({
+    const added = await add({
       key: itemKey(product.id, size, selected, ice, sugar, note),
       productId: product.id,
       name: product.name,
@@ -127,74 +202,47 @@ export default function ProductPage({
       note: note.trim() || undefined,
       sizeOptions: product.sizes,
     });
-    router.push(next);
+    if (added) {
+      router.push(next);
+      return;
+    }
+    await refreshStock();
   };
-  const quickAdd = (p: Product) => {
-    const s = p.sizes.find((x) => x.isDefault) || p.sizes[0];
-    const already = cartItems
-      .filter((i) => i.productId === p.id)
-      .reduce((n, i) => n + i.quantity, 0);
-    if (!s || already + 1 > p.stock) return;
-    const item: CartItem = {
-      key: itemKey(p.id, s.code, [], ICE[0], SUGAR[0]),
-      productId: p.id,
-      name: p.name,
-      imageUrl: p.imageUrl,
-      size: s.code,
-      toppingIds: [],
-      toppingNames: [],
-      unitPrice: p.price + s.extraPrice,
-      quantity: 1,
-      ice: ICE[0],
-      sugar: SUGAR[0],
-      sizeOptions: p.sizes.length ? p.sizes : undefined,
-    };
-    add(item);
-    setQuickAdded(p.id);
-  };
-  if (loading)
+
+  if (loading) return <Loading label="Đang tải món..." />;
+  if (error || !product)
     return (
-      <main className="container main">
-        <Loading />
-      </main>
+      <div className="container" style={{ padding: "40px 0" }}>
+        <ErrorState
+          message={error || "Không tìm thấy món"}
+          retry={() => window.location.reload()}
+        />
+      </div>
     );
-  if (error)
-    return (
-      <main className="container main">
-        <ErrorState message={error} retry={load} />
-      </main>
-    );
-  if (!product)
-    return (
-      <main className="container main">
-        <ErrorState message="Không tìm thấy sản phẩm" />
-      </main>
-    );
+
   return (
     <main className="pd-page">
       <div className="container">
-        <nav className="pd-breadcrumb" aria-label="Breadcrumb">
-          <Icon name="home" size={14} />
+        <nav aria-label="Breadcrumb" className="pd-breadcrumb">
           <Link href="/">Trang chủ</Link>
           <span>/</span>
-          <Link href="/#menu">{product.category}</Link>
+          <Link href="/products">Thực đơn</Link>
           <span>/</span>
           <strong>{product.name}</strong>
         </nav>
         <div className="pd-layout">
           <div className="pd-media">
             <div className="pd-photo">
-              <ProductImage src={product.imageUrl} alt={product.name} />
-              <div className="pd-photo-tags">
-                <span className="pd-tag-dark">{product.category}</span>
-                <span className="pd-tag-light">
-                  {product.stock > 0 ? `Còn ${product.stock} phần` : "Tạm hết"}
-                </span>
-              </div>
+              <ProductImage
+                src={product.imageUrl}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
               <button
-                className={`pd-like ${liked ? "is-liked" : ""}`}
-                aria-label="Yêu thích"
+                type="button"
+                aria-label={liked ? "Bỏ yêu thích" : "Yêu thích"}
                 aria-pressed={liked}
+                className={`pd-fav ${liked ? "is-active" : ""}`}
                 onClick={() => setLiked((v) => !v)}
               >
                 <Icon name="heart" size={20} />
@@ -202,47 +250,45 @@ export default function ProductPage({
             </div>
             <div className="pd-chips">
               {story.chips.map(([icon, label]) => (
-                <span key={label}>
-                  <Icon name={icon} size={14} />
-                  {label}
+                <span key={label} className="pd-chip">
+                  <Icon name={icon} size={14} /> {label}
                 </span>
               ))}
             </div>
           </div>
-          <section className="pd-card">
-            <div className="pd-card-top">
-              <span className="pd-eyebrow">BrewLite Signature</span>
-              <span className="pd-fresh">Pha chế khi đặt</span>
-            </div>
-            <h1 className="pd-title">{product.name}</h1>
+          <section className="pd-card" aria-labelledby="product-title">
+            <span className="pd-tag">Cold Brew Special</span>
+            <h1 id="product-title" className="pd-title">
+              {product.name}
+            </h1>
             <div className="pd-price-row">
-              <span className="pd-price">{money(product.price)}</span>
-              <span className="pd-price-note">Giá size S, chưa gồm topping</span>
+              <span className="pd-price">{money(unit)}</span>
+              <small className="pd-price-note">
+                (Đã gồm topping & size tùy chọn)
+              </small>
             </div>
-            <p className="pd-description">{product.description}</p>
+            <p className="pd-desc">{product.description}</p>
             <div className="pd-group">
               <div className="pd-group-head">
-                <h2>
-                  1. Chọn kích thước <small>(Bắt buộc)</small>
-                </h2>
-                <span>
-                  Size {size} ({VOLUME[size]})
+                <h2>1. Chọn Kích Cỡ</h2>
+                <span className="pd-volume">
+                  Dung tích ~{VOLUME[size] || "350ml"}
                 </span>
               </div>
-              <div className="pd-sizes">
+              <div className="pd-sizes" role="radiogroup" aria-label="Chọn size">
                 {product.sizes.map((s) => (
                   <button
                     key={s.code}
-                    disabled={!s.available}
-                    aria-pressed={size === s.code}
-                    className={`pd-size ${size === s.code ? "selected" : ""}`}
-                    onClick={() => setSize(s.code)}
+                    role="radio"
+                    aria-checked={size === s.code}
+                    aria-disabled={!s.available}
+                    className={`pd-size ${size === s.code ? "selected" : ""} ${s.available ? "" : "is-disabled"}`}
+                    onClick={() => selectSize(s)}
                   >
-                    {s.code === "M" && <em>Khuyến dùng</em>}
-                    <Icon name="cup" size={s.code === "S" ? 16 : s.code === "M" ? 19 : 22} />
-                    <strong>Size {s.code}</strong>
+                    <span className="pd-size-tag">{s.code}</span>
+                    <strong>{s.name}</strong>
                     <small>
-                      {s.name} · {VOLUME[s.code]}
+                      {s.available ? (s.stock !== undefined ? `Còn ${s.stock} ly` : "Sẵn sàng") : "Tạm hết"}
                     </small>
                     <span>
                       {s.extraPrice > 0
@@ -324,23 +370,86 @@ export default function ProductPage({
             <div className="pd-total">
               <div className="pd-qty">
                 <span>Số lượng:</span>
-                <Quantity value={quantity} onChange={setQuantity} />
+                <Quantity
+                  value={quantity}
+                  onChange={setQuantity}
+                  max={effectiveMaxAvailable}
+                  disabled={cartBusy || previewLoading || !stockKnown || (preview ? !preview.valid && preview.maxAvailable === 0 : stock === 0)}
+                  canAdd={canAddOne}
+                />
               </div>
               <div className="pd-total-price">
                 <small>Tổng thanh toán:</small>
                 <strong>{money(unit * quantity)}</strong>
               </div>
             </div>
-            {product.stock === 0 && (
-              <p className="error">Món này đang hết hàng.</p>
-            )}
-            {product.stock > 0 && overStock && (
-              <p className="error">
-                Chỉ còn {product.stock} phần
-                {inCart > 0 ? ` (giỏ đã có ${inCart} phần)` : ""}.
+            <p className="muted">Sức bán size {size} hiện tại, chưa tính topping và giỏ hàng; chưa giữ hàng.</p>
+            {!stockKnown && <p className="error">Không thể xác định tồn khả dụng. <button onClick={load}>Thử lại</button></p>}
+            
+            {preview && preview.valid && !preview.canAddOne && (
+              <p role="status" className="pd-notice warning">
+                {preview.reason === 'MAX_REACHED' ? (
+                  "Đã đạt số lượng tối đa 99 phần cho một lần đặt."
+                ) : (
+                  <>
+                    Không thể thêm ly size {size}:{" "}
+                    {preview.nextShortages.map((s, idx) => (
+                      <span key={s.ingredientId}>
+                        {idx > 0 && "; "}
+                        <strong>{s.name}</strong> không đủ cho ly tiếp theo (thiếu {s.shortage}{s.unit})
+                      </span>
+                    ))}
+                    .
+                  </>
+                )}
               </p>
             )}
-            {invalid && <p className="error">Tùy chọn không hợp lệ.</p>}
+
+            {preview && !preview.valid && (
+              <p role="alert" className="pd-notice error">
+                {preview.currentShortages.length > 0 ? (
+                  <>
+                    {preview.maxAvailable === 0
+                      ? `Size ${size} tạm hết hàng: `
+                      : `Không đủ nguyên liệu cho ${quantity} ly size ${size}: `}
+                    {preview.currentShortages.map((s, idx) => (
+                      <span key={s.ingredientId}>
+                        {idx > 0 && "; "}
+                        <strong>{s.name}</strong> không đủ (cần {s.required}{s.unit}, kho còn {s.stock}{s.unit})
+                      </span>
+                    ))}
+                    {preview.maxAvailable > 0 && `. Vui lòng giảm số lượng xuống tối đa ${preview.maxAvailable} ly.`}
+                  </>
+                ) : preview.reason === 'MAX_REACHED' ? (
+                  "Đã vượt quá số lượng tối đa 99 phần cho một món."
+                ) : preview.reason === 'UNAVAILABLE' ? (
+                  `Size ${size} hiện tạm ngưng phục vụ.`
+                ) : preview.reason === 'INVALID_RECIPE' ? (
+                  "Món chưa có định mức nguyên vật liệu hợp lệ."
+                ) : (
+                  "Lựa chọn không hợp lệ."
+                )}
+              </p>
+            )}
+
+            {previewError && (
+              <p role="alert" className="pd-notice error">
+                {previewError}.{" "}
+                <button
+                  type="button"
+                  onClick={() => setPreviewRetryCount((c) => c + 1)}
+                  className="btn-link"
+                  style={{ textDecoration: "underline", background: "none", border: "none", cursor: "pointer", color: "inherit", fontWeight: 700 }}
+                >
+                  Thử lại
+                </button>
+              </p>
+            )}
+
+            {cartBusy && <p role="status">Đang kiểm tra nguyên liệu cho giỏ hàng...</p>}
+            {cartError && <p role="alert" className="error">{cartError}</p>}
+            {invalid && stock !== 0 && <p className="error">Tùy chọn không hợp lệ.</p>}
+            
             <div className="pd-actions">
               <button
                 className="pd-btn pd-btn-dark"
@@ -387,69 +496,73 @@ export default function ProductPage({
             ))}
           </div>
           <div className="pd-scores">
-            <div>
-              <span className="pd-scores-eyebrow">Cân bằng hương vị</span>
-              <h3>Chỉ số hương vị Barista</h3>
-              <p>Thước đo độ đậm và các tầng hương vị đặc trưng của dòng {product.category}.</p>
-            </div>
-            {story.scores.map(([label, score], i) => (
+            {story.scores.map(([label, score]) => (
               <div key={label} className="pd-score">
-                <div>
-                  <span>{label}</span>
-                  <span>{score} / 10</span>
+                <span className="pd-score-label">{label}</span>
+                <div className="pd-score-bar">
+                  <span style={{ width: `${(score / 10) * 100}%` }} />
                 </div>
-                <div className="pd-bar">
-                  <span className={`tone-${i}`} style={{ width: `${score * 10}%` }} />
-                </div>
+                <strong className="pd-score-val">{score}/10</strong>
               </div>
             ))}
           </div>
         </div>
       </section>
       {related.length > 0 && (
-        <section className="container pd-related">
-          <div className="pd-related-head">
-            <div>
-              <span className="pd-eyebrow">Thực đơn chọn lọc</span>
-              <h2 className="pd-section-title">Có thể bạn sẽ thích</h2>
-            </div>
-            <Link href="/#menu">
-              Xem tất cả <Icon name="arrowRight" size={14} />
-            </Link>
-          </div>
-          <div className="pd-related-grid">
-            {related.map((p) => (
-              <article key={p.id} className="pd-related-card">
-                <Link href={`/products/${p.id}`} className="pd-related-photo">
-                  <ProductImage src={p.imageUrl} alt={p.name} />
-                  <span>{p.category}</span>
-                </Link>
-                <div className="pd-related-body">
-                  <Link href={`/products/${p.id}`}>
-                    <h3>{p.name}</h3>
-                  </Link>
-                  <p>{p.description}</p>
-                  <div className="pd-related-bottom">
-                    <strong>{money(p.price)}</strong>
-                    <button
-                      disabled={p.stock < 1}
-                      aria-label={`Thêm nhanh ${p.name}`}
-                      onClick={() => quickAdd(p)}
-                    >
-                      {p.stock < 1 ? (
-                        "Tạm hết"
-                      ) : quickAdded === p.id ? (
-                        "Đã thêm"
-                      ) : (
-                        <>
-                          <Icon name="plus" size={14} /> Thêm nhanh
-                        </>
-                      )}
-                    </button>
+        <section className="pd-related">
+          <div className="container">
+            <h2 className="pd-section-title">Gợi ý cùng gu cho bạn</h2>
+            <div className="pd-related-grid">
+              {related.map((item) => (
+                <article key={item.id} className="pd-related-card">
+                  <div className="pd-related-thumb">
+                    <ProductImage
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                </div>
-              </article>
-            ))}
+                  <div className="pd-related-body">
+                    <h3>{item.name}</h3>
+                    <p>{item.description}</p>
+                    <div className="pd-related-bottom">
+                      <strong>{money(item.price)}</strong>
+                      <div className="pd-related-actions">
+                        <Link
+                          href={`/products/${item.id}`}
+                          className="btn btn-sm btn-secondary"
+                        >
+                          Tùy chỉnh
+                        </Link>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          disabled={cartBusy || quickAdded === item.id || item.stock === 0}
+                          onClick={async () => {
+                            setQuickAdded(item.id);
+                            await add({
+                              key: itemKey(item.id, "S", [], ICE[0], SUGAR[0]),
+                              productId: item.id,
+                              name: item.name,
+                              imageUrl: item.imageUrl,
+                              size: "S",
+                              toppingIds: [],
+                              toppingNames: [],
+                              unitPrice: item.price,
+                              quantity: 1,
+                              ice: ICE[0],
+                              sugar: SUGAR[0],
+                            });
+                            setQuickAdded("");
+                          }}
+                        >
+                          {item.stock === 0 ? "Hết" : quickAdded === item.id ? "Đang thêm..." : "+ Thêm"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
       )}

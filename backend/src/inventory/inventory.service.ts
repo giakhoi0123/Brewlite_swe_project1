@@ -67,11 +67,25 @@ export class InventoryService {
     const ingredients = await tx.ingredient.findMany({
       where: { id: { in: usage.map((row) => row.ingredientId) } },
     });
-    // Same lock order for every writer, including release and retry.
-    for (const row of [...usage].sort((a, b) => a.ingredientId.localeCompare(b.ingredientId))) {
+    const sortedUsage = [...usage].sort((a, b) => a.ingredientId.localeCompare(b.ingredientId));
+    const missing: string[] = [];
+    for (const row of sortedUsage) {
       const ingredient = ingredients.find((i) => i.id === row.ingredientId);
-      if (!ingredient || ingredient.stock.lt(row.amount))
-        throw new ConflictException(`Không đủ nguyên vật liệu: ${ingredient?.name ?? row.ingredientId}`);
+      if (!ingredient || ingredient.stock.lt(row.amount)) {
+        const name = ingredient?.name ?? row.ingredientId;
+        if (!missing.includes(name)) {
+          missing.push(name);
+        }
+      }
+    }
+    if (missing.length > 0) {
+      throw new ConflictException(
+        `Không đủ nguyên vật liệu: ${missing.join(', ')}. Vui lòng chọn món khác hoặc giảm số lượng!`,
+      );
+    }
+    // Same lock order for every writer, including release and retry.
+    for (const row of sortedUsage) {
+      const ingredient = ingredients.find((i) => i.id === row.ingredientId)!;
       const changed = await tx.ingredient.updateMany({
         where: { id: row.ingredientId, version: ingredient.version, stock: { gte: row.amount } },
         data: { stock: { decrement: row.amount }, version: { increment: 1 } },

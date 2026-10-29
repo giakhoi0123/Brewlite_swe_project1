@@ -3,7 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
-import { Role, UserStatus, type ProductSizeCode } from '@prisma/client';
+import { Prisma, Role, UserStatus, type ProductSizeCode } from '@prisma/client';
 import request from 'supertest';
 import { PrismaService } from '../prisma.service';
 import type { ProductDetailRecord } from '../products/product-detail';
@@ -24,9 +24,15 @@ const line = (extra: Record<string, unknown> = {}) => ({
   productId: product.id, size: 'M', toppingIds: [espresso], quantity: 2, ice: '70% đá', sugar: '50% ít ngọt', ...extra,
 });
 
+const setStock = (val: number) => {
+  const dec = new Prisma.Decimal(val);
+  for (const s of product.sizes) for (const r of s.recipe) r.ingredient.stock = dec;
+  for (const t of product.toppings) for (const r of t.topping.recipe) r.ingredient.stock = dec;
+};
+
 // Real HTTP, ValidationPipe, JWT guard and CartService; only Prisma is an in-memory fake.
 function fakePrisma(products: Map<string, ProductDetailRecord>) {
-  const carts: { id: string; userId: string }[] = [];
+  let carts: { id: string; userId: string }[] = [];
   let rows: Row[] = [];
   let tick = 0;
   const matches = (where: ItemWhere) => (row: Row) =>
@@ -78,7 +84,17 @@ function fakePrisma(products: Map<string, ProductDetailRecord>) {
         return { count: before - rows.length };
       },
     },
-    $transaction: async (work: (tx: unknown) => Promise<void>) => work(client),
+    $transaction: async (work: (tx: unknown) => Promise<void>) => {
+      const snapshotRows = rows.map((r) => ({ ...r }));
+      const snapshotCarts = carts.map((c) => ({ ...c }));
+      try {
+        return await work(client);
+      } catch (err) {
+        rows = snapshotRows;
+        carts = snapshotCarts;
+        throw err;
+      }
+    },
     reset: () => {
       carts.length = 0;
       rows = [];
@@ -111,7 +127,7 @@ describe('Cart HTTP', () => {
   });
   beforeEach(() => {
     prisma.reset();
-    product.stock = 5;
+    setStock(100000);
   });
   afterAll(async () => {
     await app?.close();
@@ -159,17 +175,18 @@ describe('Cart HTTP', () => {
     expect(unavailable.body.message).toBe('Size L tạm hết');
   });
 
-  it('enforces stock across all lines of the same product', async () => {
+  it('enforces stock across all lines of the same product based on ingredients', async () => {
     const auth = token(ALICE);
+    setStock(100);
     await api().post('/api/cart/items').set('Authorization', auth).send(line({ quantity: 4 })).expect(201);
     const over = await api().post('/api/cart/items').set('Authorization', auth).send(line({ size: 'S', quantity: 2 })).expect(409);
-    expect(over.body.message).toBe(`${product.name} chỉ còn 5 phần`);
+    expect(over.body.message).toContain('Không đủ nguyên vật liệu');
 
-    // Stock dropping afterwards flags the line instead of hiding it, and decreasing is still allowed.
-    product.stock = 2;
+    // Ingredient stock dropping afterwards flags the line instead of hiding it, and decreasing is still allowed.
+    setStock(40);
     const flagged = await api().get('/api/cart').set('Authorization', auth).expect(200);
     expect(flagged.body.valid).toBe(false);
-    expect(flagged.body.items[0].issue).toBe(`${product.name} chỉ còn 2 phần`);
+    expect(flagged.body.items[0].issue).toContain('Không đủ nguyên vật liệu');
     const id = flagged.body.items[0].id;
     await api().patch(`/api/cart/items/${id}`).set('Authorization', auth).send({ quantity: 3 }).expect(200);
     const fixed = await api().patch(`/api/cart/items/${id}`).set('Authorization', auth).send({ quantity: 2 }).expect(200);

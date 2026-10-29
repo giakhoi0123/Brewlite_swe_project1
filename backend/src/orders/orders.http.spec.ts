@@ -32,7 +32,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
   }));
   const findMany = jest.fn(async (_args: unknown) => []);
   const db = {
-    ingredient: { findMany: async () => [ingredientFixture()], updateMany: async () => ({ count: 1 }) },
+    ingredient: { findMany: async () => [ingredientFixture()], updateMany },
     user: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         [customer, staff].includes(where.id)
@@ -57,7 +57,7 @@ describe('Orders HTTP (real guards, DTOs and service; database test double)', ()
           toppings: [{ toppingId, extraPrice: 6000, available: true, topping: { name: 'Kem sữa', recipe: recipeFixture() } }],
         },
       ],
-      updateMany,
+      updateMany: async () => ({ count: 1 }),
     },
     order: { create, findFirst, findMany, findUnique: findFirst },
     $connect: async () => {},
