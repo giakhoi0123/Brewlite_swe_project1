@@ -1,5 +1,4 @@
 import { jest } from '@jest/globals';
-import { BadRequestException } from '@nestjs/common';
 import { resolveVoucher } from './voucher-rules';
 
 describe('voucher-rules: resolveVoucher', () => {

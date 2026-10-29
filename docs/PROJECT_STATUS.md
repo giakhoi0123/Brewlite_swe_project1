@@ -1,5 +1,37 @@
 # Trạng thái dự án
 
+## Khôi phục xác thực, Vouchers cá nhân & Đơn hàng — 2026-10-29
+
+**IMPLEMENTED / FULL TESTS PASS**: Đã khắc phục triệt để các lỗi nghiệp vụ và hoàn thành 6 Phase theo yêu cầu kiểm toán:
+
+1. **Phase A — Quên và đổi mật khẩu**:
+   - Model `PasswordResetToken` trong PostgreSQL: token SHA-256 hash (32 bytes random), thời hạn 15 phút, dùng 1 lần, vô hiệu token cũ.
+   - 3 endpoint: `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `POST /api/auth/change-password`.
+   - Rate limit theo IP (5 lần/15 phút) và account (3 lần/15 phút); chống user enumeration; bcrypt validation; password policy (≥ 8 ký tự, chữ hoa, số); tăng `sessionVersion` để vô hiệu tất cả JWT/phiên cũ sau khi đổi/reset mật khẩu.
+   - Frontend: Trang `/forgot-password`, `/reset-password`, mục đổi mật khẩu trong `/profile`, link "Quên mật khẩu?" tại trang `/login`.
+
+2. **Phase B — Email Sandbox Mailpit**:
+   - Mailpit chạy trong Docker Compose (SMTP port 1025, Web UI port 8025).
+   - NestJS `MailService` trừu tượng hóa gửi thư qua SMTP; biến môi trường SMTP config linh hoạt cho local và production; không bao giờ lộ token/mật khẩu ra API/log.
+
+3. **Phase C — Voucher và Loyalty**:
+   - Khắc phục lỗ hổng client tự gửi `discountAmount`. Client chỉ gửi `rewardId` qua `POST /api/loyalty/redeem`. Backend xác định điểm trừ, giá trị giảm, và tạo bản ghi `Voucher` trong PostgreSQL gắn với `userId`.
+   - Vòng đời voucher: `AVAILABLE` → `RESERVED` → `REDEEMED`. Khi đơn thanh toán thất bại (`PAYMENT_FAILED`) hoặc hủy (`CANCELLED`), voucher được giải phóng về `AVAILABLE`.
+   - Giao diện Profile tải voucher cá nhân trực tiếp từ `GET /api/loyalty/vouchers`, loại bỏ hoàn toàn việc đọc `localStorage`.
+   - Bảo đảm atomic transaction và concurrency safety, xóa bỏ toàn bộ empty catch blocks nuốt lỗi DB.
+
+4. **Phase D — Orders, Inventory, Cart**:
+   - Endpoint khách hàng tự hủy đơn: `POST /api/orders/:id/cancel` (chỉ cho phép đơn `PENDING` hoặc `PAYMENT_FAILED` thuộc sở hữu của chính user; từ chối khi đơn đã được Barista chế biến).
+   - Dọn giỏ hàng sau thanh toán có phạm vi (scoped cart cleanup theo product + configKey), không xóa món mới được khách thêm vào giỏ trong lúc chờ thanh toán VNPAY.
+   - Giữ nguyên tích hợp VNPAY Sandbox chính thức, không thêm ví/thẻ mock.
+
+5. **Phase E — Kiểm thử & Nghiệm thu**:
+   - Backend acceptance trên PostgreSQL: **34/34 test suites (375 tests) PASS**, **6/6 E2E suites (165 tests) PASS**, 17 migrations áp dụng thành công.
+   - Frontend unit tests: **26/26 tests PASS**.
+   - Frontend lint: **0 errors**, production build thành công (16/16 routes).
+   - Backend lint: **0 warnings, 0 errors**, production build thành công.
+   - Playwright E2E: Luồng khôi phục mật khẩu gửi email qua Mailpit, đặt lại mật khẩu và đổi mật khẩu trong profile (`auth-recovery-flow.spec.ts`) **PASS**.
+
 ## TV4 — nguyên vật liệu, định mức và topping — 2026-10-28
 
 **IMPLEMENTED / PostgreSQL tests PASS**: đã có bảng nguyên liệu, công thức mỗi sản phẩm-size và topping, snapshot theo đơn; tính cộng gộp theo số ly, giữ/hoàn kho nguyên tử, xử lý retry và tranh kho. Hủy PREPARING không trả nguyên liệu đã dùng vào kho. API BARISTA thêm/nhập nguyên liệu và sửa công thức; catalog phản ánh nguyên liệu khả dụng. Xem [INGREDIENT_INVENTORY.md](INGREDIENT_INVENTORY.md) cho endpoint, công thức mẫu, cách chạy và giới hạn.

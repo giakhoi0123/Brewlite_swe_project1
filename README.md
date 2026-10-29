@@ -5,8 +5,11 @@
 ## Phạm vi và hiện trạng
 
 - Đã dựng 9 nhóm màn theo Stitch: menu, chi tiết/tùy chỉnh, giỏ, đăng ký/đăng nhập, checkout, xử lý/kết quả thanh toán, đơn hàng/theo dõi, hồ sơ/điểm, Barista.
-- Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout vô hiệu JWT cũ bằng `users.session_version`, bcrypt, cookie HttpOnly JWT, role CUSTOMER/BARISTA. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
-- Orders/Inventory và Staff Orders đã có backend TV4 trên `main`; API staff hỗ trợ danh sách, chuyển trạng thái và hủy có lý do. Payment dùng VNPAY WebPay 2.1.0: backend ký HMAC-SHA512, ưu tiên IPN và dùng QueryDR có chữ ký làm fallback khi IPN bị trễ/mất; kết quả hợp lệ cập nhật Payment/Order trong transaction. `VNPAY_BANK_CODE` là cấu hình backend tùy chọn; mặc định để trống để trang hosted hiển thị các phương thức terminal được cấp. Promotions/Loyalty đã có endpoint backend và migration `LoyaltyLog`; các giới hạn còn lại được ghi trong `docs/PROJECT_STATUS.md`.
+- Auth là backend thật: đăng ký, đăng nhập, GET `/auth/me`, logout vô hiệu JWT cũ bằng `users.session_version`, bcrypt, cookie HttpOnly JWT, role CUSTOMER/BARISTA. Khôi phục mật khẩu hoàn chỉnh: quên mật khẩu (`POST /api/auth/forgot-password`), đặt lại mật khẩu (`POST /api/auth/reset-password`), và đổi mật khẩu trong hồ sơ (`POST /api/auth/change-password`). Sử dụng bảng `PasswordResetToken` lưu SHA-256 hash của token ngẫu nhiên bảo mật 32 bytes, hạn 15 phút, dùng một lần duy nhất, tăng `sessionVersion` sau khi đổi mật khẩu để hủy các phiên cũ, rate limit chống lạm dụng và chống lộ thông tin tồn tại email. Backend Products API và seed đã chạy trên PostgreSQL qua Compose; Products trả 10 sản phẩm.
+- Email Sandbox: Tích hợp Mailpit trong Docker Compose (cổng SMTP 1025, Web UI 8025 để kiểm tra email gửi đi trong môi trường phát triển/kiểm thử). `MailService` trừu tượng hóa gửi email qua SMTP; môi trường production yêu cầu cấu hình SMTP thật qua biến môi trường.
+- Orders/Inventory và Staff Orders đã có backend TV4 trên `main`; API staff hỗ trợ danh sách, chuyển trạng thái và hủy có lý do. Khách hàng có endpoint tự hủy đơn `POST /api/orders/:id/cancel` cho đơn `PENDING` hoặc `PAYMENT_FAILED` (không được hủy đơn đang pha chế/hoàn tất). Dọn giỏ hàng sau khi thanh toán thành công chỉ xóa các món tương ứng trong đơn hàng (scoped cleanup), bảo toàn món mới thêm vào giỏ trong lúc chờ thanh toán.
+- Thanh toán chính thức: Triển khai bằng VNPAY Sandbox (WebPay 2.1.0) theo đúng yêu cầu giảng viên; tuyệt đối không bổ sung thanh toán Wallet/Card giả lập. Backend ký HMAC-SHA512, ưu tiên IPN và dùng QueryDR có chữ ký làm fallback khi IPN bị trễ/mất; kết quả hợp lệ cập nhật Payment/Order trong transaction atomic. `VNPAY_BANK_CODE` là cấu hình backend tùy chọn; mặc định để trống để trang hosted hiển thị các phương thức terminal được cấp.
+- Vouchers & Loyalty: Khắc phục triệt để lỗ hổng client tự gửi `discountAmount`. Client chỉ gửi `rewardId` qua `POST /api/loyalty/redeem`; backend tự động xác thực điểm, khấu trừ và sinh `Voucher` trong PostgreSQL gắn với `userId`. Quản lý vòng đời `AVAILABLE` → `RESERVED` → `REDEEMED`, tự động giải phóng voucher khi đơn thất bại/hủy. Giao diện hồ sơ tải danh sách voucher cá nhân trực tiếp từ `GET /api/loyalty/vouchers`, không dùng localStorage làm nguồn xác thực.
 - Tiến độ 10 Task: `docs/IMPLEMENTATION_PLAN.md`; hợp đồng API: `docs/API_CONTRACT.md`.
 - Barista KDS theo Stitch có 5 màn: `/barista/dashboard`, `/barista/orders`, `/barista/preparing`, `/barista/ready`, `/barista/history`. API mode dùng backend TV4 cho queue/transition; endpoint history/hủy có lý do đã có, TV1 còn bật các nhánh UI tương ứng và KPI. Hồ sơ thành viên chưa phát hành voucher hoặc chính sách đổi điểm.
 
@@ -87,10 +90,10 @@ Theo hướng dẫn VNPAY: đăng nhập bằng email, đăng ký số điện t
 
 Nếu Next.js chạy ở cổng khác, thêm địa chỉ đó vào `FRONTEND_ORIGIN` trong `.env`, phân tách bằng dấu phẩy (ví dụ `http://localhost:3000,http://localhost:3002`), rồi khởi động lại backend. Với Compose, chạy `docker compose up -d --build backend` để áp dụng thay đổi mã và cấu hình. Nếu thiếu origin, trình duyệt sẽ chặn API đăng ký/đăng nhập và hiện `Failed to fetch`.
 
-### Chạy phát triển bằng PostgreSQL trong Docker
+### Chạy phát triển bằng PostgreSQL và Mailpit trong Docker
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres mailpit
 set -a; source .env; set +a
 npm --prefix backend run prisma:generate
 npm run db:migrate
@@ -100,7 +103,7 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-Mở `http://localhost:3000`. Backend là `http://localhost:3001/api`. `prisma:seed` tạo sản phẩm demo và tài khoản Barista khi `BARISTA_EMAIL`, `BARISTA_PASSWORD` có trong môi trường shell. Với backend chạy bằng npm, nạp biến từ `.env` trước seed, ví dụ `set -a; source .env; set +a; npm --prefix backend run prisma:seed` trong zsh. Lệnh seed idempotent, không đặt lại stock/giá sản phẩm đã có.
+Mở `http://localhost:3000`. Backend là `http://localhost:3001/api`. Mailpit Web UI (kiểm tra email khôi phục mật khẩu) là `http://localhost:8025`. SMTP nội bộ nhận thư ở cổng 1025. `prisma:seed` tạo sản phẩm demo và tài khoản Barista khi `BARISTA_EMAIL`, `BARISTA_PASSWORD` có trong môi trường shell. Với backend chạy bằng npm, nạp biến từ `.env` trước seed, ví dụ `set -a; source .env; set +a; npm --prefix backend run prisma:seed` trong zsh. Lệnh seed idempotent, không đặt lại stock/giá sản phẩm đã có.
 
 Nếu cài PostgreSQL riêng, tạo database `brewlite`, cập nhật `DATABASE_URL` và chạy các lệnh Prisma ở trên. Không chạy migration vào DB đang dùng bởi repo khác trước khi kiểm tra URL.
 

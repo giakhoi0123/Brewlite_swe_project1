@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { OrderStatus } from '@prisma/client';
 import { OrdersService } from './orders.service';
 

@@ -1,5 +1,4 @@
 import { jest } from '@jest/globals';
-import { BadRequestException } from '@nestjs/common';
 import { LoyaltyService } from './loyalty.service';
 
 describe('LoyaltyService - Vouchers and Points Redemption', () => {
