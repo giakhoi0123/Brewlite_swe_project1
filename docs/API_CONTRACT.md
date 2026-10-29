@@ -1,5 +1,31 @@
 # Hợp đồng API BrewLite
 
+## Khôi phục mật khẩu, Voucher sở hữu & Quản lý đơn hàng — 2026-10-29
+
+Đã triển khai và kiểm chứng:
+1. **Quên & Đổi mật khẩu (Phase A)**:
+   - `POST /api/auth/forgot-password`: Input `{ email }`, sinh token ngẫu nhiên bảo mật 32 bytes (hex 64 ký tự), lưu SHA-256 hash và thời hạn 15 phút vào bảng `PasswordResetToken`. Luôn trả HTTP 200 `{ message: "Nếu email tồn tại trong hệ thống, liên kết đặt lại mật khẩu đã được gửi." }` bất kể email có tồn tại hay không (chống user enumeration). Rate limit theo IP (5 lần/15 phút) và theo account (3 lần/15 phút).
+   - `POST /api/auth/reset-password`: Input `{ token, newPassword }`, kiểm tra token hash, thời hạn, cờ `usedAt` (dùng 1 lần duy nhất), kiểm tra chính sách mật khẩu (≥ 8 ký tự, chữ hoa, chữ thường, số/ký tự đặc biệt), mã hóa bcrypt, tăng `sessionVersion` của user (vô hiệu toàn bộ session/JWT cũ), đánh dấu token đã dùng và vô hiệu các token reset khác của user trong cùng database transaction.
+   - `POST /api/auth/change-password`: Yêu cầu auth (JWT/cookie). Input `{ oldPassword, newPassword }`, kiểm tra mật khẩu cũ bằng bcrypt, kiểm tra chính sách mật khẩu mới, băm mật khẩu mới, tăng `sessionVersion` để vô hiệu các session khác trong transaction.
+
+2. **Email Sandbox Mailpit (Phase B)**:
+   - Tích hợp Mailpit trong Docker Compose (SMTP port 1025, Web UI port 8025).
+   - Abstraction qua `MailService` (`src/mail/mail.service.ts`). Môi trường development/test tự động định tuyến đến Mailpit; production bắt buộc cấu hình SMTP credentials thật từ environment. Tuyệt đối không log token, mật khẩu hoặc link reset vào console hay trả về trong API response.
+
+3. **Voucher & Loyalty Lifecycle (Phase C)**:
+   - Khắc phục lỗ hổng client tự gửi `discountAmount`. Client chỉ gửi `rewardId` qua `POST /api/loyalty/redeem` (ví dụ `rw-10k`, `rw-20k`, `rw-50k`).
+   - Backend xác định điểm trừ, giá trị giảm, và tạo bản ghi `Voucher` trong PostgreSQL gắn trực tiếp với `userId`.
+   - Vòng đời voucher: `AVAILABLE` (sẵn sàng sử dụng) → `RESERVED` (đã gắn vào đơn hàng PENDING khi tạo đơn) → `REDEEMED` (hoàn tất khi đơn chuyển sang PAID).
+   - Khi thanh toán thất bại (`PAYMENT_FAILED`) hoặc đơn bị hủy (`CANCELLED`), voucher `RESERVED` tự động được giải phóng về `AVAILABLE`. Hủy đơn đã PAID sẽ tự động hoàn lại điểm loyalty đã cộng.
+   - Kiểm tra sở hữu voucher: Voucher thuộc người dùng nào chỉ người dùng đó được phép áp dụng khi tạo đơn (`POST /orders`).
+   - `GET /api/loyalty/vouchers`: Trả danh sách voucher cá nhân của người dùng đăng nhập từ PostgreSQL, thay thế hoàn toàn việc đọc `localStorage`.
+   - `GET /api/loyalty/me`: Trả điểm loyalty hiện tại của người dùng.
+
+4. **Quản lý đơn hàng & Dọn giỏ hàng có phạm vi (Phase D)**:
+   - `POST /api/orders/:id/cancel`: Endpoint cho Customer tự hủy đơn hàng của chính mình khi đơn đang ở trạng thái `PENDING` hoặc `PAYMENT_FAILED`. Không cho phép tự hủy khi đơn đã được Barista tiếp nhận (`PREPARING`, `READY`, `COMPLETED`).
+   - Dọn dẹp giỏ hàng khi thanh toán thành công (`PAID`) chỉ xóa các `CartItem` tương ứng với các món đã được đặt trong đơn hàng (theo product và configKey), không xóa các món mới được người dùng thêm vào giỏ trong lúc chờ thanh toán VNPAY.
+   - Giữ nguyên tích hợp cổng thanh toán VNPAY Sandbox theo yêu cầu giảng viên; không bổ sung thanh toán Wallet/Card giả lập.
+
 ## Kho nguyên vật liệu — 2026-10-28
 
 Đã thêm [hợp đồng nguyên liệu và định mức](INGREDIENT_INVENTORY.md): API BARISTA `GET/POST /staff/inventory`, `POST /staff/inventory/:id/receipts`, `GET /staff/inventory/recipes`, `PUT /staff/inventory/product-sizes/:id/recipe` và `PUT /staff/inventory/toppings/:id/recipe`. Decimal trả dạng chuỗi; lượng gửi là số tối đa 3 chữ số lẻ. PUT thay toàn bộ công thức trong transaction; nhập kho là phép cộng không có idempotency key.

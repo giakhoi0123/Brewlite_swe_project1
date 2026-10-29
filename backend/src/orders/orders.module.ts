@@ -6,7 +6,6 @@ import { OrdersController } from './orders.controller';
 import { StaffOrdersController } from './staff-orders.controller';
 import { OrdersService } from './orders.service';
 import { PromotionDiscount, ORDER_DISCOUNT } from './order-discount';
-import { PromotionsController } from './promotions.controller';
 
 @Module({
   imports: [AuthModule, PrismaModule, InventoryModule],

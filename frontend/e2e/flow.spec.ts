@@ -102,7 +102,7 @@ test('customer VNPAY success, loyalty and Barista workflow', async ({page}) => {
   await page.goto('/login');
   const staff = staffCredentials();
   await page.getByLabel('Email').fill(staff.email);
-  await page.getByLabel('Mật khẩu').fill(staff.password);
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(staff.password);
   await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();
   await expect(page).toHaveURL(/\/barista\/dashboard$/);
   page.on('dialog',d=>d.accept());
@@ -120,7 +120,7 @@ test('customer VNPAY success, loyalty and Barista workflow', async ({page}) => {
   await page.getByRole('button',{name:'Đăng xuất ca trực'}).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.getByLabel('Email').fill(customerEmail);
-  await page.getByLabel('Mật khẩu').fill(password);
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
   await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();
   await expect(page.getByRole('button',{name:'Đăng xuất',exact:true})).toBeVisible();
   await page.goto(`/orders/${orderId}`);
@@ -150,7 +150,7 @@ test('Barista cancellation requires a reason and moves the order to history', as
   const staff = staffCredentials();
   await page.goto('/login');
   await page.getByLabel('Email').fill(staff.email);
-  await page.getByLabel('Mật khẩu').fill(staff.password);
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(staff.password);
   await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();
   await expect(page).toHaveURL(/\/barista\/dashboard$/);
   await expect(page.locator('.barista-ticket').filter({hasText:id})).toBeVisible();

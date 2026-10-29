@@ -26,11 +26,14 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-brewlite}:${POSTGRES_PASSWORD:-change_me_local}@postgres:5432/${POSTGRES_DB:-brewlite}?schema=public
       PORT: 3001
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      SMTP_HOST: ${DOCKER_SMTP_HOST:-mailpit}
     ports:
       - "3001:3001"
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
   frontend:
     build:
       context: ./frontend
