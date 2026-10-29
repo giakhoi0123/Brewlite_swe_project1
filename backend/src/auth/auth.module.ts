@@ -8,9 +8,13 @@ import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 
+import { MailModule } from '../mail/mail.module';
+import { AuthRateLimiter } from './rate-limiter';
+
 @Module({
   imports: [
     PassportModule,
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -24,7 +28,7 @@ import { RolesGuard } from './roles.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, PassportModule],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, AuthRateLimiter],
+  exports: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, PassportModule, AuthRateLimiter],
 })
 export class AuthModule {}

@@ -65,6 +65,23 @@ describe('Orders service', () => {
       findFirst: findOrder,
     },
     orderStatusHistory: { create: history },
+    voucher: {
+      findUnique: jest.fn(async () => null),
+      updateMany: jest.fn(async () => ({ count: 1 })),
+    },
+    promotion: {
+      findFirst: jest.fn(async () => null),
+      findUnique: jest.fn(async () => null),
+      update: jest.fn(async () => ({})),
+    },
+    loyaltyLog: {
+      findUnique: jest.fn(async () => null),
+      create: jest.fn(async () => ({})),
+      delete: jest.fn(async () => ({})),
+    },
+    user: {
+      update: jest.fn(async () => ({})),
+    },
   };
   let service: OrdersService;
   beforeEach(() => {

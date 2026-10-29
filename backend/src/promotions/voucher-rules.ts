@@ -9,6 +9,8 @@ export interface VoucherResult {
   amount?: number;
   title: string;
   promotionId?: string;
+  voucherId?: string;
+  isPersonalVoucher?: boolean;
 }
 
 export async function resolveVoucher(
@@ -26,89 +28,64 @@ export async function resolveVoucher(
   }
 
   const code = codeRaw.trim().toUpperCase();
-  let promotion: any = null;
+  const safeSubtotal = Number(subtotal || 0);
 
-  const db = prismaClient as any;
-  const promotionModel = db.promotion || db.promotions;
-  const userCouponModel = db.userCoupon || db.user_coupon || db.userCoupons;
-  const couponModel = db.coupon || db.coupons || db.voucher || db.vouchers;
+  // 1. Kiểm tra trong bảng Voucher (Mã đổi điểm cá nhân)
+  if (prismaClient.voucher) {
+    const personalVoucher = await prismaClient.voucher.findUnique({
+      where: { code },
+    });
 
-  // 1. TRA CỨU KHUYẾN MÃI DỰA TRÊN CÁC BẢNG HIỆN CÓ (US11)
-  if (promotionModel) {
-    try {
-      promotion = await promotionModel.findFirst({
-        where: { code: { equals: code, mode: 'insensitive' } },
-      });
-    } catch (e) {
-      try {
-        promotion = await promotionModel.findFirst({ where: { code } });
-      } catch (err) {}
+    if (personalVoucher) {
+      if (userId && personalVoucher.userId !== userId) {
+        throw new BadRequestException('Mã ưu đãi này không thuộc tài khoản của bạn');
+      }
+
+      if (personalVoucher.status !== 'AVAILABLE') {
+        throw new BadRequestException(
+          'Mã ưu đãi này đã được sử dụng hoặc đang chờ xử lý trong đơn hàng khác',
+        );
+      }
+
+      const minOrder = Number(personalVoucher.minOrderValue || 0);
+      if (minOrder > 0 && safeSubtotal < minOrder) {
+        throw new BadRequestException(
+          `Đơn hàng cần tối thiểu ${minOrder.toLocaleString('vi-VN')}đ để áp dụng mã "${code}"`,
+        );
+      }
+
+      const discount = Math.max(0, Math.min(personalVoucher.discountAmount, safeSubtotal));
+
+      return {
+        valid: true,
+        code: personalVoucher.code,
+        discountAmount: discount,
+        discountValue: discount,
+        discount,
+        amount: discount,
+        title: personalVoucher.title,
+        voucherId: personalVoucher.id,
+        isPersonalVoucher: true,
+      };
     }
   }
 
-  if (!promotion && userCouponModel) {
-    try {
-      const coupon = await userCouponModel.findFirst({
-        where: { code: { equals: code, mode: 'insensitive' }, isUsed: false },
-      });
-      if (coupon) {
-        promotion = {
-          id: coupon.id,
-          code: coupon.code,
-          discountValue: coupon.discountValue || coupon.discountAmount || coupon.discount || 0,
-          discountType: 'FIXED_AMOUNT',
-          minOrderValue: 0,
-          isActive: true,
-          description: `Voucher giảm ${Number(coupon.discountValue || 0).toLocaleString('vi-VN')}đ`,
-        };
-      }
-    } catch (e) {
-      try {
-        const coupon = await userCouponModel.findFirst({ where: { code } });
-        if (coupon) {
-          promotion = {
-            id: coupon.id,
-            code: coupon.code,
-            discountValue: coupon.discountValue || coupon.discountAmount || coupon.discount || 0,
-            discountType: 'FIXED_AMOUNT',
-            minOrderValue: 0,
-            isActive: true,
-            description: `Voucher giảm ${Number(coupon.discountValue || 0).toLocaleString('vi-VN')}đ`,
-          };
-        }
-      } catch (err) {}
-    }
-  }
-
-  if (!promotion && couponModel) {
-    try {
-      const c = await couponModel.findFirst({
-        where: { code: { equals: code, mode: 'insensitive' } },
-      });
-      if (c) {
-        promotion = {
-          id: c.id,
-          code: c.code,
-          discountValue: c.discount || c.discountValue || c.discountAmount || 0,
-          discountType: 'FIXED_AMOUNT',
-          minOrderValue: 0,
-          isActive: !c.isUsed,
-          description: `Voucher giảm ${Number(c.discount || c.discountValue || 0).toLocaleString('vi-VN')}đ`,
-        };
-      }
-    } catch (e) {}
+  // 2. Kiểm tra trong bảng Promotion (Chương trình khuyến mãi chung)
+  let promotion = null;
+  if (prismaClient.promotion) {
+    promotion = await prismaClient.promotion.findFirst({
+      where: { code: { equals: code, mode: 'insensitive' } },
+    });
   }
 
   if (!promotion) {
     throw new BadRequestException(`Mã ưu đãi "${code}" không tồn tại trên hệ thống`);
   }
 
-  // 2. KIỂM TRA ĐIỀU KIỆN KÍCH HOẠT
   if (promotion.isActive === false) {
     throw new BadRequestException(`Mã ưu đãi "${code}" hiện đang bị khóa hoặc ngưng áp dụng`);
   }
 
-  // 3. KIỂM TRA HẠN SỬ DỤNG
   const now = new Date();
   if (promotion.startDate && new Date(promotion.startDate) > now) {
     throw new BadRequestException(`Mã ưu đãi "${code}" chưa đến thời gian sử dụng`);
@@ -117,7 +94,6 @@ export async function resolveVoucher(
     throw new BadRequestException(`Mã ưu đãi "${code}" đã hết hạn sử dụng`);
   }
 
-  // 4. KIỂM TRA GIỚI HẠN SỐ LẦN SỬ DỤNG
   if (
     promotion.usageLimit !== null &&
     promotion.usageLimit !== undefined &&
@@ -126,8 +102,6 @@ export async function resolveVoucher(
     throw new BadRequestException(`Mã ưu đãi "${code}" đã hết lượt sử dụng`);
   }
 
-  // 5. KIỂM TRA GIÁ TRỊ ĐƠN HÀNG TỐI THIỂU
-  const safeSubtotal = Number(subtotal || 0);
   const minOrderValue = Number(promotion.minOrderValue || 0);
   if (minOrderValue > 0 && safeSubtotal < minOrderValue) {
     throw new BadRequestException(
@@ -135,7 +109,6 @@ export async function resolveVoucher(
     );
   }
 
-  // 6. TÍNH SỐ TIỀN GIẢM GIÁ (AN TOÀN CHỐNG NaN 100%)
   let rawDiscount = Number(
     promotion.discountValue ?? promotion.discountAmount ?? promotion.discount ?? 0,
   );
@@ -157,7 +130,6 @@ export async function resolveVoucher(
 
   const finalDiscount = Math.max(0, Math.min(computedDiscount, safeSubtotal));
 
-  // 7. TRẢ VỀ ĐẦY ĐỦ ALIAS ĐỂ FRONTEND KHÔNG BỊ TRUY VẤN UNDEFINED / NaN
   return {
     valid: true,
     code: promotion.code,
@@ -167,5 +139,6 @@ export async function resolveVoucher(
     amount: finalDiscount,
     title: promotion.description || `Mã giảm ${finalDiscount.toLocaleString('vi-VN')}đ`,
     promotionId: promotion.id,
+    isPersonalVoucher: false,
   };
 }

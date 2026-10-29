@@ -18,7 +18,12 @@ export class PromotionDiscount implements OrderDiscount {
     input: { userId: string; subtotal: number; promotionCode?: string },
   ): Promise<number> {
     if (!input.promotionCode || !input.promotionCode.trim()) return 0;
-    const res = await resolveVoucher(input.promotionCode, input.subtotal, tx);
+    const res = await resolveVoucher(
+      input.promotionCode,
+      input.subtotal,
+      tx,
+      input.userId,
+    );
     return res.discountAmount;
   }
 }

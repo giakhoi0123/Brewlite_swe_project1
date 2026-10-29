@@ -57,6 +57,8 @@ model User {
   cart          Cart?
   payments      Payment[]
   loyaltyLogs   LoyaltyLog[]
+  passwordResetTokens PasswordResetToken[]
+  vouchers      Voucher[]
 
   @@map("users")
 }
@@ -142,6 +144,7 @@ model Order {
   statusHistory  OrderStatusHistory[]
   payments       Payment[]
   loyaltyLog     LoyaltyLog?
+  vouchers       Voucher[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -346,4 +349,46 @@ model Promotion {
   isActive          Boolean   @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  userId    String    @map("user_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+enum VoucherStatus {
+  AVAILABLE
+  RESERVED
+  REDEEMED
+}
+
+model Voucher {
+  id             String        @id @default(uuid()) @db.Uuid
+  code           String        @unique
+  userId         String        @map("user_id") @db.Uuid
+  rewardId       String        @map("reward_id")
+  title          String
+  description    String?
+  discountAmount Int           @map("discount_amount")
+  minOrderValue  Int           @default(0) @map("min_order_value")
+  status         VoucherStatus @default(AVAILABLE)
+  orderId        String?       @map("order_id") @db.Uuid
+  reservedAt     DateTime?     @map("reserved_at")
+  redeemedAt     DateTime?     @map("redeemed_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order          Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([code])
+  @@map("vouchers")
 }

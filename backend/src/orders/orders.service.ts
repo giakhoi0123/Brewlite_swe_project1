@@ -145,45 +145,38 @@ export class OrdersService {
 
       // ĐÁNH DẤU MÃ VOUCHER ĐÃ ĐƯỢC SỬ DỤNG VÀ TĂNG LỢT SỬ DỤNG NGUYÊN TỬ
       if (promotionCode) {
-        try {
-          const db = tx as any;
+        // 1. Kiểm tra nếu là Voucher cá nhân
+        const voucher = await tx.voucher.findUnique({
+          where: { code: promotionCode },
+        });
 
-          // 1. Cập nhật bảng Promotion (nếu dùng model Promotion chuẩn)
-          if (db.promotion) {
-            await db.promotion.updateMany({
-              where: { code: promotionCode },
+        if (voucher) {
+          if (voucher.userId !== userId) {
+            throw new BadRequestException('Mã ưu đãi này không thuộc tài khoản của bạn');
+          }
+          // Chuyển trạng thái voucher sang RESERVED một cách nguyên tử
+          const reserved = await tx.voucher.updateMany({
+            where: { id: voucher.id, status: 'AVAILABLE', userId },
+            data: {
+              status: 'RESERVED',
+              orderId: order.id,
+              reservedAt: new Date(),
+            },
+          });
+          if (reserved.count !== 1) {
+            throw new ConflictException('Mã ưu đãi đã được sử dụng hoặc đang trong đơn hàng khác');
+          }
+        } else {
+          // 2. Nếu là mã Promotion chung
+          const promo = await tx.promotion.findUnique({
+            where: { code: promotionCode },
+          });
+          if (promo) {
+            await tx.promotion.update({
+              where: { id: promo.id },
               data: { usageCount: { increment: 1 } },
             });
           }
-
-          // 2. Cập nhật bảng UserCoupon (nếu có)
-          if (db.userCoupon) {
-            await db.userCoupon.updateMany({
-              where: { code: promotionCode, userId },
-              data: { isUsed: true, status: 'USED' },
-            });
-          }
-
-          // 3. Tạo record trong CouponUsage (nếu có)
-          if (db.couponUsage) {
-            await db.couponUsage.create({
-              data: {
-                code: promotionCode,
-                userId,
-                orderId: order.id,
-              },
-            });
-          }
-
-          // 4. Cập nhật bảng LoyaltyTransaction (nếu có)
-          if (db.loyaltyTransaction) {
-            await db.loyaltyTransaction.updateMany({
-              where: { code: promotionCode, userId },
-              data: { isUsed: true, status: 'USED' },
-            });
-          }
-        } catch (e) {
-          // Bỏ qua nếu bảng phụ không tồn tại
         }
       }
 
@@ -323,10 +316,47 @@ export class OrdersService {
       if (order.ingredientInventory && order.status !== OrderStatus.PREPARING)
         await this.inventory.restoreIngredients(tx, order.ingredientUsage);
     }
+    if (release && tx.voucher) {
+      await tx.voucher.updateMany({
+        where: { orderId: id, status: { in: ['RESERVED', 'REDEEMED'] } },
+        data: {
+          status: 'AVAILABLE',
+          orderId: null,
+          reservedAt: null,
+          redeemedAt: null,
+        },
+      });
+
+      if (
+        (order.status === OrderStatus.PAID ||
+          order.status === OrderStatus.PREPARING) &&
+        tx.loyaltyLog
+      ) {
+        const log = await tx.loyaltyLog.findUnique({ where: { orderId: id } });
+        if (log) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: { loyaltyPoints: { decrement: log.points } },
+          });
+          await tx.loyaltyLog.delete({ where: { id: log.id } });
+        }
+      }
+    }
     if (reserve) {
       await this.inventory.reserve(tx, order.items);
       if (order.ingredientInventory)
         await this.inventory.reserveIngredients(tx, order.ingredientUsage);
+
+      if (order.promotionCode && tx.voucher) {
+        await tx.voucher.updateMany({
+          where: {
+            code: order.promotionCode,
+            userId: order.userId,
+            status: 'AVAILABLE',
+          },
+          data: { status: 'RESERVED', orderId: id, reservedAt: transitionedAt },
+        });
+      }
     }
     await tx.orderStatusHistory.create({
       data: {
@@ -338,38 +368,69 @@ export class OrdersService {
       },
     });
 
-    // TÍCH ĐIỂM TỰ ĐỘNG: Mỗi khi đơn chuyển sang PAID và trước đó chưa phải PAID
     if (to === OrderStatus.PAID && order.status !== OrderStatus.PAID) {
+      if (tx.voucher) {
+        await tx.voucher.updateMany({
+          where: { orderId: id, status: 'RESERVED' },
+          data: { status: 'REDEEMED', redeemedAt: transitionedAt },
+        });
+      }
+
       const pointsToEarn = Math.floor(order.total / 10000);
-      if (pointsToEarn > 0) {
-        const db = tx as any;
-        if (db.user) {
-          try {
-            await db.user.update({
-              where: { id: order.userId },
+      if (pointsToEarn > 0 && tx.user) {
+        await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPoints: {
+              increment: pointsToEarn,
+            },
+          },
+        });
+        if (tx.loyaltyLog) {
+          const existingLog = await tx.loyaltyLog.findUnique({
+            where: { orderId: id },
+          });
+          if (!existingLog) {
+            await tx.loyaltyLog.create({
               data: {
-                totalLoyaltyPoints: {
-                  increment: pointsToEarn,
-                },
-              },
-            });
-          } catch (e) {
-            await db.user.update({
-              where: { id: order.userId },
-              data: {
-                loyaltyPoints: {
-                  increment: pointsToEarn,
-                },
+                userId: order.userId,
+                orderId: id,
+                points: pointsToEarn,
               },
             });
           }
         }
-        console.log(
-          `[LOYALTY] Đã cộng ${pointsToEarn} điểm cho user ${order.userId} từ đơn hàng ${order.id}`,
-        );
       }
     }
 
     return tx.order.findUniqueOrThrow({ where: { id }, include: orderInclude });
+  }
+
+  async customerCancel(id: string, userId: string, reason?: string) {
+    return this.transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id, userId },
+      });
+      if (!order) {
+        throw new NotFoundException('Không tìm thấy đơn hàng');
+      }
+      if (
+        order.status !== OrderStatus.PENDING &&
+        order.status !== OrderStatus.PAYMENT_FAILED
+      ) {
+        throw new BadRequestException(
+          'Chỉ có thể hủy đơn hàng đang chờ thanh toán hoặc thanh toán thất bại',
+        );
+      }
+      const cancelReason = (reason || 'Khách hàng tự hủy đơn').trim();
+      return orderResponse(
+        await this.transitionInTransaction(
+          tx,
+          id,
+          OrderStatus.CANCELLED,
+          cancelReason,
+        ),
+      );
+    });
   }
 }

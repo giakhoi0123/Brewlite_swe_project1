@@ -1,6 +1,6 @@
 ALTER TABLE "orders"
-ADD COLUMN "cancel_reason" VARCHAR(300),
-ADD COLUMN "completed_at" TIMESTAMP(3);
+ADD COLUMN IF NOT EXISTS "cancel_reason" VARCHAR(300),
+ADD COLUMN IF NOT EXISTS "completed_at" TIMESTAMP(3);
 
 -- Recover actual completion times from existing transition history, not created_at.
 -- Legacy rows without a completion event remain NULL; do not invent timestamps.

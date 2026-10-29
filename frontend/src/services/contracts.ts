@@ -7,7 +7,6 @@ import type {
   PaymentMethod,
   Product,
   Promotion,
-  RewardOption,
 } from "@/types/domain";
 
 export interface ProductService {
@@ -24,6 +23,7 @@ export interface OrderService {
   mine(userId: string): Promise<Order[]>;
   get(id: string): Promise<Order | null>;
   status(id: string): Promise<OrderStatus | null>;
+  cancel?(id: string, reason?: string): Promise<Order>;
 }
 
 export interface PaymentService {
@@ -39,11 +39,24 @@ export interface PromotionService {
   validate(code: string, subtotal: number): Promise<Promotion>;
 }
 
+export interface UserVoucher {
+  id?: string;
+  code: string;
+  title: string;
+  description?: string;
+  discountAmount: number;
+  minOrderValue?: number;
+  status?: string;
+  isUsed?: boolean;
+  createdAt: string;
+}
+
 export interface LoyaltyService {
   get(userId: string): Promise<LoyaltyPoints>;
+  vouchers?(userId?: string): Promise<UserVoucher[]>;
   redeem?(
     userId: string,
-    option: RewardOption,
+    option: { id: string; title?: string; pointsCost?: number; discountAmount?: number },
   ): Promise<{ success: boolean; code: string; remainingPoints: number }>;
 }
 

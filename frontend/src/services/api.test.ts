@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { apiOrders, apiPayments, apiBarista } from './api';
+import { apiOrders, apiPayments, apiBarista, apiLoyalty } from './api';
+import { authService } from './auth';
 import { ApiError } from './http';
 import type { CartItem } from '../types/domain';
 
@@ -112,4 +113,71 @@ test('payments reconciliation is an authenticated POST scoped to the order', asy
   assert.equal(call.init?.method, 'POST');
   assert.equal(call.init?.credentials, 'include');
   assert.equal(call.init?.body, undefined);
+});
+
+test('authService endpoints send correct payload and options', async () => {
+  const calls: { url: string; method?: string; body?: unknown }[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({
+      url: String(url),
+      method: init?.method,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    return Response.json({ message: 'ok' });
+  };
+
+  await authService.forgotPassword('user@example.com');
+  await authService.resetPassword('tok123', 'newPass123!');
+  await authService.changePassword('oldPass123!', 'newPass123!');
+
+  assert.equal(calls.length, 3);
+  assert.ok(calls[0].url.endsWith('/auth/forgot-password'));
+  assert.deepEqual(calls[0].body, { email: 'user@example.com' });
+
+  assert.ok(calls[1].url.endsWith('/auth/reset-password'));
+  assert.deepEqual(calls[1].body, { token: 'tok123', newPassword: 'newPass123!' });
+
+  assert.ok(calls[2].url.endsWith('/auth/change-password'));
+  assert.deepEqual(calls[2].body, { oldPassword: 'oldPass123!', newPassword: 'newPass123!' });
+});
+
+test('apiOrders.cancel sends POST to cancel endpoint with reason', async () => {
+  let call: { url: string; init?: RequestInit } | undefined;
+  globalThis.fetch = async (url, init) => {
+    call = { url: String(url), init };
+    return Response.json({ id: 'order-1', status: 'CANCELLED' });
+  };
+
+  const res = await apiOrders.cancel!('order-1', 'Khách đổi ý');
+  assert.ok(call);
+  assert.ok(call.url.endsWith('/orders/order-1/cancel'));
+  assert.equal(call.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(call.init?.body)), { reason: 'Khách đổi ý' });
+  assert.equal(res.status, 'CANCELLED');
+});
+
+test('apiLoyalty.vouchers and redeem call expected endpoints without client-set discount', async () => {
+  const calls: { url: string; method?: string; body?: unknown }[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({
+      url: String(url),
+      method: init?.method,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    if (String(url).endsWith('/loyalty/vouchers')) {
+      return Response.json([{ code: 'BL-VOUCHER', discountAmount: 20000, status: 'AVAILABLE' }]);
+    }
+    return Response.json({ success: true, code: 'BL-VOUCHER-NEW', remainingPoints: 50 });
+  };
+
+  const vouchers = await apiLoyalty.vouchers!();
+  assert.equal(vouchers.length, 1);
+  assert.equal(vouchers[0].discountAmount, 20000);
+
+  const redeemed = await apiLoyalty.redeem!('user-1', { id: 'rw-20k' });
+  assert.equal(redeemed.code, 'BL-VOUCHER-NEW');
+
+  assert.ok(calls[0].url.endsWith('/loyalty/vouchers'));
+  assert.ok(calls[1].url.endsWith('/loyalty/redeem'));
+  assert.deepEqual(calls[1].body, { rewardId: 'rw-20k' }); // Client only sends rewardId!
 });
