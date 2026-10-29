@@ -20,6 +20,7 @@ import {
   PAYMENT_ORDER_PORT,
   type PaymentOrderPort,
 } from './payments/payment.types';
+import { cartConfigKey, normalizeToppingIds } from './cart/cart-pricing';
 
 @Module({
   imports: [
@@ -82,17 +83,68 @@ import {
                 const pointsToEarn = Math.floor(order.total / 10000);
 
                 if (pointsToEarn > 0) {
-                  await tx.loyaltyLog.create({
-                    data: {
-                      userId: order.userId,
-                      orderId: order.id,
-                      points: pointsToEarn,
-                    },
+                  const existingLog = await tx.loyaltyLog.findUnique({
+                    where: { orderId: order.id },
                   });
+                  if (!existingLog) {
+                    await tx.loyaltyLog.create({
+                      data: {
+                        userId: order.userId,
+                        orderId: order.id,
+                        points: pointsToEarn,
+                      },
+                    });
+                  }
                 }
-                await tx.cartItem.deleteMany({
-                  where: { cart: { userId: order.userId } },
+
+                // Scoped cart cleanup: Không xóa toàn bộ CartItem nếu có món mới được thêm trong lúc chờ
+                const orderWithItems = await tx.order.findUnique({
+                  where: { id: input.orderId },
+                  include: {
+                    items: {
+                      include: {
+                        toppings: true,
+                      },
+                    },
+                  },
                 });
+
+                const cart = await tx.cart.findUnique({
+                  where: { userId: order.userId },
+                  include: { items: true },
+                });
+
+                if (cart && orderWithItems) {
+                  for (const item of orderWithItems.items) {
+                    const toppingIds = normalizeToppingIds(
+                      item.toppings.map((t) => t.toppingId),
+                    );
+                    const configKey = cartConfigKey({
+                      size: item.size,
+                      toppingIds,
+                      ice: item.ice,
+                      sugar: item.sugar,
+                      note: item.note ?? '',
+                    });
+                    const cartItem = cart.items.find(
+                      (ci) =>
+                        ci.productId === item.productId &&
+                        ci.configKey === configKey,
+                    );
+                    if (cartItem) {
+                      if (cartItem.quantity <= item.qty) {
+                        await tx.cartItem.delete({
+                          where: { id: cartItem.id },
+                        });
+                      } else {
+                        await tx.cartItem.update({
+                          where: { id: cartItem.id },
+                          data: { quantity: { decrement: item.qty } },
+                        });
+                      }
+                    }
+                  }
+                }
               }
             };
 

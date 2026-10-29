@@ -4,17 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { services } from "@/services";
+import { authService } from "@/services/auth";
 import { REWARD_OPTIONS, type RewardOption, type Order, money } from "@/types/domain";
+import type { UserVoucher } from "@/services/contracts";
 import { ErrorState, Loading, StatusBadge } from "@/components/ui";
+import { PasswordField } from "@/components/password-field";
 import "./profile.css";
-
-interface UserVoucher {
-  code: string;
-  title: string;
-  discountAmount: number;
-  isUsed?: boolean;
-  createdAt: string;
-}
 
 export default function Profile() {
   const { user, loading: authLoading, refresh, logout } = useAuth();
@@ -27,6 +22,13 @@ export default function Profile() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Form đổi mật khẩu
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMessage, setPwMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   const userId = user?.id;
   const userPoints = user?.loyaltyPoints;
 
@@ -36,48 +38,23 @@ export default function Profile() {
     setError("");
     try {
       await refresh();
-      const [loyalty, mine] = await Promise.all([
+      const [loyalty, mine, userVouchers] = await Promise.all([
         services.loyalty.get(userId).catch(() => ({ points: userPoints ?? 0 })),
         services.orders.mine(userId).catch(() => []),
+        services.loyalty.vouchers ? services.loyalty.vouchers(userId).catch(() => []) : Promise.resolve([]),
       ]);
 
-      // Cập nhật điểm chuẩn xác từ CSDL backend
-      const currentPoints = loyalty.points !== undefined
-        ? loyalty.points
-        : (userPoints ?? 0);
-
+      const currentPoints =
+        loyalty.points !== undefined ? loyalty.points : (userPoints ?? 0);
       setPoints(currentPoints);
 
-      const sortedOrders = [...mine].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      const sortedOrders = [...mine].sort(
+        (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
+      );
       setOrders(sortedOrders);
 
-      // Lấy tập hợp các mã đã sử dụng trong danh sách đơn hàng
-      const usedCodesSet = new Set(
-        sortedOrders
-          .filter((o) => o.status !== "CANCELLED" && o.status !== "PAYMENT_FAILED" && o.promotionCode)
-          .map((o) => o.promotionCode!.trim().toUpperCase())
-      );
-
-      // Đọc kho voucher cá nhân từ localStorage
-      const savedVouchers: UserVoucher[] = JSON.parse(
-        localStorage.getItem(`vouchers_${userId}`) || "[]"
-      );
-
-      // Cập nhật trạng thái isUsed = true cho mã nào đã có trong đơn hàng
-      const updatedVouchers = savedVouchers.map((v) => {
-        const codeUpper = v.code.trim().toUpperCase();
-        if (usedCodesSet.has(codeUpper)) {
-          return { ...v, isUsed: true };
-        }
-        return v;
-      });
-
-      // Lưu lại vào localStorage để đồng bộ
-      localStorage.setItem(`vouchers_${userId}`, JSON.stringify(updatedVouchers));
-
-      // Chỉ giữ lại voucher chưa sử dụng để hiển thị
-      const activeVouchers = updatedVouchers.filter((v) => !v.isUsed);
-      setVouchers(activeVouchers);
+      // Lưu voucher lấy trực tiếp từ PostgreSQL backend API
+      setVouchers(userVouchers);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tải được hồ sơ");
     } finally {
@@ -102,15 +79,9 @@ export default function Profile() {
 
     try {
       let voucherCode = "";
-      let remainingPoints = points - option.pointsCost;
-
-      // 1. Gọi API Backend để trừ điểm thật trong PostgreSQL
       if (typeof services.loyalty.redeem === "function") {
-        const res = await services.loyalty.redeem(userId, option);
+        const res = await services.loyalty.redeem(userId, { id: option.id });
         voucherCode = res.code;
-        if (res.remainingPoints !== undefined) {
-          remainingPoints = res.remainingPoints;
-        }
       } else {
         throw new Error("Tính năng đổi điểm chưa sẵn sàng.");
       }
@@ -119,29 +90,8 @@ export default function Profile() {
         throw new Error("Không nhận được mã ưu đãi từ hệ thống.");
       }
 
-      // 2. Lưu voucher mới đổi vào LocalStorage
-      const savedVouchers: UserVoucher[] = JSON.parse(
-        localStorage.getItem(`vouchers_${userId}`) || "[]"
-      );
-
-      const newVoucher: UserVoucher = {
-        code: voucherCode,
-        title: option.title,
-        discountAmount: option.discountAmount,
-        isUsed: false,
-        createdAt: new Date().toISOString(),
-      };
-
-      const updatedVouchers = [newVoucher, ...savedVouchers];
-      localStorage.setItem(`vouchers_${userId}`, JSON.stringify(updatedVouchers));
-
-      // 3. Cập nhật State chỉ lấy các voucher chưa dùng
-      setVouchers(updatedVouchers.filter((v) => !v.isUsed));
-      setPoints(remainingPoints);
       setMessage({ type: "success", text: `Đổi thành công! Mã ưu đãi của bạn: ${voucherCode}` });
-
-      // Đồng bộ dữ liệu với server
-      await refresh();
+      await loadData();
     } catch (err) {
       setMessage({
         type: "error",
@@ -158,44 +108,67 @@ export default function Profile() {
     router.push("/cart");
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwMessage(null);
+
+    if (newPassword !== confirmPassword) {
+      setPwMessage({ type: "error", text: "Mật khẩu xác nhận không khớp." });
+      return;
+    }
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      setPwMessage({
+        type: "error",
+        text: "Mật khẩu mới phải có tối thiểu 8 ký tự, gồm ít nhất 1 chữ hoa và 1 chữ số.",
+      });
+      return;
+    }
+
+    setPwBusy(true);
+    try {
+      const res = await authService.changePassword(oldPassword, newPassword);
+      setPwMessage({ type: "success", text: res.message || "Đổi mật khẩu thành công!" });
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setPwMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Đổi mật khẩu thất bại.",
+      });
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
   return (
-    <main className="container main member-page">
-      <div className="breadcrumb">
-        <Link href="/">Trang chủ</Link>
-        <span>›</span> Hồ sơ &amp; thẻ thành viên
-      </div>
-
-      <div className="member-heading">
-        <div>
-          <span className="eyebrow">Tài khoản cá nhân</span>
-          <h1 className="section-title">Trung tâm Thành viên</h1>
-          <p>Quản lý tài khoản, điểm BrewLite Rewards và các đơn hàng của bạn.</p>
-        </div>
-        <button className="btn btn-secondary" onClick={loadData} disabled={loading || !userId}>
-          ↻ Làm mới
-        </button>
-      </div>
-
-      {message && (
-        <div className={`alert ${message.type === "success" ? "alert-success" : "alert-error"} mb-4`}>
-          {message.text}
-        </div>
-      )}
-
-      {authLoading || loading ? (
-        <Loading />
+    <main className="container main member-main">
+      {loading ? (
+        <Loading label="Đang tải thông tin thành viên..." />
       ) : error ? (
         <ErrorState message={error} retry={loadData} />
       ) : user ? (
         <div className="member-grid">
-          <section className="member-main">
-            <div className="member-identity card">
-              <div className="member-avatar" aria-hidden="true">
-                {user.name.trim().charAt(0).toUpperCase()}
+          <section className="member-content">
+            {message && (
+              <div
+                className={`p-4 rounded-lg mb-4 text-sm font-medium ${
+                  message.type === "success"
+                    ? "bg-green-50 text-green-800 border border-green-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                }`}
+              >
+                {message.text}
               </div>
-              <div className="member-identity-copy">
-                <span className="eyebrow">Thành viên BrewLite</span>
-                <h2>{user.name}</h2>
+            )}
+
+            <div className="card panel member-profile">
+              <span className="eyebrow">Hồ sơ cá nhân</span>
+              <div className="member-avatar">
+                {(user.name || user.email).charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h1>{user.name}</h1>
                 <p>{user.email}</p>
                 <small>{user.role === "BARISTA" ? "Nhân viên Barista" : "Khách hàng"}</small>
               </div>
@@ -243,6 +216,54 @@ export default function Profile() {
               </div>
             </section>
 
+            {/* Mục đổi mật khẩu */}
+            <section className="card panel mt-6">
+              <span className="eyebrow">Bảo mật tài khoản</span>
+              <h2>Đổi mật khẩu</h2>
+              <p className="auth-intro text-sm text-gray-600 mb-4">
+                Cập nhật mật khẩu thường xuyên để bảo vệ tài khoản của bạn.
+              </p>
+
+              {pwMessage && (
+                <div
+                  className={`p-3 rounded mb-4 text-sm ${
+                    pwMessage.type === "success"
+                      ? "bg-green-50 text-green-800 border border-green-200"
+                      : "bg-red-50 text-red-800 border border-red-200"
+                  }`}
+                >
+                  {pwMessage.text}
+                </div>
+              )}
+
+              <form className="form" onSubmit={handleChangePassword}>
+                <PasswordField
+                  label="Mật khẩu hiện tại"
+                  value={oldPassword}
+                  onChange={setOldPassword}
+                  placeholder="Nhập mật khẩu hiện tại"
+                  autoComplete="current-password"
+                />
+                <PasswordField
+                  label="Mật khẩu mới"
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  placeholder="Tối thiểu 8 ký tự, 1 chữ hoa, 1 số"
+                  autoComplete="new-password"
+                />
+                <PasswordField
+                  label="Xác nhận mật khẩu mới"
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  placeholder="Nhập lại mật khẩu mới"
+                  autoComplete="new-password"
+                />
+                <button className="btn btn-primary btn-sm mt-2" disabled={pwBusy}>
+                  {pwBusy ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
+                </button>
+              </form>
+            </section>
+
             <section className="member-history card panel mt-6">
               <div className="member-section-head">
                 <div>
@@ -284,13 +305,18 @@ export default function Profile() {
                 <div className="voucher-list mt-3">
                   {vouchers.map((v, i) => (
                     <div
-                      key={i}
+                      key={v.id || i}
                       className="voucher-item p-3 border rounded mb-2 bg-amber-50"
                     >
                       <div className="font-mono font-bold text-lg text-amber-900">
                         {v.code}
                       </div>
-                      <div className="text-sm">{v.title}</div>
+                      <div className="text-sm font-medium">{v.title}</div>
+                      {v.minOrderValue && v.minOrderValue > 0 ? (
+                        <div className="text-xs text-amber-700">
+                          Áp dụng cho đơn từ {money(v.minOrderValue)}
+                        </div>
+                      ) : null}
                       <button
                         className="btn btn-secondary btn-xs mt-2 w-full"
                         onClick={() => handleUseVoucher(v.code)}

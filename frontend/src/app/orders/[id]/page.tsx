@@ -54,6 +54,11 @@ export default function OrderDetail({
             <StatusBadge status={order.status} />
           </div>
           <Timeline status={order.status} />
+          {order.cancelReason && (
+            <p className="muted" style={{ color: "#b91c1c", marginTop: 8 }}>
+              Lý do hủy: {order.cancelReason}
+            </p>
+          )}
           <h2>Các món đã chọn</h2>
           {order.items.map((i) => (
             <div className="summary-line" key={i.key}>
@@ -79,6 +84,26 @@ export default function OrderDetail({
           <button className="btn btn-secondary" onClick={load}>
             Cập nhật trạng thái
           </button>
+          {["PENDING", "PAYMENT_FAILED"].includes(order.status) && (
+            <button
+              className="btn btn-secondary"
+              style={{ color: "#b91c1c", borderColor: "#fca5a5" }}
+              onClick={async () => {
+                if (window.confirm("Bạn có chắc chắn muốn hủy đơn hàng này?")) {
+                  try {
+                    if (services.orders.cancel) {
+                      await services.orders.cancel(id, "Khách hàng yêu cầu hủy");
+                      load();
+                    }
+                  } catch (err: unknown) {
+                    setError(err instanceof Error ? err.message : "Không thể hủy đơn hàng");
+                  }
+                }
+              }}
+            >
+              Hủy đơn hàng
+            </button>
+          )}
           {order.status === "PAYMENT_FAILED" && (
             <Link className="btn btn-primary" href={`/payment/${id}/failure`}>
               Thử thanh toán lại

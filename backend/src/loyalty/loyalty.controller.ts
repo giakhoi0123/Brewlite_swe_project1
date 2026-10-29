@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards } from '@nestjs/common';
 import { LoyaltyService } from './loyalty.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RedeemRewardDto } from './dto/redeem-reward.dto';
 
 @Controller('loyalty')
 export class LoyaltyController {
@@ -8,15 +9,22 @@ export class LoyaltyController {
 
   @Post('redeem')
   @UseGuards(JwtAuthGuard)
-  async redeem(
-    @Body() body: { pointsToRedeem: number; discountAmount: number; minOrderValue?: number },
-    @Req() req: any,
-  ) {
-    const userId = req.user?.id || req.user?.userId || req.user?.sub;
-    const points = Number(body.pointsToRedeem);
-    const discount = Number(body.discountAmount);
-    const minOrder = Number(body.minOrderValue || 0);
+  async redeem(@Body() body: RedeemRewardDto, @Req() req: any) {
+    const userId = req.user?.userId || req.user?.id || req.user?.sub;
+    return this.loyaltyService.redeemReward(userId, body.rewardId);
+  }
 
-    return this.loyaltyService.redeemPoints(userId, points, discount, minOrder);
+  @Get('vouchers')
+  @UseGuards(JwtAuthGuard)
+  async getVouchers(@Req() req: any) {
+    const userId = req.user?.userId || req.user?.id || req.user?.sub;
+    return this.loyaltyService.getAvailableVouchers(userId);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMyPoints(@Req() req: any) {
+    const userId = req.user?.userId || req.user?.id || req.user?.sub;
+    return this.loyaltyService.getMyPoints(userId);
   }
 }

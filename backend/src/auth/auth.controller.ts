@@ -13,6 +13,9 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 const cookieOptions = () => ({
   httpOnly: true,
@@ -20,9 +23,11 @@ const cookieOptions = () => ({
   secure: process.env.NODE_ENV === 'production',
   path: '/api',
 });
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
+
   @Post('register')
   @Header('Cache-Control', 'no-store')
   async register(
@@ -36,6 +41,7 @@ export class AuthController {
     });
     return { user: result.user };
   }
+
   @Post('login')
   @Header('Cache-Control', 'no-store')
   async login(
@@ -49,6 +55,30 @@ export class AuthController {
     });
     return { user: result.user };
   }
+
+  @Post('forgot-password')
+  @Header('Cache-Control', 'no-store')
+  async forgotPassword(@Body() input: ForgotPasswordDto, @Req() req: Request) {
+    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    return this.auth.forgotPassword(input, ip);
+  }
+
+  @Post('reset-password')
+  @Header('Cache-Control', 'no-store')
+  async resetPassword(@Body() input: ResetPasswordDto) {
+    return this.auth.resetPassword(input);
+  }
+
+  @Post('change-password')
+  @Header('Cache-Control', 'no-store')
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @Req() request: Request & { user: { userId: string } },
+    @Body() input: ChangePasswordDto,
+  ) {
+    return this.auth.changePassword(request.user.userId, input);
+  }
+
   @Get('me')
   @Header('Cache-Control', 'no-store')
   @UseGuards(JwtAuthGuard)
@@ -67,6 +97,7 @@ export class AuthController {
     const { userId, email, name, loyaltyPoints, role } = request.user;
     return { user: { id: userId, email, name, loyaltyPoints, role } };
   }
+
   @Post('logout')
   @Header('Cache-Control', 'no-store')
   @UseGuards(JwtAuthGuard)

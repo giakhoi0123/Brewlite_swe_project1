@@ -93,6 +93,21 @@ export const mockOrders: OrderService = {
     await pause();
     return orders().find((o) => o.id === id)?.status || null;
   },
+  async cancel(id, reason) {
+    await pause();
+    const order = orders().find((o) => o.id === id);
+    if (!order) throw new Error("Không tìm thấy đơn hàng");
+    if (!["PENDING", "PAYMENT_FAILED"].includes(order.status)) {
+      throw new Error("Không thể hủy đơn hàng ở trạng thái này");
+    }
+    const cancelled: Order = {
+      ...order,
+      status: "CANCELLED",
+      cancelReason: reason || "Khách hàng hủy",
+    };
+    saveOrder(cancelled);
+    return cancelled;
+  },
 };
 
 export const mockPayments: PaymentService = {

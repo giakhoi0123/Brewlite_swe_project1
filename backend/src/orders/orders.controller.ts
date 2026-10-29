@@ -49,4 +49,13 @@ export class OrdersController {
   ) {
     return this.orders.get(id, req.user.userId);
   }
+
+  @Post(':id/cancel')
+  cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: { user: { userId: string } },
+    @Body() body?: { reason?: string },
+  ) {
+    return this.orders.customerCancel(id, req.user.userId, body?.reason);
+  }
 }

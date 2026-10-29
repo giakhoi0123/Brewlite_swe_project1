@@ -61,6 +61,11 @@ function Form() {
             />
           </label>
           <PasswordField label="Mật khẩu" value={password} onChange={setPassword} placeholder="Nhập mật khẩu" autoComplete="current-password" />
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "-8px", marginBottom: "8px" }}>
+            <Link className="link" href="/forgot-password" style={{ fontSize: "0.875rem" }}>
+              Quên mật khẩu?
+            </Link>
+          </div>
           {error && (
             <p role="alert" className="error">
               {error}

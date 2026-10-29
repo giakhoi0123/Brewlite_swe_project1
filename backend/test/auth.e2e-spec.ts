@@ -7,6 +7,7 @@ import request from 'supertest';
 import { jest } from '@jest/globals';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma.service';
+import { MAIL_SERVICE } from '../src/mail/mail.types';
 
 type TestUser = {
   id: string;
@@ -19,12 +20,25 @@ type TestUser = {
   sessionVersion: number;
 };
 
+type TestResetToken = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  createdAt: Date;
+};
+
 let app: INestApplication;
 let users: TestUser[];
+let resetTokens: TestResetToken[];
+let sentMails: Array<{ to: string; resetLink: string }>;
 let jwt: JwtService;
 
 beforeAll(async () => {
   process.env.JWT_SECRET = 'test-secret-long-enough-for-rbac-tests';
+  resetTokens = [];
+  sentMails = [];
   users = [
     {
       id: '00000000-0000-0000-0000-000000000002',
@@ -37,7 +51,7 @@ beforeAll(async () => {
       sessionVersion: 0,
     },
   ];
-  const prisma = {
+  const prisma: any = {
     user: {
       findUnique: jest.fn(
         async ({ where }: { where: { email?: string; id?: string } }) =>
@@ -67,19 +81,74 @@ beforeAll(async () => {
           return user;
         },
       ),
-      update: jest.fn(async ({ where }: { where: { id: string } }) => {
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data?: any }) => {
         const user = users.find((item) => item.id === where.id);
         if (!user) throw new Error('User not found');
-        user.sessionVersion += 1;
+        if (data?.sessionVersion?.increment) {
+          user.sessionVersion += data.sessionVersion.increment;
+        } else {
+          user.sessionVersion += 1;
+        }
+        if (data?.passwordHash) {
+          user.passwordHash = data.passwordHash;
+        }
         return user;
       }),
     },
+    passwordResetToken: {
+      findFirst: jest.fn(async ({ where }: any) => {
+        return (
+          resetTokens.find((t) => {
+            if (where.tokenHash && t.tokenHash !== where.tokenHash) return false;
+            if (where.usedAt === null && t.usedAt !== null) return false;
+            if (where.expiresAt?.gt && t.expiresAt <= where.expiresAt.gt) return false;
+            return true;
+          }) ?? null
+        );
+      }),
+      create: jest.fn(async ({ data }: any) => {
+        const token: TestResetToken = {
+          id: `token-${Date.now()}-${Math.random()}`,
+          usedAt: null,
+          createdAt: new Date(),
+          ...data,
+        };
+        resetTokens.push(token);
+        return token;
+      }),
+      update: jest.fn(async ({ where, data }: any) => {
+        const token = resetTokens.find((t) => t.id === where.id);
+        if (token) Object.assign(token, data);
+        return token;
+      }),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        let count = 0;
+        for (const token of resetTokens) {
+          if (where.userId && token.userId !== where.userId) continue;
+          if (where.usedAt === null && token.usedAt !== null) continue;
+          Object.assign(token, data);
+          count++;
+        }
+        return { count };
+      }),
+    },
+    $transaction: jest.fn(async (cb: any) => cb(prisma)),
     $connect: jest.fn(),
     $disconnect: jest.fn(),
   };
+
+  const mockMailService = {
+    sendMail: jest.fn(),
+    sendPasswordResetEmail: jest.fn(async (email: string, resetLink: string) => {
+      sentMails.push({ to: email, resetLink });
+    }),
+  };
+
   const module = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(PrismaService)
     .useValue(prisma)
+    .overrideProvider(MAIL_SERVICE)
+    .useValue(mockMailService)
     .compile();
   app = module.createNestApplication();
   app.setGlobalPrefix('api');
@@ -256,5 +325,104 @@ describe('RBAC authentication', () => {
     );
     await request(app.getHttpServer()).get('/api/auth/me')
       .set('Authorization', `Bearer ${wrongSignature}`).expect(401);
+  });
+
+  describe('Password Recovery and Change Password flows', () => {
+    it('handles forgot-password for non-existing email without leaking user existence', async () => {
+      const initialMailCount = sentMails.length;
+      const res = await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: 'nonexistent@example.com' })
+        .expect(201);
+
+      expect(res.body.message).toContain('Nếu email tồn tại trong hệ thống');
+      expect(sentMails.length).toBe(initialMailCount);
+    });
+
+    it('sends reset email with token and completes password reset flow, invalidating old sessions', async () => {
+      // 1. Request forgot password for customer
+      await request(app.getHttpServer())
+        .post('/api/auth/forgot-password')
+        .send({ email: 'customer@example.com' })
+        .expect(201);
+
+      expect(sentMails.length).toBeGreaterThan(0);
+      const lastMail = sentMails[sentMails.length - 1];
+      expect(lastMail.to).toBe('customer@example.com');
+      expect(lastMail.resetLink).toContain('/reset-password?token=');
+
+      const rawToken = new URL(lastMail.resetLink).searchParams.get('token')!;
+      expect(rawToken).toBeDefined();
+
+      // 2. Reject reset with invalid or expired token
+      await request(app.getHttpServer())
+        .post('/api/auth/reset-password')
+        .send({ token: 'fake-invalid-token', newPassword: 'NewPassword999' })
+        .expect(400);
+
+      // 3. Reset with valid token
+      const resetRes = await request(app.getHttpServer())
+        .post('/api/auth/reset-password')
+        .send({ token: rawToken, newPassword: 'NewPassword999' })
+        .expect(201);
+
+      expect(resetRes.body.message).toContain('Đặt lại mật khẩu thành công');
+
+      // 4. Token cannot be reused
+      await request(app.getHttpServer())
+        .post('/api/auth/reset-password')
+        .send({ token: rawToken, newPassword: 'AnotherPassword123' })
+        .expect(400);
+
+      // 5. Old password no longer works
+      await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: 'customer@example.com', password: 'Password123' })
+        .expect(401);
+
+      // 6. New password works
+      const loginNew = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: 'customer@example.com', password: 'NewPassword999' })
+        .expect(201);
+
+      expect(loginNew.body.user.email).toBe('customer@example.com');
+    });
+
+    it('changes password when authenticated and invalidates previous sessionVersion', async () => {
+      // Login to get valid cookie
+      const login = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: 'customer@example.com', password: 'NewPassword999' })
+        .expect(201);
+
+      const cookie = login.headers['set-cookie'];
+
+      // Attempt change with wrong old password
+      await request(app.getHttpServer())
+        .post('/api/auth/change-password')
+        .set('Cookie', cookie)
+        .send({ oldPassword: 'WrongOldPassword', newPassword: 'ChangedPassword888' })
+        .expect(400);
+
+      // Successful change
+      await request(app.getHttpServer())
+        .post('/api/auth/change-password')
+        .set('Cookie', cookie)
+        .send({ oldPassword: 'NewPassword999', newPassword: 'ChangedPassword888' })
+        .expect(201);
+
+      // Previous session is now invalid because sessionVersion incremented
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Cookie', cookie)
+        .expect(401);
+
+      // Login with newly changed password succeeds
+      await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: 'customer@example.com', password: 'ChangedPassword888' })
+        .expect(201);
+    });
   });
 });
