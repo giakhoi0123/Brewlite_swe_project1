@@ -58,7 +58,7 @@ VNPAY_BANK_CODE=
 FRONTEND_PUBLIC_URL=http://localhost:3000
 ```
 
-`VNPAY_QUERY_IP_ADDRESS` là địa chỉ IP, không phải URL ngrok. Để `VNPAY_BANK_CODE` trống nếu terminal TEST chưa được VNPAY bật QR; chỉ đặt `VNPAY_BANK_CODE=VNPAYQR` sau khi VNPAY xác nhận đã cấp kênh này.
+`VNPAY_QUERY_IP_ADDRESS` là IPv4 công khai mà tiến trình backend thực sự dùng để gọi QueryDR, không phải URL ngrok, `127.0.0.1` hay IP mạng nội bộ. Có thể kiểm tra IP egress từ chính container backend; khi đổi mạng/VPN phải cập nhật `.env` và recreate backend. Để `VNPAY_BANK_CODE` trống nếu terminal TEST chưa được VNPAY bật QR; chỉ đặt `VNPAY_BANK_CODE=VNPAYQR` sau khi VNPAY xác nhận đã cấp kênh này.
 
 ### Tạo URL HTTPS bằng ngrok cho Return/IPN
 
@@ -119,7 +119,7 @@ Lưu ý lệnh seed ở host dùng `DATABASE_URL` trỏ cổng host 5434. Fronte
 
 ## Chế độ dữ liệu
 
-`NEXT_PUBLIC_DATA_MODE=api` là mặc định và là chế độ bắt buộc cho thanh toán VNPAY. Orders/Inventory/Payments gọi REST thật; lỗi API không tự fallback sang mock. `POST /payments` chỉ khởi tạo giao dịch PROCESSING và trả URL hosted; Order chỉ chuyển PAID/PAYMENT_FAILED sau IPN hợp lệ hoặc phản hồi QueryDR đã kiểm chữ ký. Frontend gọi QueryDR một lần khi vào màn `verifying` và gọi lại khi người dùng bấm “Kiểm tra trạng thái đơn”, sau đó luôn đọc trạng thái Order tin cậy từ backend.
+`NEXT_PUBLIC_DATA_MODE=api` là mặc định và là chế độ bắt buộc cho thanh toán VNPAY. Orders/Inventory/Payments gọi REST thật; lỗi API không tự fallback sang mock. `POST /payments` chỉ khởi tạo giao dịch PROCESSING và trả URL hosted; Order chỉ chuyển PAID/PAYMENT_FAILED sau IPN hợp lệ hoặc phản hồi QueryDR đã kiểm chữ ký. Màn `verifying` đọc Order mỗi 2 giây và gọi QueryDR theo lịch giới hạn ở lần 1/4/8/12/18/24/30 để phục hồi trường hợp IPN trễ hoặc VNPAY chưa đồng bộ; sau 30 lần kiểm tra (khoảng 60 giây) sẽ chuyển sang trạng thái chưa rõ thay vì treo vô hạn. Nút “Kiểm tra trạng thái đơn” vẫn cho phép đối soát lại thủ công.
 
 `NEXT_PUBLIC_DATA_MODE=mock` và `hybrid` vẫn dành cho phát triển các module chưa hoàn thiện; dữ liệu mock nằm riêng trong `frontend/src/services/mock.ts` và không phải bằng chứng tích hợp VNPAY. Auth luôn gọi backend thật. Không dùng hai mode này khi nghiệm thu thanh toán.
 

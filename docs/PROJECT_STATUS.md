@@ -76,6 +76,12 @@ Kiểm chứng lượt này: backend build/lint PASS; **36 suites / 384 tests PA
 
 Ban đầu Docker/DB chưa chạy; đã khởi động Docker Desktop và service postgres của repo, chạy runner `test:ingredients:postgres` thành công rồi tự dọn database tạm. Đã kiểm chứng race nguyên liệu chung/rollback trên PostgreSQL thật. Không migration mới, không đổi schema/dữ liệu ứng dụng, không commit/push/deploy; không nâng toàn dự án lên VERIFIED_COMPLETE. [Nguyên nhân, file sửa, API trước/sau, lệnh kiểm thử và QA thủ công](SIZE_AVAILABILITY_FIX.md).
 
+## Khắc phục xác minh VNPAY bị treo — 2026-10-29
+
+**IMPLEMENTED / IPN E2E STILL PENDING**: Màn `/payment/:id/verifying` trước đây chỉ gọi QueryDR một lần ngay khi Return rồi poll Order, nên nếu VNPAY chưa đồng bộ và IPN chưa đến thì web không thể tự phục hồi. Frontend nay poll Order mỗi 2 giây, gọi QueryDR có giới hạn tại lần 1/4/8/12/18/24/30, tổng 30 lần (khoảng 60 giây) rồi chuyển `unknown`; không mở Payment mới, không tự gán `PAID`. Cleanup effect reset cờ khởi chạy để React Strict Mode không làm mất lượt xác minh.
+
+Kiểm chứng sau thay đổi: frontend **30/30 unit PASS**, lint PASS (**0 lỗi, 2 warning có sẵn ở checkout và trang chi tiết sản phẩm**), production build **16/16 route PASS**, Docker image frontend build và container recreate PASS. Browser QA ở **1440/768/390** đều hiển thị `Lần kiểm tra 1/30` và không tràn ngang. Database local có các giao dịch gần nhất đã được xác nhận `PAID`, nhưng callback IPN HTTPS thật vẫn chưa được chứng minh; thanh toán local có thể được chốt qua QueryDR fallback. T08 vẫn `IN_PROGRESS`, không `VERIFIED_COMPLETE`.
+
 ## Khôi phục xác thực, Vouchers cá nhân & Đơn hàng — 2026-10-29
 
 **IMPLEMENTED / FULL TESTS PASS**: Đã khắc phục triệt để các lỗi nghiệp vụ và hoàn thành 6 Phase theo yêu cầu kiểm toán:

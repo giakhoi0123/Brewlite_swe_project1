@@ -33,6 +33,12 @@ Phạm vi T02/T04/T05/T06/10C (owner giữ TV2/TV1+TV3/TV4), sửa theo yêu c�
 
 Chi tiết và bước chạy lại: [SIZE_AVAILABILITY_FIX.md](SIZE_AVAILABILITY_FIX.md). Không đổi trạng thái nghiệm thu các phần khác theo kết quả fixture.
 
+## Khắc phục màn xác minh VNPAY bị treo — 2026-10-29
+
+Đã sửa frontend để không phụ thuộc một QueryDR duy nhất ngay lúc Return: Order được đọc mỗi 2 giây, QueryDR chạy có giới hạn tại lần 1/4/8/12/18/24/30, tối đa 30 lần (khoảng 60 giây) trước khi chuyển `unknown`; replay/retry và nguồn trạng thái tin cậy không đổi. Cờ effect được reset khi cleanup để luồng vẫn chạy đúng dưới React Strict Mode. Backend không còn mặc định ngầm `127.0.0.1`: QueryDR bắt buộc IPv4 egress công khai và từ chối loopback/private trước khi gửi request. Frontend 30/30 unit test, lint 0 lỗi/2 warning có sẵn, build production 16 route và Docker frontend build/recreate PASS; backend gateway 10/10, lint/build và Docker backend build/recreate PASS.
+
+IPN E2E vẫn là phần chưa nghiệm thu: Return `localhost` và QueryDR outbound có thể chốt giao dịch khi test trên cùng máy, nhưng không chứng minh VNPAY đã gọi callback IPN. Cần cấu hình/xác nhận IPN HTTPS trong VSM và quan sát callback thật; T08 tiếp tục `IN_PROGRESS`.
+
 ## TV4 — kho nguyên vật liệu — 2026-10-28
 
 Đã triển khai mở rộng T06/10C theo yêu cầu mới: Ingredient, công thức mỗi size/topping, snapshot nguyên liệu theo Order, giữ/hoàn/retry transaction + optimistic locking, API nhân viên và availability catalog. [Thiết kế, API và giới hạn](INGREDIENT_INVENTORY.md). PostgreSQL riêng: **16 migrations, 28 suites/335 tests PASS, 0 skipped**; frontend **23/23**, backend full test typecheck PASS. Database local đã migrate/seed 17 nguyên liệu, 30 size, 2 topping; giữ nguyên ba đơn lịch sử.
@@ -81,7 +87,7 @@ Thay đổi local trước merge được lưu bằng stash `codex-before-main-u
 
 Mã và kiểm tra đã cập nhật ngày 2026-10-22: backend 191 test + build/lint, frontend 19 unit + typecheck/build/lint phạm vi, Compose config và QA 1440/768/390 đều PASS. Compose đang chạy đủ ba service và migration VNPAY đã áp dụng. Giao dịch Sandbox bằng tài khoản TEST đã được QueryDR xác minh và lưu DB `PAID` cho Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` (`vnp_TransactionNo=15711511`, `NCB`, pay date `20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`). T08/10B vẫn **IN_PROGRESS**, không nâng `VERIFIED_COMPLETE` cho tới khi cấu hình portal và kiểm chứng IPN HTTPS thật. Bộ credential ghi “môi trường TEST” không phải giao dịch production.
 
-Luồng UI mới phân biệt Return read-only với trạng thái được backend xác minh: mã Return không thành công chỉ điều hướng tới `/payment/:id/unknown`, không mutate. Màn `verifying` gọi owner-auth `POST /payments/:orderId/reconcile` một lần, còn nút kiểm tra gọi lại QueryDR trước khi đọc Order. Từ màn UNKNOWN, `resumeOrder` replay cùng idempotency key/Payment PROCESSING và không tạo bản ghi mới; `retryOrder` với key mới chỉ dành cho Payment đã được IPN hoặc QueryDR finalize `PAYMENT_FAILED`.
+Luồng UI phân biệt Return read-only với trạng thái được backend xác minh: mã Return không thành công chỉ điều hướng tới `/payment/:id/unknown`, không mutate. Từ 2026-10-29, màn `verifying` poll Order mỗi 2 giây và gọi owner-auth `POST /payments/:orderId/reconcile` theo lịch giới hạn ở lần 1/4/8/12/18/24/30; sau 30 lần (khoảng 60 giây) chưa có kết quả sẽ chuyển `unknown`. Nút kiểm tra gọi lại QueryDR trước khi đọc Order. Từ màn UNKNOWN, `resumeOrder` replay cùng idempotency key/Payment PROCESSING và không tạo bản ghi mới; `retryOrder` với key mới chỉ dành cho Payment đã được IPN hoặc QueryDR finalize `PAYMENT_FAILED`.
 
 ## Payment status — 2026-10-17
 
