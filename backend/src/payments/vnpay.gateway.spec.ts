@@ -30,7 +30,7 @@ describe('VnpayGateway WebPay 2.1.0', () => {
       'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
     process.env.VNPAY_QUERY_URL =
       'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction';
-    process.env.VNPAY_QUERY_IP_ADDRESS = '127.0.0.1';
+    process.env.VNPAY_QUERY_IP_ADDRESS = '203.0.113.10';
     process.env.VNPAY_RETURN_URL =
       'https://api.example.test/api/payments/vnpay/return';
     delete process.env.VNPAY_BANK_CODE;
@@ -236,7 +236,7 @@ describe('VnpayGateway WebPay 2.1.0', () => {
         vnp_TxnRef: responseParams.vnp_TxnRef,
         vnp_TransactionDate: '20261021100000',
         vnp_CreateDate: '20261021100500',
-        vnp_IpAddr: '127.0.0.1',
+        vnp_IpAddr: '203.0.113.10',
         vnp_OrderInfo: 'Truy van giao dich',
       });
       const requestData = [
@@ -295,6 +295,24 @@ describe('VnpayGateway WebPay 2.1.0', () => {
       ).resolves.toMatchObject({ valid: false });
     } finally {
       global.fetch = originalFetch;
+    }
+  });
+
+  it('rejects unsafe QueryDR addresses before contacting VNPAY', async () => {
+    const previous = process.env.VNPAY_QUERY_IP_ADDRESS;
+    try {
+      for (const address of ['127.0.0.1', '192.168.1.10', '203.0.113.']) {
+        process.env.VNPAY_QUERY_IP_ADDRESS = address;
+        await expect(
+          gateway.queryTransaction({
+            txnRef: '0123456789abcdef0123456789abcdef',
+            transactionDate: '20261021100000',
+            orderInfo: 'Truy van giao dich',
+          }),
+        ).rejects.toThrow('IPv4 công khai');
+      }
+    } finally {
+      process.env.VNPAY_QUERY_IP_ADDRESS = previous;
     }
   });
 

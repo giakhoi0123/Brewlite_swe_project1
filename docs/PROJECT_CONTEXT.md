@@ -1,5 +1,11 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## Xác minh VNPAY bị treo — 2026-10-29
+
+Frontend `verifying` đã đổi từ một lần QueryDR + chỉ poll Order sang poll Order mỗi 2 giây và QueryDR có giới hạn tại lần 1/4/8/12/18/24/30; tổng 30 lần (khoảng 60 giây) rồi chuyển `unknown`, không tạo Payment/Order mới. Cleanup effect cũng reset cờ khởi chạy để React Strict Mode không hủy lượt xác minh duy nhất. Unit frontend 30/30, lint 0 lỗi/2 warning có sẵn và production build 16 route PASS; image frontend Docker đã build/recreate. Backend bắt buộc `VNPAY_QUERY_IP_ADDRESS` là IPv4 công khai và từ chối loopback/private trước khi gọi VNPAY; gateway test 10/10, lint/build và Docker backend build/recreate PASS.
+
+Runtime local xác nhận Return URL `localhost` vẫn hoạt động khi trình duyệt và Docker chạy cùng máy; màn `verifying` sau đó có thể dùng QueryDR outbound để chốt giao dịch mà không cần tunnel. Database hiện có các giao dịch gần nhất đã chuyển `PAID`, nhưng schema không lưu nguồn finalize nên đây không phải bằng chứng callback IPN thật. IPN portal/VSM vẫn cần cấu hình và quan sát E2E; không đánh dấu T08 hoàn tất.
+
 ## Yêu cầu Assignment 1 phục vụ báo cáo — 2026-10-27
 
 Đã đọc đề gốc `BrewLite-CongNghePhanMem (3).pdf` và báo cáo nhóm `BrewLite_Assignment1 (1).pdf`; lưu nguồn, tiêu chí 10 task, Scrum/DoD, NFR, US01–US16 và điểm cần đối chiếu tại [ASSIGNMENT1_REQUIREMENTS.md](ASSIGNMENT1_REQUIREMENTS.md). Đọc ghi chú này khi làm báo cáo Assignment 1. Đề yêu cầu Ví/Thẻ mock; VNPAY Sandbox không tự thay thế Task 8. Barista là mở rộng nhưng state machine Task 10 vẫn bắt buộc. Nhận định trong PDF báo cáo gắn với main `2c45463`, không tự áp thành hiện trạng nhánh hiện có. Lượt này chỉ ghi nhớ tài liệu theo yêu cầu người dùng.

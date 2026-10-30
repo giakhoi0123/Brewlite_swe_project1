@@ -12,6 +12,11 @@ import {
   readPaymentIntent,
   removePaymentIntent,
 } from "@/services/payment-intent";
+import {
+  PAYMENT_VERIFY_ATTEMPTS,
+  PAYMENT_VERIFY_INTERVAL_MS,
+  shouldReconcilePayment,
+} from "@/services/payment-verification";
 import { useCart } from "@/stores/cart";
 import { money } from "@/types/domain";
 import type { Order, OrderStatus } from "@/types/domain";
@@ -22,9 +27,6 @@ const PAID_ORDER_STATUSES: OrderStatus[] = [
   "READY",
   "COMPLETED",
 ];
-const VERIFY_ATTEMPTS = 10;
-const VERIFY_INTERVAL_MS = 2_000;
-
 const isPaidOrder = (status: OrderStatus) =>
   PAID_ORDER_STATUSES.includes(status);
 
@@ -153,6 +155,7 @@ export default function PaymentPage({
 
     return () => {
       active = false;
+      processingStarted.current = false;
     };
   }, [stage, id, order, user, router, routeFromTrustedOrder]);
 
@@ -172,20 +175,27 @@ export default function PaymentPage({
     let timer: ReturnType<typeof setTimeout> | undefined;
     const wait = () =>
       new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, VERIFY_INTERVAL_MS);
+        timer = setTimeout(resolve, PAYMENT_VERIFY_INTERVAL_MS);
       });
 
     void (async () => {
-      try {
-        // QueryDR is called once when the customer returns. It recovers a
-        // signed VNPAY result if the server-to-server IPN was delayed/lost.
-        await services.payments.reconcile(id);
-      } catch {
-        // Keep polling the trusted Order because IPN may still arrive.
-      }
-      for (let attempt = 1; attempt <= VERIFY_ATTEMPTS && active; attempt += 1) {
+      for (
+        let attempt = 1;
+        attempt <= PAYMENT_VERIFY_ATTEMPTS && active;
+        attempt += 1
+      ) {
         setPollAttempt(attempt);
         try {
+          if (shouldReconcilePayment(attempt)) {
+            try {
+              // QueryDR may briefly report "not ready" after the app has
+              // completed payment. Bounded retries recover a delayed result
+              // without opening another payment attempt.
+              await services.payments.reconcile(id);
+            } catch {
+              // Keep polling the trusted Order because IPN may still arrive.
+            }
+          }
           const current = await services.orders.get(id);
           if (!active) return;
           if (!current || current.userId !== user.id) {
@@ -197,7 +207,7 @@ export default function PaymentPage({
           // IPN và Order có thể chưa đồng bộ hoặc mạng có thể chập chờn; thử
           // lại trong giới hạn bên dưới rồi chuyển sang trạng thái chưa rõ.
         }
-        if (attempt < VERIFY_ATTEMPTS) await wait();
+        if (attempt < PAYMENT_VERIFY_ATTEMPTS) await wait();
       }
       if (active)
         router.replace(`/payment/${encodeURIComponent(id)}/unknown`);
@@ -206,6 +216,7 @@ export default function PaymentPage({
     return () => {
       active = false;
       if (timer) clearTimeout(timer);
+      verificationStarted.current = false;
     };
   }, [stage, id, order, user, router, routeFromTrustedOrder]);
 
@@ -319,7 +330,8 @@ export default function PaymentPage({
               <strong>{money(order.total)}</strong>
             </div>
             <p className="payment-poll-copy">
-              Lần kiểm tra {Math.max(1, pollAttempt)}/{VERIFY_ATTEMPTS}
+              Lần kiểm tra {Math.max(1, pollAttempt)}/
+              {PAYMENT_VERIFY_ATTEMPTS}
             </p>
           </>
         ) : stage === "success" && paid ? (

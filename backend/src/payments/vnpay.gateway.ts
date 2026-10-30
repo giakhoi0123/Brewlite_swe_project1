@@ -135,10 +135,26 @@ function configuredBankCode(): string | undefined {
 }
 
 function configuredQueryIpAddress(): string {
-  const value = process.env.VNPAY_QUERY_IP_ADDRESS?.trim() || '127.0.0.1';
-  if (!/^[0-9A-Fa-f:.]{7,45}$/.test(value)) {
+  const value = required('VNPAY_QUERY_IP_ADDRESS');
+  const parts = value.split('.');
+  const octets = parts.map(Number);
+  const isIpv4 =
+    parts.length === 4 &&
+    parts.every(
+      (part, index) =>
+        /^(0|[1-9]\d{0,2})$/.test(part) && octets[index] <= 255,
+    );
+  const isPrivateOrLoopback =
+    isIpv4 &&
+    (octets[0] === 0 ||
+      octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 169 && octets[1] === 254) ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168));
+  if (!isIpv4 || isPrivateOrLoopback) {
     throw new ServiceUnavailableException(
-      'Cáº¥u hÃ¬nh thanh toÃ¡n VNPAY_QUERY_IP_ADDRESS khÃ´ng há»£p lá»‡',
+      'Cấu hình thanh toán VNPAY_QUERY_IP_ADDRESS phải là IPv4 công khai của backend',
     );
   }
   return value;

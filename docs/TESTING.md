@@ -1,3 +1,17 @@
+# Kiểm tra bản sửa xác minh VNPAY — 2026-10-29
+
+- `npm --prefix frontend test`: **30/30 PASS**, gồm lịch QueryDR giới hạn `[1,4,8,12,18,24,30]` trong tối đa 30 lần poll.
+- `npm --prefix frontend run lint`: PASS, 0 lỗi; còn 2 warning có sẵn tại `checkout/page.tsx` (`normalizePromotion`) và `products/[id]/page.tsx` (`product`).
+- `npm --prefix frontend run build`: PASS, TypeScript và **16/16 route** production build.
+- `docker compose up -d --build --no-deps frontend`: image build, TypeScript/static generation và recreate container PASS.
+- Browser QA màn verifying bằng API/Order thật và stub riêng cho reconcile: **1440/768/390 PASS**, hiển thị `Lần kiểm tra 1/30`, không tràn ngang.
+- `npm --prefix backend test -- vnpay.gateway.spec.ts --runInBand`: **10/10 PASS**, gồm kiểm tra từ chối loopback trước khi gọi VNPAY. Backend lint PASS; sau `npm ci` + `prisma:generate`, backend build PASS.
+- `docker compose up -d --build --no-deps backend`: Prisma generate, Nest build, image build và recreate container PASS; API sẵn sàng, PostgreSQL healthy.
+- Runtime PostgreSQL hiện có các giao dịch gần nhất đã được xác nhận `PAID`; luồng local có thể hoàn tất qua Return localhost và QueryDR fallback. Không suy diễn đây là bằng chứng callback IPN thật vì schema chưa lưu nguồn finalize.
+- Chưa thể nghiệm thu IPN E2E: cần cấu hình/xác nhận IPN HTTPS trong VSM và quan sát callback thật. T08 tiếp tục `IN_PROGRESS`.
+
+---
+
 # Kiểm chứng giỏ Zustand — 2026-10-24 (Windows, Docker PostgreSQL 5434)
 
 - `npm --prefix frontend test`: **23/23 PASS** (thêm `src/stores/cart.test.ts` 4 test: gộp cấu hình, kẹp 1–99, đổi size gộp dòng, xóa/clear/persist; bỏ test `mockCart`). `npm --prefix frontend run lint` và `run build` PASS.
@@ -46,7 +60,7 @@ Kết luận: đổi giỏ sang Zustand không làm hỏng Products, Auth, Order
 - `docker compose config --quiet`: PASS. Compose đang chạy đủ PostgreSQL/backend/frontend; PostgreSQL healthy, backend HTTP 200 và migration `20261021000000_vnpay_gateway` đã được áp dụng thành công.
 - Thử hosted Sandbox ngày 2026-10-22 ban đầu nhận “Ngân hàng thanh toán không được hỗ trợ” khi ép `vnp_BankCode=VNPAYQR`. Bộ phận kỹ thuật VNPAY sau đó xác nhận đã active QR cho terminal TEST; `.env` local đã đặt `VNPAY_BANK_CODE=VNPAYQR`, backend đã recreate, và kiểm tra URL ký trả `bankCode=VNPAYQR`, `command=pay`, `version=2.1.0`, có secure hash.
 - Sau khi Sandbox hiển thị QR, quét bằng ứng dụng ngân hàng LIVE có thể nhận “QR không tồn tại” do TEST/LIVE tách biệt. VNPAY đã cấp ứng dụng QR TEST iOS/Android và công cụ VSM Sandbox qua email. Bước E2E còn lại: cấu hình IPN HTTPS trong VSM, dùng app/NCB TEST hoàn tất giao dịch mới và xác nhận IPN làm DB chuyển `PROCESSING → PAID`; không ghi credential công cụ vào repo/log.
-- Contract/UI: Return mã không thành công chuyển `/payment/:id/unknown` và không mutate; `resumeOrder` replay đúng idempotency key/Payment PROCESSING, không tăng số Order/Payment; chỉ `PAYMENT_FAILED` đã được IPN/QueryDR chốt mới dùng `retryOrder` với key mới và tạo attempt mới trên cùng Order. Frontend gọi owner-auth `POST /payments/:orderId/reconcile` một lần khi vào `verifying` và gọi lại khi bấm “Kiểm tra trạng thái đơn”.
+- Contract/UI: Return mã không thành công chuyển `/payment/:id/unknown` và không mutate; `resumeOrder` replay đúng idempotency key/Payment PROCESSING, không tăng số Order/Payment; chỉ `PAYMENT_FAILED` đã được IPN/QueryDR chốt mới dùng `retryOrder` với key mới và tạo attempt mới trên cùng Order. Frontend gọi owner-auth `POST /payments/:orderId/reconcile` theo lịch giới hạn `1/4/8/12/18/24/30` khi ở `verifying` và gọi lại khi bấm “Kiểm tra trạng thái đơn”.
 - QueryDR Sandbox + DB PASS: thanh toán bằng tài khoản TEST `NGUYEN VAN A` cho Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` được response QueryDR có chữ ký xác minh. Truy vấn PostgreSQL trả `Payment.status=PAID`, `Order.status=PAID`, `vnp_transaction_no=15711511`, `vnp_bank_code=NCB`, `vnp_pay_date=20261022114118`, `idempotency_key=3998d99e-ff66-4ee6-a204-0a22cc35b60c`, response/transaction status đều `00`.
 - Regression an toàn trạng thái PASS: IPN/QueryDR không finalize các mã chưa hoàn tất, đảo giao dịch, nghi ngờ gian lận hoặc lifecycle `10/20`; response IPN `07` không mở retry dù transaction status là `02`. QueryDR có chữ ký với `02/08/11` mới chốt thất bại, ngăn URL hết hạn mắc kẹt nhưng vẫn tránh nguy cơ thu tiền hai lần ở mã mơ hồ.
 - T08 vẫn IN_PROGRESS: QueryDR đã chứng minh fallback và persistence, nhưng IPN trong portal chưa được cấu hình nên callback IPN HTTPS E2E chưa được xác nhận. Không dùng Return hoặc QueryDR thành công để tuyên bố IPN đã chạy.
