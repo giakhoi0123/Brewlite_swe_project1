@@ -6,6 +6,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { AdminJwtStrategy } from './admin-jwt.strategy';
+import { AdminJwtAuthGuard } from './admin-jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 
 import { MailModule } from '../mail/mail.module';
@@ -28,7 +30,24 @@ import { AuthRateLimiter } from './rate-limiter';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, AuthRateLimiter],
-  exports: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard, PassportModule, AuthRateLimiter],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtAuthGuard,
+    AdminJwtStrategy,
+    AdminJwtAuthGuard,
+    RolesGuard,
+    AuthRateLimiter,
+  ],
+  exports: [
+    AuthService,
+    JwtStrategy,
+    JwtAuthGuard,
+    AdminJwtStrategy,
+    AdminJwtAuthGuard,
+    RolesGuard,
+    PassportModule,
+    AuthRateLimiter,
+  ],
 })
 export class AuthModule {}

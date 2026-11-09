@@ -21,12 +21,18 @@ describe('cookie origin guard', () => {
       403,
     );
     expect(
+      run('PATCH', 'brewlite_admin_session=abc').status,
+    ).toHaveBeenCalledWith(403);
+    expect(
       run('POST', undefined, 'https://other.test').status,
     ).toHaveBeenCalledWith(403);
   });
   it('allows same-origin cookie writes, reads and bearer-only clients', () => {
     expect(
       run('POST', 'brewlite_session=abc', 'http://localhost:3000').next,
+    ).toHaveBeenCalled();
+    expect(
+      run('POST', 'brewlite_admin_session=abc', 'http://localhost:3000').next,
     ).toHaveBeenCalled();
     expect(run('GET', 'brewlite_session=abc').next).toHaveBeenCalled();
     expect(run('POST').next).toHaveBeenCalled();

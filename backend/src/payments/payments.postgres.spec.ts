@@ -18,6 +18,7 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
   let module: TestingModule;
   let db: PrismaService;
   const userId = randomUUID();
+  const adminId = randomUUID();
   const productId = randomUUID();
   const origin = 'http://localhost:3000';
   const tmnCode = 'BREWTEST';
@@ -55,6 +56,15 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
         email: `${userId}@payments.test`,
         fullName: 'Payments test',
         passwordHash: 'not-a-login',
+      },
+    });
+    await db.user.create({
+      data: {
+        id: adminId,
+        email: `${adminId}@payments.test`,
+        fullName: 'Payment admin',
+        passwordHash: 'not-a-login',
+        role: 'ADMIN',
       },
     });
     await db.product.create({
@@ -112,7 +122,7 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
         await db.order.deleteMany({ where: { userId } });
         await db.product.deleteMany({ where: { id: productId } });
         await db.ingredient.deleteMany({ where: { id: userId } });
-        await db.user.deleteMany({ where: { id: userId } });
+        await db.user.deleteMany({ where: { id: { in: [userId, adminId] } } });
       }
     } finally {
       await app?.close();
@@ -124,10 +134,14 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
     }
   });
 
-  const cookie = () =>
+  const cookie = (id = userId) =>
     `brewlite_session=${module
       .get(JwtService)
-      .sign({ sub: userId, sessionVersion: 0 })}`;
+      .sign({ sub: id, sessionVersion: 0 })}`;
+  const adminCookie = () =>
+    `brewlite_admin_session=${module
+      .get(JwtService)
+      .sign({ sub: adminId, sessionVersion: 0 })}`;
 
   const createOrder = async () => {
     const response = await request(app.getHttpServer())
@@ -235,9 +249,8 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
         where: { id: order.id },
         include: { statusHistory: { orderBy: { version: 'asc' } } },
       }),
-      points: (
-        await db.user.findUniqueOrThrow({ where: { id: userId } })
-      ).loyaltyPoints,
+      points: (await db.user.findUniqueOrThrow({ where: { id: userId } }))
+        .loyaltyPoints,
     };
     expect(beforeReturn.payment).toMatchObject({
       status: 'PAID',
@@ -246,20 +259,16 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
       vnpTransactionNo: '123456789',
     });
     expect(beforeReturn.order.status).toBe('PAID');
-    expect(beforeReturn.order.statusHistory.map((row) => row.toStatus)).toEqual([
-      'PENDING',
-      'PAID',
-    ]);
+    expect(beforeReturn.order.statusHistory.map((row) => row.toStatus)).toEqual(
+      ['PENDING', 'PAID'],
+    );
     expect(beforeReturn.points).toBe(4);
 
     await request(app.getHttpServer())
       .get('/api/payments/vnpay/return')
       .query(query)
       .expect(302)
-      .expect(
-        'Location',
-        `${origin}/payment/${order.id}/verifying`,
-      );
+      .expect('Location', `${origin}/payment/${order.id}/verifying`);
     expect(
       await db.payment.findUniqueOrThrow({ where: { id: created.body.id } }),
     ).toEqual(beforeReturn.payment);
@@ -276,7 +285,10 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
   });
 
   it('releases stock on failed IPN and atomically reserves it before a retry URL', async () => {
-    await db.ingredient.update({ where: { id: userId }, data: { stock: 50, version: 1 } });
+    await db.ingredient.update({
+      where: { id: userId },
+      data: { stock: 50, version: 1 },
+    });
     const order = await createOrder();
     const failed = await pay(order.id, randomUUID()).expect(201);
     await request(app.getHttpServer())
@@ -287,7 +299,9 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
       await db.order.findUniqueOrThrow({ where: { id: order.id } }),
     ).toMatchObject({ status: 'PAYMENT_FAILED', inventoryHeld: false });
     expect(
-      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock.toNumber(),
+      (
+        await db.ingredient.findUniqueOrThrow({ where: { id: userId } })
+      ).stock.toNumber(),
     ).toBe(50);
 
     await db.ingredient.update({ where: { id: userId }, data: { stock: 0 } });
@@ -314,7 +328,98 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
       'PENDING',
     ]);
     expect(
-      (await db.ingredient.findUniqueOrThrow({ where: { id: userId } })).stock.toNumber(),
+      (
+        await db.ingredient.findUniqueOrThrow({ where: { id: userId } })
+      ).stock.toNumber(),
     ).toBe(40);
+  });
+
+  it('queues ADMIN_APPROVAL and lets only ADMIN atomically approve or reject it', async () => {
+    const approvedOrder = await createOrder();
+    const created = await request(app.getHttpServer())
+      .post('/api/payments')
+      .set('Cookie', cookie())
+      .set('Origin', origin)
+      .send({
+        orderId: approvedOrder.id,
+        method: 'ADMIN_APPROVAL',
+        idempotencyKey: randomUUID(),
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({
+      orderId: approvedOrder.id,
+      method: 'ADMIN_APPROVAL',
+      status: 'PROCESSING',
+    });
+    expect(created.body.paymentUrl).toBeUndefined();
+
+    await request(app.getHttpServer())
+      .get('/api/admin/payments?status=PROCESSING')
+      .set('Cookie', cookie())
+      .expect(401);
+    const queue = await request(app.getHttpServer())
+      .get('/api/admin/payments?status=PROCESSING')
+      .set('Cookie', adminCookie())
+      .expect(200);
+    expect(queue.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: created.body.id,
+          orderId: approvedOrder.id,
+          status: 'PROCESSING',
+        }),
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${created.body.id}/review`)
+      .set('Cookie', adminCookie())
+      .set('Origin', origin)
+      .send({ decision: 'APPROVE' })
+      .expect(200)
+      .expect((response) => expect(response.body.status).toBe('PAID'));
+    expect(
+      await db.payment.findUniqueOrThrow({ where: { id: created.body.id } }),
+    ).toMatchObject({ status: 'PAID', reviewedById: adminId });
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: approvedOrder.id } }),
+    ).toMatchObject({ status: 'PAID' });
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${created.body.id}/review`)
+      .set('Cookie', adminCookie())
+      .set('Origin', origin)
+      .send({ decision: 'REJECT', note: 'Xử lý lần hai' })
+      .expect(409);
+
+    const rejectedOrder = await createOrder();
+    const rejected = await request(app.getHttpServer())
+      .post('/api/payments')
+      .set('Cookie', cookie())
+      .set('Origin', origin)
+      .send({
+        orderId: rejectedOrder.id,
+        method: 'ADMIN_APPROVAL',
+        idempotencyKey: randomUUID(),
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${rejected.body.id}/review`)
+      .set('Cookie', adminCookie())
+      .set('Origin', origin)
+      .send({ decision: 'REJECT', note: 'Admin từ chối yêu cầu' })
+      .expect(200)
+      .expect((response) =>
+        expect(response.body.status).toBe('PAYMENT_FAILED'),
+      );
+    expect(
+      await db.payment.findUniqueOrThrow({ where: { id: rejected.body.id } }),
+    ).toMatchObject({
+      status: 'PAYMENT_FAILED',
+      reviewedById: adminId,
+      reviewNote: 'Admin từ chối yêu cầu',
+    });
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: rejectedOrder.id } }),
+    ).toMatchObject({ status: 'PAYMENT_FAILED', inventoryHeld: false });
   });
 });
