@@ -1,5 +1,13 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## Thanh toán chờ Admin quyết định — 2026-11-09
+
+Giữ nguyên VNPAY và thêm method `ADMIN_APPROVAL`. Khách chọn phương thức này chỉ tạo Payment `PROCESSING`, sau đó chờ tại `/payment/:orderId/pending-admin`; không có chuyển khoản, gateway hoặc outcome từ client. Role `ADMIN` đăng nhập vào `/admin/payments`, chọn Thành công hoặc Thất bại (thất bại bắt buộc ghi lý do). Backend conditional-update Payment và gọi `PAYMENT_ORDER_PORT` trong cùng transaction để Order thành `PAID` hoặc `PAYMENT_FAILED`; audit lưu reviewer/time/note. Migration `20261109000000_admin_approval_payments`; credential demo công khai của nhóm là `admin@gmail.com` / `Aa@12345`, provision qua seed và tuyệt đối không tái sử dụng ở production. Trang Admin dùng polling tuần tự và request sequence “latest wins”, ngăn response lỗi cũ ghi đè response mới thành công. Đã qua 334 test backend không-DB, PostgreSQL 108/108 với 18 migration, frontend 31/31, build/lint và Playwright 3/3 tại 1440/768/390. VNPAY IPN E2E vẫn chưa hoàn tất và T08 chưa VERIFIED_COMPLETE.
+
+Admin và khách đã được tách phiên: khách/Barista dùng `brewlite_session`, Admin dùng `brewlite_admin_session`, có strategy/guard và endpoint `/auth/admin/me`, `/auth/admin/logout` riêng. Cùng một browser context có thể giữ đồng thời cả hai cookie; frontend chọn endpoint theo route. Logout Admin chỉ xóa cookie Admin cục bộ để không làm các thành viên khác dùng tài khoản chung bị out. Browser E2E thật cùng context đã PASS 2/2; backend Auth E2E 10/10, PostgreSQL Payment 108/108 và Playwright fixture Admin 3/3 PASS.
+
+VNPAY Sandbox hiện được hiển thị “Đang bảo trì” và bị khóa tại checkout; `ADMIN_APPROVAL` là lựa chọn mặc định. Không xóa backend/schema VNPAY để bảo toàn dữ liệu cũ và khả năng mở lại sau này. Kiểm tra DB ứng dụng ngày 2026-11-09 xác nhận 3 Payment `ADMIN_APPROVAL` đã lưu `PAID`, Order tương ứng `PAID`, có item, 2 dòng status history, reviewer/time và LoyaltyLog.
+
 ## Xác minh VNPAY bị treo — 2026-10-29
 
 Frontend `verifying` đã đổi từ một lần QueryDR + chỉ poll Order sang poll Order mỗi 2 giây và QueryDR có giới hạn tại lần 1/4/8/12/18/24/30; tổng 30 lần (khoảng 60 giây) rồi chuyển `unknown`, không tạo Payment/Order mới. Cleanup effect cũng reset cờ khởi chạy để React Strict Mode không hủy lượt xác minh duy nhất. Unit frontend 30/30, lint 0 lỗi/2 warning có sẵn và production build 16 route PASS; image frontend Docker đã build/recreate. Backend bắt buộc `VNPAY_QUERY_IP_ADDRESS` là IPv4 công khai và từ chối loopback/private trước khi gọi VNPAY; gateway test 10/10, lint/build và Docker backend build/recreate PASS.
