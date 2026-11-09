@@ -1,4 +1,4 @@
-export type Role = "CUSTOMER" | "BARISTA";
+export type Role = "CUSTOMER" | "BARISTA" | "ADMIN";
 export type User = {
   id: string;
   email: string;
@@ -84,7 +84,7 @@ export type OrderStatus =
   | "READY"
   | "COMPLETED"
   | "CANCELLED";
-export type PaymentMethod = "WALLET" | "CARD" | "VNPAY_QR";
+export type PaymentMethod = "WALLET" | "CARD" | "VNPAY_QR" | "ADMIN_APPROVAL";
 export type OrderItem = CartItem;
 export type Order = {
   id: string;
@@ -110,6 +110,21 @@ export type Payment = {
   idempotencyKey: string;
   paymentUrl?: string;
   expiresAt?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+};
+export type AdminPayment = {
+  id: string;
+  orderId: string;
+  amount: number;
+  method: "ADMIN_APPROVAL";
+  status: "PROCESSING" | "PAID" | "PAYMENT_FAILED";
+  customer: { name: string; email: string };
+  orderStatus: OrderStatus;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  reviewedBy?: { name: string; email: string };
 };
 export type Promotion = { code: string; discount: number };
 export type LoyaltyPoints = { points: number };

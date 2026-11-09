@@ -7,6 +7,7 @@ import type {
   LoyaltyService,
   BaristaOrderService,
   UserVoucher,
+  AdminPaymentService,
 } from "./contracts";
 import type {
   Order,
@@ -15,6 +16,7 @@ import type {
   ProductPreviewResult,
   Promotion,
   OrderStatus,
+  AdminPayment,
 
 } from "@/types/domain";
 
@@ -136,6 +138,26 @@ export const apiPayments: PaymentService = {
     request<Payment>(
       `/payments/${encodeURIComponent(orderId)}/reconcile`,
       { method: "POST" },
+    ),
+  get: (orderId) =>
+    request<Payment>(`/payments/order/${encodeURIComponent(orderId)}`, {
+      cache: "no-store",
+    }),
+};
+
+export const apiAdminPayments: AdminPaymentService = {
+  list: (status) =>
+    request<AdminPayment[]>(
+      `/admin/payments${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+      { cache: "no-store" },
+    ),
+  review: (paymentId, decision, note) =>
+    request<Payment>(
+      `/admin/payments/${encodeURIComponent(paymentId)}/review`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ decision, ...(note?.trim() ? { note: note.trim() } : {}) }),
+      },
     ),
 };
 

@@ -6,13 +6,14 @@ import {
   useEffect,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import { authService } from "@/services/auth";
 import { ApiError } from "@/services/http";
-import type { User } from "@/types/domain";
+import type { Role, User } from "@/types/domain";
 type AuthContextType = {
   user: User | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: (role?: Role) => Promise<void>;
   logout: () => Promise<void>;
 };
 const AuthContext = createContext<AuthContextType>({
@@ -22,11 +23,14 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (role?: Role) => {
     try {
-      setUser((await authService.me()).user);
+      const response =
+        role === "ADMIN" ? await authService.adminMe() : await authService.me();
+      setUser(response.user);
     } catch {
       setUser(null);
     } finally {
@@ -34,8 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    setLoading(true);
+    void refresh(pathname.startsWith("/admin") ? "ADMIN" : undefined);
+  }, [pathname, refresh]);
   useEffect(() => {
     const expired = () => setUser(null);
     window.addEventListener("brewlite:session-expired", expired);
@@ -43,7 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const logout = async () => {
     try {
-      await authService.logout();
+      if (user?.role === "ADMIN") await authService.adminLogout();
+      else await authService.logout();
       setUser(null);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {

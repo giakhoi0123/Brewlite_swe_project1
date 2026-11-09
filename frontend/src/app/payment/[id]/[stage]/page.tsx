@@ -19,7 +19,7 @@ import {
 } from "@/services/payment-verification";
 import { useCart } from "@/stores/cart";
 import { money } from "@/types/domain";
-import type { Order, OrderStatus } from "@/types/domain";
+import type { Order, OrderStatus, Payment } from "@/types/domain";
 
 const PAID_ORDER_STATUSES: OrderStatus[] = [
   "PAID",
@@ -40,6 +40,7 @@ export default function PaymentPage({
   const { user, loading: authLoading } = useAuth();
   const clear = useCart((state) => state.clear);
   const [order, setOrder] = useState<Order | null>(null);
+  const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [pollAttempt, setPollAttempt] = useState(0);
@@ -47,6 +48,8 @@ export default function PaymentPage({
   const processingStarted = useRef(false);
   const verificationStarted = useRef(false);
   const paidCartCleared = useRef(false);
+  const orderOwnerId = order?.userId;
+  const currentUserId = user?.id;
 
   const load = useCallback(async () => {
     try {
@@ -105,9 +108,9 @@ export default function PaymentPage({
   useEffect(() => {
     if (
       stage !== "processing" ||
-      !order ||
-      !user ||
-      order.userId !== user.id ||
+      !orderOwnerId ||
+      !currentUserId ||
+      orderOwnerId !== currentUserId ||
       processingStarted.current
     ) {
       return;
@@ -123,20 +126,26 @@ export default function PaymentPage({
     let active = true;
 
     void services.payments
-      .pay(id, "VNPAY_QR", intent.key)
+      .pay(id, intent.method, intent.key)
       .then(async (payment) => {
         if (!active) return;
+        setPayment(payment);
 
         // Mock mode may finish immediately. Always confirm against the owned
         // Order before clearing the cart or showing a terminal result.
         if (payment.status !== "PROCESSING") {
           const current = await services.orders.get(id);
           if (!active) return;
-          if (current && current.userId === user.id) {
+          if (current && current.userId === currentUserId) {
             const terminal = await routeFromTrustedOrder(current);
             if (terminal) return;
           }
           router.replace(`/payment/${encodeURIComponent(id)}/unknown`);
+          return;
+        }
+
+        if (payment.method === "ADMIN_APPROVAL") {
+          router.replace(`/payment/${encodeURIComponent(id)}/pending-admin`);
           return;
         }
 
@@ -157,7 +166,51 @@ export default function PaymentPage({
       active = false;
       processingStarted.current = false;
     };
-  }, [stage, id, order, user, router, routeFromTrustedOrder]);
+  }, [stage, id, orderOwnerId, currentUserId, router, routeFromTrustedOrder]);
+
+  useEffect(() => {
+    if (
+      stage !== "pending-admin" ||
+      !orderOwnerId ||
+      !currentUserId ||
+      orderOwnerId !== currentUserId
+    ) {
+      return;
+    }
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      try {
+        const [currentOrder, currentPayment] = await Promise.all([
+          services.orders.get(id),
+          services.payments.get(id),
+        ]);
+        if (!active) return;
+        if (!currentOrder || currentOrder.userId !== currentUserId) {
+          router.replace("/payment/error");
+          return;
+        }
+        setOrder(currentOrder);
+        setPayment(currentPayment);
+        if (await routeFromTrustedOrder(currentOrder)) return;
+      } catch (cause) {
+        if (active)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Không đọc được yêu cầu thanh toán",
+          );
+      }
+      if (active) timer = setTimeout(poll, 3000);
+    };
+
+    void poll();
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [stage, id, orderOwnerId, currentUserId, router, routeFromTrustedOrder]);
 
   useEffect(() => {
     if (
@@ -232,13 +285,35 @@ export default function PaymentPage({
     }
   }, [stage, order, user, clearPaidCart]);
 
+  useEffect(() => {
+    if (
+      stage !== "failure" ||
+      !orderOwnerId ||
+      !currentUserId ||
+      orderOwnerId !== currentUserId
+    )
+      return;
+    let active = true;
+    void services.payments
+      .get(id)
+      .then((current) => {
+        if (active) setPayment(current);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [stage, id, orderOwnerId, currentUserId]);
+
   const verify = async () => {
     if (verifyBusy) return;
     setVerifyBusy(true);
     setError("");
     try {
       try {
-        await services.payments.reconcile(id);
+        if (payment?.method === "ADMIN_APPROVAL" || stage === "pending-admin")
+          setPayment(await services.payments.get(id));
+        else await services.payments.reconcile(id);
       } catch {
         // A throttled/unavailable QueryDR must not hide an IPN result that may
         // already have reached the Order endpoint.
@@ -314,6 +389,34 @@ export default function PaymentPage({
               <strong>{money(order.total)}</strong>
             </div>
           </>
+        ) : stage === "pending-admin" ? (
+          <>
+            <div className="payment-result-icon is-unknown" aria-hidden="true">
+              ⏳
+            </div>
+            <p className="payment-eyebrow">Yêu cầu đã gửi đến Admin</p>
+            <h1>Đang chờ quản trị viên xử lý</h1>
+            <p className="payment-lead">
+              Admin sẽ quyết định yêu cầu này Thành công hoặc Thất bại. Đơn
+              hàng vẫn ở trạng thái chờ và chưa được gửi tới quầy pha chế.
+            </p>
+            <div className="payment-order-chip">
+              <span>Mã đơn #{order.id}</span>
+              <strong>{money(order.total)}</strong>
+            </div>
+            <div className="payment-actions">
+              <button
+                className="btn btn-primary"
+                disabled={verifyBusy}
+                onClick={verify}
+              >
+                {verifyBusy ? "Đang kiểm tra..." : "Kiểm tra kết quả"}
+              </button>
+              <Link className="btn btn-outline" href={`/orders/${id}`}>
+                Xem chi tiết đơn
+              </Link>
+            </div>
+          </>
         ) : stage === "verifying" ? (
           <>
             <div className="payment-orbit" aria-hidden="true">
@@ -363,7 +466,9 @@ export default function PaymentPage({
                 <span>Tổng cộng</span>
                 <span>{money(order.total)}</span>
               </div>
-              <p>Phương thức: VNPAY-QR</p>
+              <p>
+                Phương thức: {order.paymentMethod === "ADMIN_APPROVAL" ? "Admin xác nhận" : "VNPAY-QR"}
+              </p>
             </div>
             <div className="payment-actions">
               <Link className="btn btn-primary" href="/orders">
@@ -385,8 +490,11 @@ export default function PaymentPage({
             <p className="payment-lead">
               {order.status === "CANCELLED"
                 ? "Đơn hàng này đã bị hủy."
-                : order.error ||
-                  "VNPAY chưa thể hoàn tất giao dịch. Giỏ hàng của bạn vẫn được giữ nguyên."}
+                : payment?.method === "ADMIN_APPROVAL"
+                  ? payment.reviewNote ||
+                    "Admin đã đánh dấu yêu cầu thanh toán là Thất bại."
+                  : order.error ||
+                    "Yêu cầu thanh toán chưa thành công. Giỏ hàng của bạn vẫn được giữ nguyên."}
             </p>
             <div className="payment-actions">
               {order.status === "PAYMENT_FAILED" && (
@@ -407,9 +515,9 @@ export default function PaymentPage({
             <p className="payment-eyebrow">Cần thêm thời gian xác minh</p>
             <h1>Chưa xác định kết quả thanh toán</h1>
             <p className="payment-lead">
-              Giao dịch chưa được VNPAY xác nhận. Bạn có thể kiểm tra lại trạng
-              thái hoặc quay về bước chọn phương thức để tiếp tục đúng giao
-              dịch hiện tại.
+              Giao dịch chưa có kết quả cuối cùng. Bạn có thể kiểm tra lại trạng
+              thái hoặc quay về bước chọn phương thức để tiếp tục đúng yêu cầu
+              hiện tại.
             </p>
             {error && <p className="error">{error}</p>}
             <div className="payment-order-chip">

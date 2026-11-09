@@ -21,11 +21,13 @@ function Form() {
     setError("");
     try {
       const { user } = await authService.login(email, password);
-      await refresh();
+      await refresh(user.role);
       router.replace(
         user.role === "BARISTA"
           ? "/barista/dashboard"
-          : next?.startsWith("/") && !next.startsWith("//")
+          : user.role === "ADMIN"
+            ? "/admin/payments"
+            : next?.startsWith("/") && !next.startsWith("//")
             ? next
             : "/",
       );

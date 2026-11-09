@@ -28,21 +28,27 @@ export function Header() {
             <span>BrewLite</span>
           </Link>
           <nav className="nav" aria-label="Điều hướng">
-            <Link href="/">Trang chủ</Link>
-            <Link href="/#menu">Thực đơn</Link>
-            <Link href="/orders">Đơn hàng của tôi</Link>
-            {user?.role === "BARISTA" && (
-              <Link href="/barista/dashboard">Trạm Barista</Link>
+            {user?.role === "ADMIN" ? (
+              <Link href="/admin/payments">Quản lý thanh toán</Link>
+            ) : (
+              <>
+                <Link href="/">Trang chủ</Link>
+                <Link href="/#menu">Thực đơn</Link>
+                <Link href="/orders">Đơn hàng của tôi</Link>
+                {user?.role === "BARISTA" && (
+                  <Link href="/barista/dashboard">Trạm Barista</Link>
+                )}
+              </>
             )}
           </nav>
           <div className="nav-tools">
-            <Link className="cart-link" href="/cart" aria-label={`Giỏ hàng ${count} món`}>
+            {user?.role !== "ADMIN" && <Link className="cart-link" href="/cart" aria-label={`Giỏ hàng ${count} món`}>
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M4 8h16l-1.4 12H5.4L4 8ZM9 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" />
               </svg>
               <span className="cart-label">Giỏ hàng</span>
               <span className="badge">{count}</span>
-            </Link>
+            </Link>}
             {user ? (
               <>
                 <Link href="/profile">{user.name}</Link>

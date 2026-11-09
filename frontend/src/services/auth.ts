@@ -2,6 +2,7 @@ import { request } from "./http";
 import type { User } from "@/types/domain";
 export const authService = {
   me: () => request<{ user: User }>("/auth/me"),
+  adminMe: () => request<{ user: User }>("/auth/admin/me"),
   login: (email: string, password: string) =>
     request<{ user: User }>("/auth/login", {
       method: "POST",
@@ -14,6 +15,8 @@ export const authService = {
     }),
   logout: () =>
     request<{ message: string }>("/auth/logout", { method: "POST" }),
+  adminLogout: () =>
+    request<{ message: string }>("/auth/admin/logout", { method: "POST" }),
   forgotPassword: (email: string) =>
     request<{ message: string }>("/auth/forgot-password", {
       method: "POST",

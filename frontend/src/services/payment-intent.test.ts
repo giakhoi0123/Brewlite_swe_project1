@@ -21,10 +21,10 @@ const memoryStorage = () => {
   };
 };
 
-test("payment intent stores only a non-empty idempotency key", () => {
+test("payment intent stores a non-empty key and defaults legacy data to VNPAY", () => {
   assert.deepEqual(
     parsePaymentIntent(JSON.stringify({ key: "payment-key" })),
-    { key: "payment-key" },
+    { key: "payment-key", method: "VNPAY_QR" },
   );
   assert.equal(parsePaymentIntent("not-json"), null);
   assert.equal(parsePaymentIntent(JSON.stringify({ key: "" })), null);
@@ -32,30 +32,31 @@ test("payment intent stores only a non-empty idempotency key", () => {
 
 test("payment intent storage preserves the idempotency key for safe retry", () => {
   const storage = memoryStorage();
-  savePaymentIntent("order-1", { key: "first-key" }, storage);
+  savePaymentIntent("order-1", { key: "first-key", method: "ADMIN_APPROVAL" }, storage);
   assert.equal(readPaymentIntent("order-1", storage)?.key, "first-key");
+  assert.equal(readPaymentIntent("order-1", storage)?.method, "ADMIN_APPROVAL");
   removePaymentIntent("order-1", storage);
   assert.equal(storage.values.has(paymentIntentKey("order-1")), false);
 });
 
 test("checkout resume reuses its key while a finalized retry creates a new key", () => {
   const storage = memoryStorage();
-  savePaymentIntent("order-1", { key: "processing-key" }, storage);
+  savePaymentIntent("order-1", { key: "processing-key", method: "ADMIN_APPROVAL" }, storage);
 
   assert.deepEqual(
-    preparePaymentIntent("order-1", true, storage, () => "must-not-run"),
-    { key: "processing-key" },
+    preparePaymentIntent("order-1", true, "VNPAY_QR", storage, () => "must-not-run"),
+    { key: "processing-key", method: "ADMIN_APPROVAL" },
   );
   assert.deepEqual(
-    preparePaymentIntent("order-1", false, storage, () => "fresh-key"),
-    { key: "fresh-key" },
+    preparePaymentIntent("order-1", false, "VNPAY_QR", storage, () => "fresh-key"),
+    { key: "fresh-key", method: "VNPAY_QR" },
   );
   assert.equal(readPaymentIntent("order-1", storage)?.key, "fresh-key");
 });
 
 test("checkout resume is blocked when the current browser has no intent", () => {
   const storage = memoryStorage();
-  assert.equal(preparePaymentIntent("order-2", true, storage), null);
+  assert.equal(preparePaymentIntent("order-2", true, "VNPAY_QR", storage), null);
 });
 
 test("gateway redirects accept HTTPS only", () => {
@@ -91,7 +92,7 @@ test("paid cart cleanup is scoped to the current payment intent", async () => {
   assert.equal(await clearCartAfterPaidOrder("old-order", clear, storage), false);
   assert.equal(clearCalls, 0);
 
-  savePaymentIntent("current-order", { key: "current-key" }, storage);
+  savePaymentIntent("current-order", { key: "current-key", method: "VNPAY_QR" }, storage);
   assert.equal(
     await clearCartAfterPaidOrder("current-order", async () => false, storage),
     false,

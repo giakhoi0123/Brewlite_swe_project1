@@ -1,5 +1,6 @@
 export type PaymentIntent = {
   key: string;
+  method: "VNPAY_QR" | "ADMIN_APPROVAL";
 };
 
 export const paymentIntentKey = (orderId: string) =>
@@ -10,7 +11,8 @@ export function parsePaymentIntent(raw: string | null): PaymentIntent | null {
   try {
     const value = JSON.parse(raw) as Partial<PaymentIntent>;
     if (typeof value.key !== "string" || !value.key.trim()) return null;
-    return { key: value.key };
+    const method = value.method === "ADMIN_APPROVAL" ? value.method : "VNPAY_QR";
+    return { key: value.key, method };
   } catch {
     return null;
   }
@@ -49,12 +51,13 @@ export function savePaymentIntent(
 export function preparePaymentIntent(
   orderId: string,
   resume: boolean,
+  method: PaymentIntent["method"],
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> =
     sessionStorage,
   createKey: () => string = () => crypto.randomUUID(),
 ): PaymentIntent | null {
   if (resume) return readPaymentIntent(orderId, storage);
-  const intent = { key: createKey() };
+  const intent = { key: createKey(), method };
   savePaymentIntent(orderId, intent, storage);
   return intent;
 }
