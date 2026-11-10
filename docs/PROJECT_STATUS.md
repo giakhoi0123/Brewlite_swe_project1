@@ -1,5 +1,29 @@
 # Trạng thái dự án
 
+## VNPAY đang bảo trì tại checkout — 2026-11-10
+
+**IMPLEMENTED / FRONTEND VERIFIED**: Checkout hiển thị badge **Đang bảo trì**, khóa radio `VNPAY_QR` và chọn `ADMIN_APPROVAL` mặc định. Nút submit/tiếp tục VNPAY bị khóa; attempt lịch sử chỉ được đối soát để chuyển sang Admin sau khi backend xác minh `PAYMENT_FAILED`. Backend/schema/dữ liệu VNPAY không bị xóa.
+
+Bằng chứng: frontend **32/32 unit**, TypeScript và production build PASS, lint **0 lỗi/2 warning cũ**; Playwright Docker **6/6 PASS** tại **1440/768/390**. Compose rebuild, frontend/backend HTTP 200. T08 vẫn `IN_PROGRESS` vì chưa quan sát IPN HTTPS thật.
+
+## Khách yêu cầu hủy thanh toán qua Admin — 2026-11-10
+
+**IMPLEMENTED / VERIFIED**: Khách owner có thể gửi yêu cầu hủy `ADMIN_APPROVAL` kèm lý do; Order vẫn `PENDING` cho đến khi Admin xử lý. Admin chấp nhận thì Payment được kết thúc và Order chuyển `CANCELLED` atomic, hoàn kho/voucher; Admin từ chối phải ghi phản hồi và Payment tiếp tục `PROCESSING`. Đường hủy Order trực tiếp đã bị chặn khi có Payment Admin đang xử lý. Dữ liệu request/review và người xử lý được lưu bằng migration `20261110000000_admin_payment_cancel_requests`.
+
+Bằng chứng: backend non-DB **30 suite/339 test PASS**; PostgreSQL tạm áp đủ **19 migration**, **7 suite/113 test PASS** rồi tự xóa; frontend **32/32 unit**, TypeScript và production build PASS, lint **0 lỗi/2 warning cũ**; Playwright Docker **6/6 PASS**, kiểm tra luồng khách → Admin → chấp nhận hủy cùng 1440/768/390. Migration đã áp DB ứng dụng, Compose rebuild và frontend/backend HTTP 200.
+
+## Đổi phương thức sau khi hủy VNPAY — 2026-11-10
+
+**IMPLEMENTED / AUTOMATED TESTS VERIFIED**: Return có chữ ký hợp lệ, kể cả mã hủy, nay luôn vào màn `verifying` và không tự ghi kết quả. Từ màn `unknown` hoặc ngay checkout `resumeOrder`, “Kiểm tra để đổi phương thức” bắt buộc reconcile với backend; chỉ Order đã thành `PAYMENT_FAILED` mới đi tới `retryOrder`. Theo trạng thái bảo trì mới nhất, retry chỉ mở Admin; VNPAY và nút tiếp tục URL cũ đều bị khóa. Payment còn `PROCESSING` không được tạo attempt đồng thời.
+
+Bằng chứng: backend targeted **20/20 PASS**; frontend **31/31 unit**, TypeScript, production build và lint **0 lỗi/2 warning cũ PASS**; bộ PostgreSQL tạm áp đủ **18 migration**, **7 suite/108 test PASS** rồi tự xóa; Playwright Docker **5/5 PASS**, gồm regression từ cả màn `unknown` và checkout `resumeOrder` → reconcile → mở lựa chọn Admin. Compose đã rebuild. Callback IPN HTTPS thật chưa được quan sát nên T08 vẫn `IN_PROGRESS`, không nâng `VERIFIED_COMPLETE`.
+
+## Lịch sử: mở lại VNPAY tại checkout — 2026-11-10
+
+**IMPLEMENTED / FRONTEND VERIFIED**: Checkout đã gỡ trạng thái “Đang bảo trì”, mở `VNPAY_QR` làm lựa chọn mặc định và giữ `ADMIN_APPROVAL` song song trong API mode. Luồng resume vẫn khóa phương thức theo intent cũ và tái sử dụng idempotency key; backend/schema/API VNPAY không đổi. DOCX Bài tập 1 được đọc nhưng không chỉnh sửa và đã thêm vào `.gitignore`. US06/UC-CHK đúng với yêu cầu Ví/Thẻ mock của Bài tập 1 nhưng không trùng implementation hiện hành (`VNPAY_QR` + `ADMIN_APPROVAL`), vì vậy chưa thể dùng VNPAY làm bằng chứng hoàn thành yêu cầu mock.
+
+Bằng chứng lượt này: frontend **31/31 unit PASS**, TypeScript `--noEmit` PASS, production build PASS, lint **0 lỗi/2 warning cũ**; backend VNPAY/Payment local **2 suite/30 test PASS**. Bộ PostgreSQL Payment áp đủ **18 migration**, **7 suite/108 test PASS** trên database tạm và đã tự xóa. Compose rebuild PASS; PostgreSQL healthy, frontend/backend HTTP 200. Playwright trên frontend Docker **3/3 PASS**; checkout được kiểm tra tại **1440/768/390**, VNPAY mặc định, chuyển qua lại VNPAY ↔ Admin và không tràn ngang. Callback IPN HTTPS thật chưa được quan sát nên T08 tiếp tục `IN_PROGRESS`, không nâng `VERIFIED_COMPLETE`.
+
 ## Tính năng Xem trước Tồn kho & Cảnh báo Nguyên liệu Thiếu theo Real-time — 2026-10-30
 
 **IMPLEMENTED / FULL TESTS PASS**: Đã hoàn thiện tính năng cảnh báo chi tiết nguyên liệu thiếu khi người dùng tăng số lượng đạt trần khả dụng tại trang chi tiết món (`frontend/src/app/products/[id]/page.tsx`), áp dụng toàn diện cho mọi size S/M/L và toppings:
@@ -295,4 +319,4 @@ Migration mới: `20261109000000_admin_approval_payments`. Credential demo công
 
 Khắc phục xung đột phiên cùng trình duyệt: login CUSTOMER/BARISTA tiếp tục ghi `brewlite_session`, còn login ADMIN ghi `brewlite_admin_session`. API Admin dùng `AdminJwtStrategy`/`AdminJwtAuthGuard`; frontend `/admin/*` khôi phục qua `/auth/admin/me`. `/auth/admin/logout` chỉ xóa cookie Admin cục bộ và không tăng `sessionVersion`, nên không đá khách ở tab khác hoặc Admin của thành viên khác; reset mật khẩu vẫn vô hiệu toàn bộ phiên. Đã rebuild Compose và kiểm chứng browser thật trong cùng context: đăng nhập khách → mở tab Admin → đăng nhập/đăng xuất Admin → khách vẫn giữ phiên, **2/2 PASS**. Auth E2E **10/10**, PostgreSQL Payment **108/108**, backend non-DB **334/334**, frontend unit **31/31**, build/lint và Playwright Admin **3/3** PASS.
 
-Checkout hiện khóa VNPAY và hiển thị badge **Đang bảo trì**, đồng thời chọn `ADMIN_APPROVAL` mặc định. Backend VNPAY và dữ liệu lịch sử vẫn được giữ nguyên. Truy vấn trực tiếp PostgreSQL ứng dụng xác nhận cả 3 yêu cầu Admin gần nhất đã lưu Payment `PAID` và Order `PAID`; mỗi đơn có OrderItem, hai mốc status history (`PENDING` → `PAID`), reviewer, reviewedAt và LoyaltyLog. Đây là dữ liệu thật sau thanh toán, không phải state frontend.
+Tại mốc 2026-11-09, checkout khóa VNPAY và hiển thị badge **Đang bảo trì**, đồng thời chọn `ADMIN_APPROVAL` mặc định. VNPAY từng được mở lại rồi đã khóa bảo trì lại theo trạng thái mới nhất ở đầu tài liệu. Backend VNPAY và dữ liệu lịch sử vẫn được giữ nguyên. Truy vấn trực tiếp PostgreSQL ứng dụng xác nhận cả 3 yêu cầu Admin gần nhất đã lưu Payment `PAID` và Order `PAID`; mỗi đơn có OrderItem, hai mốc status history (`PENDING` → `PAID`), reviewer, reviewedAt và LoyaltyLog. Đây là dữ liệu thật sau thanh toán, không phải state frontend.

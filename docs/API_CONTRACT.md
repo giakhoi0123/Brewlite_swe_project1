@@ -1,10 +1,25 @@
 # Hợp đồng API BrewLite
 
+## Khách yêu cầu hủy thanh toán qua Admin — 2026-11-10
+
+Khi Payment mới nhất thuộc method `ADMIN_APPROVAL`, Payment còn `PROCESSING` và Order còn `PENDING`, khách owner có thể gửi một yêu cầu hủy kèm lý do. Việc gửi yêu cầu chỉ ghi `cancelRequestStatus=PENDING`; không tự hủy Order. Trong lúc yêu cầu hủy chờ xử lý, Admin không được chốt Thành công/Thất bại qua endpoint review thanh toán thông thường. Admin phải chấp nhận hoặc từ chối yêu cầu hủy trước.
+
+| Endpoint | Quyền | Input | Kết quả |
+|---|---|---|---|
+| POST `/payments/:orderId/cancel-request` | CUSTOMER, owner | `{reason}` từ 1–300 ký tự | Payment vẫn `PROCESSING`, ghi lý do/thời điểm và `cancelRequestStatus=PENDING` |
+| PATCH `/admin/payments/:paymentId/cancel-review` | ADMIN | `{decision:"APPROVE"}` hoặc `{decision:"REJECT",note:"..."}` | APPROVE: Payment kết thúc, Order `CANCELLED`, hoàn tài nguyên; REJECT: Payment tiếp tục `PROCESSING`, Order tiếp tục `PENDING` |
+
+`POST /orders/:id/cancel` bị từ chối nếu Order có Payment `ADMIN_APPROVAL` đang `PROCESSING`, nhằm ngăn khách bỏ qua bước Admin duyệt. Các trường audit gồm `cancelRequestReason`, `cancelRequestedAt`, `cancelReviewedById`, `cancelReviewedAt`, `cancelReviewNote`; migration `20261110000000_admin_payment_cancel_requests` sở hữu schema này.
+
+## Đổi phương thức sau khi hủy VNPAY — 2026-11-10
+
+Return VNPAY luôn chỉ đọc. Mọi Return có chữ ký hợp lệ, gồm mã hủy `24`, được điều hướng tới `/payment/:orderId/verifying`; frontend không suy ra `PAYMENT_FAILED` từ query của trình duyệt. Màn `unknown` và checkout `resumeOrder` đều gọi owner-auth `POST /payments/:orderId/reconcile` trước khi cho đổi phương thức. Chỉ khi IPN hoặc QueryDR hợp lệ đã chốt Order thành `PAYMENT_FAILED`, frontend mới dùng `/checkout?retryOrder=<id>` với idempotency key mới. Trong trạng thái bảo trì hiện tại, retry chỉ mở `ADMIN_APPROVAL`; `VNPAY_QR` và nút tiếp tục URL cũ đều bị khóa. Nếu Payment cũ còn `PROCESSING`, checkout không tạo attempt song song.
+
 ## Thanh toán do Admin quyết định — 2026-11-09
 
 Phương thức `ADMIN_APPROVAL` chạy song song và không thay đổi VNPAY. Đây là luồng yêu cầu nội bộ: khách bấm thanh toán chỉ tạo Payment `PROCESSING`; không có chuyển khoản, cổng tiền hoặc kết quả do client truyền lên. Chỉ tài khoản role `ADMIN` mới được quyết định Thành công/Thất bại. Quyết định cập nhật Payment và Order qua `PAYMENT_ORDER_PORT` trong cùng transaction; Thành công chuyển sang `PAID`, Thất bại chuyển sang `PAYMENT_FAILED` và dùng logic Orders hiện hữu để hoàn kho/giải phóng voucher. Một Payment chỉ được xử lý một lần bằng conditional update.
 
-Trạng thái vận hành hiện tại: frontend khóa lựa chọn `VNPAY_QR` và hiển thị “Đang bảo trì”; `ADMIN_APPROVAL` được chọn mặc định. API/schema VNPAY không bị xóa để giữ tương thích dữ liệu lịch sử và có thể mở lại sau này. Client hiện tại không được tạo giao dịch VNPAY mới từ UI.
+Trạng thái vận hành mới nhất ngày 2026-11-10: frontend khóa `VNPAY_QR`, hiển thị badge “Đang bảo trì” và chọn `ADMIN_APPROVAL` mặc định. UI không tạo/tiếp tục giao dịch VNPAY; với attempt lịch sử đang `PROCESSING`, khách chỉ được đối soát để chờ trạng thái cuối rồi chuyển sang Admin. Backend/schema và quy tắc xác minh VNPAY không thay đổi: Return chỉ điều hướng; chỉ IPN hợp lệ hoặc QueryDR đã kiểm chữ ký mới được chốt kết quả.
 
 | Endpoint | Quyền | Input | Kết quả |
 |---|---|---|---|
