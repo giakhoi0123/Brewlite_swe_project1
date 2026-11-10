@@ -12,6 +12,7 @@ import { dataMode, services } from "@/services";
 import {
   preparePaymentIntent,
   readPaymentIntent,
+  removePaymentIntent,
 } from "@/services/payment-intent";
 
 const VNPAY_UNDER_MAINTENANCE = true;
@@ -29,6 +30,7 @@ function CheckoutContent() {
     [promotion, setPromotion] = useState<Promotion | null>(null),
     [promoBusy, setPromoBusy] = useState(false),
     [busy, setBusy] = useState(false),
+    [reconcileBusy, setReconcileBusy] = useState(false),
     [paymentMethod, setPaymentMethod] =
       useState<PaymentMethod>("ADMIN_APPROVAL"),
     [existingOrderLoading, setExistingOrderLoading] = useState(
@@ -97,13 +99,6 @@ function CheckoutContent() {
             throw new Error(
               "Không tìm thấy yêu cầu thanh toán hiện tại. Hãy kiểm tra trạng thái đơn trước khi thanh toán lại.",
             );
-          if (
-            VNPAY_UNDER_MAINTENANCE &&
-            intent.method === "VNPAY_QR"
-          )
-            throw new Error(
-              "VNPAY đang bảo trì nên không thể mở lại giao dịch này. Hãy kiểm tra trạng thái đơn trước khi tạo yêu cầu thanh toán khác.",
-            );
           setPaymentMethod(intent.method);
         }
         setExistingOrderReady(true);
@@ -152,6 +147,64 @@ function CheckoutContent() {
       setError(e instanceof Error ? e.message : "Mã không hợp lệ");
     } finally {
       setPromoBusy(false);
+    }
+  };
+
+  const reconcileBeforeMethodChange = async () => {
+    if (
+      reconcileBusy ||
+      !user ||
+      !resumeOrderId ||
+      !existingOrderReady ||
+      paymentMethod !== "VNPAY_QR"
+    )
+      return;
+    setReconcileBusy(true);
+    setError("");
+    try {
+      try {
+        await services.payments.reconcile(resumeOrderId);
+      } catch {
+        // QueryDR có thể tạm lỗi trong khi IPN đã chốt Order. Luôn đọc lại
+        // Order trước khi quyết định có mở phương thức thanh toán khác hay không.
+      }
+      const current = await services.orders.get(resumeOrderId);
+      if (!current || current.userId !== user.id) {
+        setError("Không tìm thấy đơn hàng cần tiếp tục thanh toán.");
+        return;
+      }
+      if (current.status === "PAYMENT_FAILED") {
+        removePaymentIntent(resumeOrderId);
+        router.replace(
+          `/checkout?retryOrder=${encodeURIComponent(resumeOrderId)}`,
+        );
+        return;
+      }
+      if (["PAID", "PREPARING", "READY", "COMPLETED"].includes(current.status)) {
+        router.replace(
+          `/payment/${encodeURIComponent(resumeOrderId)}/success`,
+        );
+        return;
+      }
+      if (current.status === "CANCELLED") {
+        removePaymentIntent(resumeOrderId);
+        router.replace(
+          `/payment/${encodeURIComponent(resumeOrderId)}/failure`,
+        );
+        return;
+      }
+      setExistingOrder(current);
+      setError(
+        "VNPAY chưa xác nhận giao dịch cũ đã kết thúc. Hãy kiểm tra lại sau; BrewLite chưa thể mở phương thức khác để tránh thanh toán trùng.",
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Không thể đối soát giao dịch VNPAY hiện tại.",
+      );
+    } finally {
+      setReconcileBusy(false);
     }
   };
 
@@ -387,6 +440,18 @@ function CheckoutContent() {
                   ? `Gửi Admin duyệt ${money(displayTotal)}`
                   : "VNPAY đang bảo trì"}
             </button>
+            {resumeOrderId && paymentMethod === "VNPAY_QR" && (
+              <button
+                className="btn btn-secondary"
+                style={{ width: "100%", marginTop: 10 }}
+                disabled={busy || reconcileBusy || !existingOrderReady}
+                onClick={reconcileBeforeMethodChange}
+              >
+                {reconcileBusy
+                  ? "Đang đối soát..."
+                  : "Kiểm tra để đổi phương thức"}
+              </button>
+            )}
             <p className="muted" style={{ fontSize: 12 }}>
               Số tiền cuối cùng được xác nhận khi tạo đơn hàng.
             </p>

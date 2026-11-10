@@ -486,7 +486,7 @@ describe('PaymentsService VNPAY flow', () => {
     });
   });
 
-  it('return verifies reference and amount, redirects, and never finalizes', async () => {
+  it('return verifies reference and amount, routes every signed result to verification, and never finalizes', async () => {
     verifyCallback.mockReturnValue({
       valid: true,
       params: {
@@ -515,7 +515,7 @@ describe('PaymentsService VNPAY flow', () => {
       },
     });
     await expect(service.handleReturn({})).resolves.toBe(
-      `https://shop.test/payment/${orderId}/unknown`,
+      `https://shop.test/payment/${orderId}/verifying`,
     );
     expect(conditionalFinalize).not.toHaveBeenCalled();
     expect(applyPaymentResult).not.toHaveBeenCalled();

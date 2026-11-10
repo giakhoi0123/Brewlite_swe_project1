@@ -405,13 +405,8 @@ export class PaymentsService {
       ) {
         return errorRedirect();
       }
-      const stage =
-        params.vnp_ResponseCode === '00' &&
-        params.vnp_TransactionStatus === '00'
-          ? 'verifying'
-          : 'unknown';
       return this.gateway.frontendRedirect(
-        `/payment/${encodeURIComponent(payment.orderId)}/${stage}`,
+        `/payment/${encodeURIComponent(payment.orderId)}/verifying`,
       );
     } catch {
       return errorRedirect();
