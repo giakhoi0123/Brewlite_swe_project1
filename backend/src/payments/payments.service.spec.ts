@@ -40,6 +40,9 @@ function payment(status: Payment['status'] = 'PROCESSING'): Payment {
     vnpCardType: null,
     vnpPayDate: null,
     processedAt: null,
+    reviewedById: null,
+    reviewedAt: null,
+    reviewNote: null,
     createdAt: new Date('2026-10-21T03:00:00.000Z'),
     updatedAt: new Date('2026-10-21T03:00:00.000Z'),
   };
@@ -54,6 +57,10 @@ describe('PaymentsService VNPAY flow', () => {
   const create = jest.fn<PaymentsRepository['create']>();
   const conditionalFinalize =
     jest.fn<PaymentsRepository['conditionalFinalize']>();
+  const findById = jest.fn<PaymentsRepository['findById']>();
+  const listAdminApprovals = jest.fn<PaymentsRepository['listAdminApprovals']>();
+  const conditionalAdminFinalize =
+    jest.fn<PaymentsRepository['conditionalAdminFinalize']>();
   const isUniqueViolation =
     jest.fn<PaymentsRepository['isUniqueViolation']>();
   const transaction = jest.fn<PaymentsRepository['transaction']>();
@@ -63,6 +70,9 @@ describe('PaymentsService VNPAY flow', () => {
     findLatestForOwnedOrder,
     create,
     conditionalFinalize,
+    findById,
+    listAdminApprovals,
+    conditionalAdminFinalize,
     isUniqueViolation,
     transaction,
   } as unknown as PaymentsRepository;
@@ -113,6 +123,7 @@ describe('PaymentsService VNPAY flow', () => {
     create.mockResolvedValue(payment());
     findLatestForOwnedOrder.mockResolvedValue(payment());
     conditionalFinalize.mockResolvedValue({ count: 1 });
+    conditionalAdminFinalize.mockResolvedValue({ count: 1 });
     isUniqueViolation.mockReturnValue(false);
     applyPaymentResult.mockResolvedValue(undefined);
     isExpectedMerchant.mockReturnValue(true);
@@ -166,6 +177,84 @@ describe('PaymentsService VNPAY flow', () => {
       }),
     );
     expect(applyPaymentResult).not.toHaveBeenCalled();
+  });
+
+  it('creates an ADMIN_APPROVAL request without calling the VNPAY gateway', async () => {
+    const adminPayment: Payment = {
+      ...payment(),
+      method: 'ADMIN_APPROVAL',
+      vnpTxnRef: null,
+      paymentUrl: null,
+      expiresAt: null,
+    };
+    create.mockResolvedValue(adminPayment);
+
+    await expect(
+      service.pay(
+        userId,
+        { ...input, method: 'ADMIN_APPROVAL' },
+        '127.0.0.1',
+      ),
+    ).resolves.toEqual({
+      id: paymentId,
+      orderId,
+      method: 'ADMIN_APPROVAL',
+      status: 'PROCESSING',
+      idempotencyKey,
+    });
+    expect(createPaymentUrl).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        orderId,
+        userId,
+        method: 'ADMIN_APPROVAL',
+        amount: 98000,
+      }),
+    );
+  });
+
+  it('lets an admin approve a pending request atomically with the Order', async () => {
+    const adminPayment: Payment = {
+      ...payment(),
+      method: 'ADMIN_APPROVAL',
+      vnpTxnRef: null,
+      paymentUrl: null,
+      expiresAt: null,
+    };
+    const approved: Payment = {
+      ...adminPayment,
+      status: 'PAID',
+      reviewedById: '51a650c7-8597-4a01-a8e2-000000000001',
+      reviewedAt: new Date(),
+      processedAt: new Date(),
+    };
+    findById
+      .mockResolvedValueOnce(adminPayment)
+      .mockResolvedValueOnce(approved);
+
+    await expect(
+      service.reviewAdminApproval(approved.reviewedById!, paymentId, {
+        decision: 'APPROVE',
+      }),
+    ).resolves.toMatchObject({ status: 'PAID', method: 'ADMIN_APPROVAL' });
+    expect(conditionalAdminFinalize).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        id: paymentId,
+        status: 'PAID',
+        reviewedById: approved.reviewedById,
+      }),
+    );
+    expect(applyPaymentResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId,
+        userId,
+        method: 'ADMIN_APPROVAL',
+        status: 'PAID',
+      }),
+      tx,
+    );
   });
 
   it('replays the same PROCESSING payment and URL without signing again', async () => {

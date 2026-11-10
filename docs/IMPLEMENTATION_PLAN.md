@@ -1,5 +1,21 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Phương thức thanh toán chờ Admin quyết định — 2026-11-09
+
+- [x] Giữ nguyên luồng VNPAY và thêm lựa chọn `ADMIN_APPROVAL` tại checkout.
+- [x] Đánh dấu VNPAY “Đang bảo trì”, khóa radio VNPAY và chọn `ADMIN_APPROVAL` mặc định; backend VNPAY được giữ nguyên để không phá dữ liệu/giao dịch lịch sử.
+- [x] Khách bấm thanh toán chỉ tạo Payment `PROCESSING`; không nhận amount/status/outcome từ client và không tự chuyển Order sang `PAID`.
+- [x] Thêm role `ADMIN`, seed qua biến môi trường và trang `/admin/payments` có lọc trạng thái, tự làm mới, ghi chú, nút Thành công/Thất bại.
+- [x] Công khai credential demo dùng chung cho nhóm: `admin@gmail.com` / `Aa@12345`; chỉ dùng cho bài tập, không dùng production.
+- [x] Tách phiên Admin sang cookie `brewlite_admin_session`; khách/Barista giữ `brewlite_session`, cho phép hai vai trò đăng nhập đồng thời trong cùng trình duyệt. Logout Admin chỉ xóa phiên cục bộ, không tăng `sessionVersion` của tài khoản dùng chung.
+- [x] API Admin được bảo vệ bằng JWT + RolesGuard; từ chối bắt buộc lý do; audit người/thời gian/ghi chú xử lý.
+- [x] Payment và Order được chốt atomic, conditional update chống hai Admin xử lý cùng yêu cầu; thất bại đi qua state machine Orders để hoàn tài nguyên.
+- [x] Trang khách chờ kết quả Admin, poll Order/Payment và điều hướng sang thành công hoặc thất bại theo trạng thái backend đáng tin cậy.
+- [x] Prisma generate/validate; backend/frontend production build; backend lint và toàn bộ 334 test không-DB PASS; frontend lint 0 lỗi/2 warning cũ và 31/31 unit PASS.
+- [x] PostgreSQL tạm áp đủ 18 migration và Payment/Orders/Inventory 7 suite, 108/108 PASS; database tạm đã xóa. Compose backend/frontend đã build/recreate và migration mới đã deploy vào DB ứng dụng.
+- [x] Playwright fixture checkout + Admin 3/3 PASS tại 1440/768/390, gồm regression response polling lỗi đến trễ không được ghi đè lượt làm mới thành công.
+- [ ] T08 toàn cục vẫn `IN_PROGRESS` vì VNPAY IPN HTTPS E2E là blocker độc lập, không được luồng Admin thay thế.
+
 ## Cảnh báo nguyên liệu thiếu khi đạt giới hạn mua (Product Detail) — 2026-10-30
 
 - [x] Backend Preview API (`POST /products/preview`): Cung cấp endpoint chỉ đọc, không khóa kho, tính trần số lượng theo công thức (size + toppings) và giỏ hàng hiện tại.
@@ -132,6 +148,8 @@ Bảng kiểm kê trên là trạng thái **trước khi sửa**. Kết quả hi
 | K | Tài liệu, cấu trúc và bàn giao | TV1 | VERIFIED_COMPLETE | `README.md`, `docs/*`, `AGENTS.md` | Tình trạng, test và việc còn lại rõ ràng | Tài liệu cập nhật theo mã/test lượt này | TV4–TV6 cập nhật tiếp khi API có thật |
 
 Quyết định bảo mật: cột `users.session_version` được thêm bằng migration chỉ cộng cột, mặc định 0; JWT mới mang version, `/auth/logout` tăng version trong DB. Token bị sao chép trước logout sẽ nhận 401. Đổi lại, logout trên một thiết bị làm hết hiệu lực mọi phiên của tài khoản. Cookie vẫn HttpOnly/SameSite=Lax, Secure khi production và Origin guard bảo vệ lệnh ghi.
+
+Ngoại lệ có chủ ý cho tài khoản Admin demo dùng chung: `/auth/admin/logout` chỉ xóa `brewlite_admin_session` của trình duyệt hiện tại và không tăng `sessionVersion`, tránh một thành viên đăng xuất làm toàn nhóm bị văng. Reset mật khẩu vẫn tăng version và vô hiệu toàn bộ phiên. Quy tắc này chỉ phù hợp môi trường bài tập; production phải dùng tài khoản Admin riêng cho từng người.
 
 Quyết định Barista: PAID→PREPARING→READY→COMPLETED; chỉ PENDING/PAID/PAYMENT_FAILED được hủy với lý do. PREPARING không được hủy ở UI/mock cho đến khi TV4 thống nhất state machine. `completedAt` trong mock ghi lúc bàn giao để KPI “đã giao hôm nay” có dữ liệu thật; TV4 cần trả trường này trong API.
 

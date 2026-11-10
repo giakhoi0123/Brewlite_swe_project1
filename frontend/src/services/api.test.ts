@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { apiProducts, apiOrders, apiPayments, apiBarista, apiLoyalty } from './api';
+import { apiProducts, apiOrders, apiPayments, apiBarista, apiLoyalty, apiAdminPayments } from './api';
 import { authService } from './auth';
 import { ApiError } from './http';
 import type { CartItem } from '../types/domain';
@@ -138,6 +138,25 @@ test('payments reconciliation is an authenticated POST scoped to the order', asy
   assert.equal(call.init?.body, undefined);
 });
 
+test('Admin payment adapter lists the queue and sends only decision plus note', async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return Response.json([]);
+  };
+  await apiAdminPayments.list('PROCESSING');
+  await apiAdminPayments.review('payment/id', 'REJECT', '  Không hợp lệ  ');
+
+  assert.ok(calls[0].url.endsWith('/admin/payments?status=PROCESSING'));
+  assert.equal(calls[0].init?.cache, 'no-store');
+  assert.ok(calls[1].url.endsWith('/admin/payments/payment%2Fid/review'));
+  assert.equal(calls[1].init?.method, 'PATCH');
+  assert.deepEqual(JSON.parse(String(calls[1].init?.body)), {
+    decision: 'REJECT',
+    note: 'Không hợp lệ',
+  });
+});
+
 test('authService endpoints send correct payload and options', async () => {
   const calls: { url: string; method?: string; body?: unknown }[] = [];
   globalThis.fetch = async (url, init) => {
@@ -152,8 +171,10 @@ test('authService endpoints send correct payload and options', async () => {
   await authService.forgotPassword('user@example.com');
   await authService.resetPassword('tok123', 'newPass123!');
   await authService.changePassword('oldPass123!', 'newPass123!');
+  await authService.adminMe();
+  await authService.adminLogout();
 
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 5);
   assert.ok(calls[0].url.endsWith('/auth/forgot-password'));
   assert.deepEqual(calls[0].body, { email: 'user@example.com' });
 
@@ -162,6 +183,9 @@ test('authService endpoints send correct payload and options', async () => {
 
   assert.ok(calls[2].url.endsWith('/auth/change-password'));
   assert.deepEqual(calls[2].body, { oldPassword: 'oldPass123!', newPassword: 'newPass123!' });
+  assert.ok(calls[3].url.endsWith('/auth/admin/me'));
+  assert.ok(calls[4].url.endsWith('/auth/admin/logout'));
+  assert.equal(calls[4].method, 'POST');
 });
 
 test('apiOrders.cancel sends POST to cancel endpoint with reason', async () => {

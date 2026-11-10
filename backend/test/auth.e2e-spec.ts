@@ -50,6 +50,16 @@ beforeAll(async () => {
       status: UserStatus.ACTIVE,
       sessionVersion: 0,
     },
+    {
+      id: '00000000-0000-0000-0000-000000000003',
+      email: 'admin@example.com',
+      fullName: 'Admin',
+      passwordHash: await bcrypt.hash('Password123', 10),
+      loyaltyPoints: 0,
+      role: Role.ADMIN,
+      status: UserStatus.ACTIVE,
+      sessionVersion: 0,
+    },
   ];
   const prisma: any = {
     user: {
@@ -81,27 +91,31 @@ beforeAll(async () => {
           return user;
         },
       ),
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data?: any }) => {
-        const user = users.find((item) => item.id === where.id);
-        if (!user) throw new Error('User not found');
-        if (data?.sessionVersion?.increment) {
-          user.sessionVersion += data.sessionVersion.increment;
-        } else {
-          user.sessionVersion += 1;
-        }
-        if (data?.passwordHash) {
-          user.passwordHash = data.passwordHash;
-        }
-        return user;
-      }),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data?: any }) => {
+          const user = users.find((item) => item.id === where.id);
+          if (!user) throw new Error('User not found');
+          if (data?.sessionVersion?.increment) {
+            user.sessionVersion += data.sessionVersion.increment;
+          } else {
+            user.sessionVersion += 1;
+          }
+          if (data?.passwordHash) {
+            user.passwordHash = data.passwordHash;
+          }
+          return user;
+        },
+      ),
     },
     passwordResetToken: {
       findFirst: jest.fn(async ({ where }: any) => {
         return (
           resetTokens.find((t) => {
-            if (where.tokenHash && t.tokenHash !== where.tokenHash) return false;
+            if (where.tokenHash && t.tokenHash !== where.tokenHash)
+              return false;
             if (where.usedAt === null && t.usedAt !== null) return false;
-            if (where.expiresAt?.gt && t.expiresAt <= where.expiresAt.gt) return false;
+            if (where.expiresAt?.gt && t.expiresAt <= where.expiresAt.gt)
+              return false;
             return true;
           }) ?? null
         );
@@ -139,9 +153,11 @@ beforeAll(async () => {
 
   const mockMailService = {
     sendMail: jest.fn(),
-    sendPasswordResetEmail: jest.fn(async (email: string, resetLink: string) => {
-      sentMails.push({ to: email, resetLink });
-    }),
+    sendPasswordResetEmail: jest.fn(
+      async (email: string, resetLink: string) => {
+        sentMails.push({ to: email, resetLink });
+      },
+    ),
   };
 
   const module = await Test.createTestingModule({ imports: [AppModule] })
@@ -251,11 +267,75 @@ describe('RBAC authentication', () => {
       .expect(401);
   });
 
+  it('keeps Customer and Admin sessions independent in one cookie jar', async () => {
+    const customerLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'customer@example.com', password: 'Password123' })
+      .expect(201);
+    const adminLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'Password123' })
+      .expect(201);
+
+    const customerCookie = customerLogin.headers['set-cookie'][0];
+    const adminCookie = adminLogin.headers['set-cookie'][0];
+    expect(customerCookie).toContain('brewlite_session=');
+    expect(adminCookie).toContain('brewlite_admin_session=');
+    expect(adminCookie).not.toContain('brewlite_session=');
+    const adminToken = adminCookie.split(';')[0].split('=')[1];
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', `brewlite_session=${adminToken}`)
+      .expect(401);
+    const bothCookies = [customerCookie, adminCookie];
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', bothCookies)
+      .expect(200)
+      .expect((response) =>
+        expect(response.body.user.role).toBe(Role.CUSTOMER),
+      );
+    await request(app.getHttpServer())
+      .get('/api/auth/admin/me')
+      .set('Cookie', bothCookies)
+      .expect(200)
+      .expect((response) => expect(response.body.user.role).toBe(Role.ADMIN));
+
+    const secondAdminLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'Password123' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/api/auth/admin/logout')
+      .set('Cookie', bothCookies)
+      .expect(201)
+      .expect((response) =>
+        expect(response.headers['set-cookie'][0]).toContain(
+          'brewlite_admin_session=;',
+        ),
+      );
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', customerCookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/auth/admin/me')
+      .set('Cookie', secondAdminLogin.headers['set-cookie'])
+      .expect(200);
+  });
+
   it('US-04: JWT issued at login carries userId and role', async () => {
-    const login = await request(app.getHttpServer()).post('/api/auth/login')
-      .send({ email: 'staff@example.com', password: 'Password123' }).expect(201);
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'staff@example.com', password: 'Password123' })
+      .expect(201);
     const token = login.headers['set-cookie'][0].split(';')[0].split('=')[1];
-    expect(jwt.decode(token)).toMatchObject({ userId: users[0].id, role: Role.BARISTA });
+    expect(jwt.decode(token)).toMatchObject({
+      userId: users[0].id,
+      role: Role.BARISTA,
+    });
   });
 
   it('requires valid authentication and current BARISTA role', async () => {
@@ -299,17 +379,31 @@ describe('RBAC authentication', () => {
       {},
       { name: 'A', email: 'invalid', password: 'Password123' },
       { name: 'Valid Name', email: 'person@example.com', password: 'weak' },
-      { name: 'Valid Name', email: 'person@example.com', password: 'Password123', role: 'BARISTA' },
+      {
+        name: 'Valid Name',
+        email: 'person@example.com',
+        password: 'Password123',
+        role: 'BARISTA',
+      },
     ]) {
       const response = await request(app.getHttpServer())
-        .post('/api/auth/register').send(body).expect(400);
+        .post('/api/auth/register')
+        .send(body)
+        .expect(400);
       expect(JSON.stringify(response.body)).not.toContain('passwordHash');
     }
-    await request(app.getHttpServer()).post('/api/auth/login').send({}).expect(400);
-    await request(app.getHttpServer()).post('/api/auth/login')
-      .send({ email: "' OR 1=1 --", password: 'Password123' }).expect(400);
-    await request(app.getHttpServer()).post('/api/auth/login')
-      .send({ email: 'nobody@example.com', password: 'Password123' }).expect(401);
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({})
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: "' OR 1=1 --", password: 'Password123' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'nobody@example.com', password: 'Password123' })
+      .expect(401);
   });
 
   it('rejects tampered and incorrectly signed JWTs', async () => {
@@ -317,14 +411,18 @@ describe('RBAC authentication', () => {
       sub: users[0].id,
       sessionVersion: users[0].sessionVersion,
     });
-    await request(app.getHttpServer()).get('/api/auth/me')
-      .set('Authorization', `Bearer ${valid.slice(0, -2)}xx`).expect(401);
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${valid.slice(0, -2)}xx`)
+      .expect(401);
     const wrongSignature = await jwt.signAsync(
       { sub: users[0].id, sessionVersion: users[0].sessionVersion },
       { secret: 'another-test-secret-long-enough' },
     );
-    await request(app.getHttpServer()).get('/api/auth/me')
-      .set('Authorization', `Bearer ${wrongSignature}`).expect(401);
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${wrongSignature}`)
+      .expect(401);
   });
 
   describe('Password Recovery and Change Password flows', () => {
@@ -402,14 +500,20 @@ describe('RBAC authentication', () => {
       await request(app.getHttpServer())
         .post('/api/auth/change-password')
         .set('Cookie', cookie)
-        .send({ oldPassword: 'WrongOldPassword', newPassword: 'ChangedPassword888' })
+        .send({
+          oldPassword: 'WrongOldPassword',
+          newPassword: 'ChangedPassword888',
+        })
         .expect(400);
 
       // Successful change
       await request(app.getHttpServer())
         .post('/api/auth/change-password')
         .set('Cookie', cookie)
-        .send({ oldPassword: 'NewPassword999', newPassword: 'ChangedPassword888' })
+        .send({
+          oldPassword: 'NewPassword999',
+          newPassword: 'ChangedPassword888',
+        })
         .expect(201);
 
       // Previous session is now invalid because sessionVersion incremented

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { Payment, Prisma } from '@prisma/client';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { ReviewAdminPaymentDto } from './dto/review-admin-payment.dto';
 import {
   PAYMENT_GATEWAY,
   PAYMENT_ORDER_PORT,
@@ -118,6 +119,19 @@ export class PaymentsService {
           order = await this.orders.prepareRetry(order.id, userId, tx);
         }
 
+        if (input.method === 'ADMIN_APPROVAL') {
+          return this.payments.create(tx, {
+            userId,
+            orderId: order.id,
+            amount: order.total,
+            method: input.method,
+            idempotencyKey: input.idempotencyKey,
+          });
+        }
+        if (input.method !== 'VNPAY_QR') {
+          throw new ConflictException('Phương thức thanh toán không được hỗ trợ');
+        }
+
         const vnpTxnRef = randomBytes(16).toString('hex');
         const session = this.gateway.createPaymentUrl({
           txnRef: vnpTxnRef,
@@ -158,6 +172,88 @@ export class PaymentsService {
       }
       throw error;
     }
+  }
+
+  async current(userId: string, orderId: string) {
+    const order = await this.orders.findOwned(orderId, userId);
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+    const payment = await this.payments.findLatestForOwnedOrder(orderId, userId);
+    if (!payment) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán');
+    return this.toResponse(payment);
+  }
+
+  async listAdminApprovals(
+    status?: 'PROCESSING' | 'PAID' | 'PAYMENT_FAILED',
+  ) {
+    const rows = await this.payments.listAdminApprovals(status);
+    return rows.map((payment) => ({
+      id: payment.id,
+      orderId: payment.orderId,
+      amount: payment.amount,
+      method: payment.method,
+      status: payment.status,
+      customer: {
+        name: payment.user.fullName,
+        email: payment.user.email,
+      },
+      orderStatus: payment.order.status,
+      createdAt: payment.createdAt.toISOString(),
+      ...(payment.reviewedAt
+        ? { reviewedAt: payment.reviewedAt.toISOString() }
+        : {}),
+      ...(payment.reviewNote ? { reviewNote: payment.reviewNote } : {}),
+      ...(payment.reviewedBy
+        ? {
+            reviewedBy: {
+              name: payment.reviewedBy.fullName,
+              email: payment.reviewedBy.email,
+            },
+          }
+        : {}),
+    }));
+  }
+
+  async reviewAdminApproval(
+    adminId: string,
+    paymentId: string,
+    input: ReviewAdminPaymentDto,
+  ) {
+    const targetStatus: PaymentFinalStatus =
+      input.decision === 'APPROVE' ? 'PAID' : 'PAYMENT_FAILED';
+    const payment = await this.payments.transaction(async (tx) => {
+      const current = await this.payments.findById(paymentId, tx);
+      if (!current || current.method !== 'ADMIN_APPROVAL') {
+        throw new NotFoundException('Không tìm thấy yêu cầu thanh toán Admin');
+      }
+      if (current.status !== 'PROCESSING') {
+        throw new ConflictException('Yêu cầu thanh toán đã được xử lý');
+      }
+
+      const finalized = await this.payments.conditionalAdminFinalize(tx, {
+        id: current.id,
+        status: targetStatus,
+        reviewedById: adminId,
+        reviewNote: input.note?.trim() || undefined,
+        processedAt: new Date(),
+      });
+      if (finalized.count !== 1) {
+        throw new ConflictException('Yêu cầu thanh toán vừa được xử lý');
+      }
+
+      await this.orders.applyPaymentResult(
+        {
+          orderId: current.orderId,
+          userId: current.userId,
+          method: current.method,
+          status: targetStatus,
+        },
+        tx,
+      );
+      const updated = await this.payments.findById(current.id, tx);
+      if (!updated) throw new NotFoundException('Không tìm thấy giao dịch');
+      return updated;
+    });
+    return this.toResponse(payment);
   }
 
   async handleIpn(query: VnpayQuery): Promise<VnpayIpnResponse> {
@@ -216,6 +312,9 @@ export class PaymentsService {
       orderId,
       userId,
     );
+    if (payment?.method === 'ADMIN_APPROVAL') {
+      return this.toResponse(payment);
+    }
     if (!payment || payment.method !== 'VNPAY_QR') {
       throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y giao dá»‹ch VNPAY');
     }
@@ -400,6 +499,10 @@ export class PaymentsService {
       ...(payment.expiresAt
         ? { expiresAt: payment.expiresAt.toISOString() }
         : {}),
+      ...(payment.reviewedAt
+        ? { reviewedAt: payment.reviewedAt.toISOString() }
+        : {}),
+      ...(payment.reviewNote ? { reviewNote: payment.reviewNote } : {}),
     };
   }
 }

@@ -5,6 +5,7 @@ import {
   apiPromotions,
   apiLoyalty,
   apiBarista,
+  apiAdminPayments,
 } from "./api";
 import {
   mockProducts,
@@ -33,4 +34,5 @@ export const services = {
   promotions: allApi ? apiPromotions : mockPromotions,
   loyalty: allApi ? apiLoyalty : mockLoyalty,
   barista: allApi ? apiBarista : mockBarista,
+  adminPayments: apiAdminPayments,
 };

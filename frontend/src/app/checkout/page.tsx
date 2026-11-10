@@ -7,12 +7,14 @@ import { useAuth } from "@/components/auth-provider";
 import { OrderSummary } from "@/components/order-summary";
 import { Empty, Loading, ProductImage } from "@/components/ui";
 import { cartTotal, money } from "@/types/domain";
-import type { Order, Promotion } from "@/types/domain";
-import { services } from "@/services";
+import type { Order, PaymentMethod, Promotion } from "@/types/domain";
+import { dataMode, services } from "@/services";
 import {
   preparePaymentIntent,
   readPaymentIntent,
 } from "@/services/payment-intent";
+
+const VNPAY_UNDER_MAINTENANCE = true;
 
 function CheckoutContent() {
   const router = useRouter(),
@@ -27,6 +29,8 @@ function CheckoutContent() {
     [promotion, setPromotion] = useState<Promotion | null>(null),
     [promoBusy, setPromoBusy] = useState(false),
     [busy, setBusy] = useState(false),
+    [paymentMethod, setPaymentMethod] =
+      useState<PaymentMethod>("ADMIN_APPROVAL"),
     [existingOrderLoading, setExistingOrderLoading] = useState(
       Boolean(existingOrderId),
     ),
@@ -88,10 +92,19 @@ function CheckoutContent() {
         if (resumeOrderId && order.status !== "PENDING")
           throw new Error("Đơn hàng không còn ở trạng thái chờ thanh toán.");
         if (resumeOrderId) {
-          if (!readPaymentIntent(order.id))
+          const intent = readPaymentIntent(order.id);
+          if (!intent)
             throw new Error(
-              "Không tìm thấy phiên VNPAY hiện tại. Hãy kiểm tra trạng thái đơn trước khi thanh toán lại.",
+              "Không tìm thấy yêu cầu thanh toán hiện tại. Hãy kiểm tra trạng thái đơn trước khi thanh toán lại.",
             );
+          if (
+            VNPAY_UNDER_MAINTENANCE &&
+            intent.method === "VNPAY_QR"
+          )
+            throw new Error(
+              "VNPAY đang bảo trì nên không thể mở lại giao dịch này. Hãy kiểm tra trạng thái đơn trước khi tạo yêu cầu thanh toán khác.",
+            );
+          setPaymentMethod(intent.method);
         }
         setExistingOrderReady(true);
       })
@@ -144,6 +157,12 @@ function CheckoutContent() {
 
   const submit = async () => {
     if (!user || !displayItems.length || submitting.current) return;
+    if (VNPAY_UNDER_MAINTENANCE && paymentMethod === "VNPAY_QR") {
+      setError(
+        "VNPAY đang bảo trì. Vui lòng chọn Thanh toán qua Admin.",
+      );
+      return;
+    }
     if (existingOrderId && (!existingOrder || !existingOrderReady)) {
       setError("Không thể tiếp tục khi chưa tải được đơn hàng cũ.");
       return;
@@ -159,9 +178,15 @@ function CheckoutContent() {
           items,
           promotion || undefined,
         ));
-      if (!preparePaymentIntent(order.id, Boolean(resumeOrderId)))
+      if (
+        !preparePaymentIntent(
+          order.id,
+          Boolean(resumeOrderId),
+          paymentMethod === "ADMIN_APPROVAL" ? "ADMIN_APPROVAL" : "VNPAY_QR",
+        )
+      )
         throw new Error(
-          "Phiên VNPAY hiện tại không còn khả dụng. Hãy kiểm tra trạng thái đơn.",
+          "Yêu cầu thanh toán hiện tại không còn khả dụng. Hãy kiểm tra trạng thái đơn.",
         );
       router.push(`/payment/${encodeURIComponent(order.id)}/processing`);
     } catch (e) {
@@ -208,7 +233,7 @@ function CheckoutContent() {
                 </strong>
                 <p className="muted" style={{ fontSize: 12 }}>
                   {resumeOrderId
-                    ? "Hệ thống giữ nguyên giao dịch đang chờ và sẽ mở lại trang chọn phương thức VNPAY."
+                    ? "Hệ thống giữ nguyên yêu cầu thanh toán đang chờ; bạn không cần tạo đơn mới."
                     : "Bạn đang dùng lại đơn hàng cũ; hệ thống sẽ không tạo thêm đơn mới."}
                 </p>
               </section>
@@ -270,34 +295,65 @@ function CheckoutContent() {
             )}
             <section className="card panel">
               <h2>Phương thức thanh toán trực tuyến</h2>
-              <label className="vnpay-option selected">
+              <label className="vnpay-option maintenance">
                 <input
                   type="radio"
                   name="payment-method"
                   value="VNPAY_QR"
-                  checked
-                  readOnly
+                  checked={paymentMethod === "VNPAY_QR"}
+                  disabled
+                  onChange={() => setPaymentMethod("VNPAY_QR")}
                 />
                 <span className="vnpay-option-body">
                   <span className="vnpay-option-heading">
                     <strong>VNPAY-QR</strong>
-                    <span className="vnpay-selected-badge">Đã chọn</span>
+                    <span className="vnpay-maintenance-badge">
+                      Đang bảo trì
+                    </span>
                   </span>
                   <span className="vnpay-option-copy">
-                    Chọn QR hoặc phương thức TEST được terminal hỗ trợ trên cổng
-                    VNPAY để hoàn tất thanh toán.
+                    Cổng VNPAY Sandbox hiện tạm ngưng hoạt động. Vui lòng sử
+                    dụng phương thức Thanh toán qua Admin.
                   </span>
                   <span className="vnpay-option-meta">
-                    VNPAY · Ngân hàng nội địa · Thanh toán mã hóa
+                    Tạm ngưng tiếp nhận giao dịch
                   </span>
+                </span>
+              </label>
+              <label className={`vnpay-option ${paymentMethod === "ADMIN_APPROVAL" ? "selected" : ""}`}>
+                <input
+                  type="radio"
+                  name="payment-method"
+                  value="ADMIN_APPROVAL"
+                  checked={paymentMethod === "ADMIN_APPROVAL"}
+                  disabled={Boolean(resumeOrderId) || dataMode !== "api"}
+                  onChange={() => setPaymentMethod("ADMIN_APPROVAL")}
+                />
+                <span className="vnpay-option-body">
+                  <span className="vnpay-option-heading">
+                    <strong>Thanh toán qua Admin</strong>
+                    {paymentMethod === "ADMIN_APPROVAL" && (
+                      <span className="vnpay-selected-badge">Đã chọn</span>
+                    )}
+                  </span>
+                  <span className="vnpay-option-copy">
+                    Gửi yêu cầu thanh toán đến quản trị viên. Đơn chỉ được xác
+                    nhận sau khi Admin chọn Thành công.
+                  </span>
+                  <span className="vnpay-option-meta">
+                    Duyệt thủ công · Có kết quả thành công hoặc thất bại
+                  </span>
+                  {dataMode !== "api" && (
+                    <span className="muted">Chỉ khả dụng ở chế độ API.</span>
+                  )}
                 </span>
               </label>
               <div className="vnpay-secure-note">
                 <span aria-hidden="true">🔒</span>
                 <span>
-                  Bạn sẽ được chuyển tới trang thanh toán VNPAY bảo mật. BrewLite
-                  không lưu thông tin tài khoản ngân hàng. QR Sandbox không dùng
-                  để trừ tiền từ ứng dụng ngân hàng thật.
+                  {paymentMethod === "VNPAY_QR"
+                    ? "VNPAY đang bảo trì và không tiếp nhận giao dịch mới."
+                    : "BrewLite chỉ gửi một yêu cầu tới trang quản trị; không tự động đánh dấu đơn đã thanh toán."}
                 </span>
               </div>
             </section>
@@ -315,6 +371,8 @@ function CheckoutContent() {
               style={{ width: "100%", marginTop: 20 }}
               disabled={
                 busy ||
+                (VNPAY_UNDER_MAINTENANCE &&
+                  paymentMethod === "VNPAY_QR") ||
                 Boolean(existingOrderId && !existingOrderReady)
               }
               onClick={submit}
@@ -322,10 +380,12 @@ function CheckoutContent() {
               {busy
                 ? existingOrder
                   ? resumeOrderId
-                    ? "Đang mở lại VNPAY..."
-                    : "Đang khởi tạo lại VNPAY..."
-                  : "Đang khởi tạo VNPAY..."
-                : `Thanh toán qua VNPAY ${money(displayTotal)}`}
+                    ? "Đang mở lại yêu cầu..."
+                    : "Đang tạo lại yêu cầu..."
+                  : "Đang gửi yêu cầu thanh toán..."
+                : paymentMethod === "ADMIN_APPROVAL"
+                  ? `Gửi Admin duyệt ${money(displayTotal)}`
+                  : "VNPAY đang bảo trì"}
             </button>
             <p className="muted" style={{ fontSize: 12 }}>
               Số tiền cuối cùng được xác nhận khi tạo đơn hàng.

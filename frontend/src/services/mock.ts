@@ -203,6 +203,14 @@ export const mockPayments: PaymentService = {
     if (!payment) throw new Error("Không tìm thấy giao dịch VNPAY");
     return payment;
   },
+  async get(orderId) {
+    await pause();
+    const payment = read<Payment[]>(PAYMENTS, [])
+      .filter((item) => item.orderId === orderId)
+      .at(-1);
+    if (!payment) throw new Error("Không tìm thấy giao dịch");
+    return payment;
+  },
 };
 
 export const mockPromotions: PromotionService = {

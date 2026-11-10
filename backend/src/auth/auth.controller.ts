@@ -8,9 +8,13 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { AdminJwtAuthGuard } from './admin-jwt-auth.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { Roles } from './roles.decorator';
+import { RolesGuard } from './roles.guard';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -24,6 +28,19 @@ const cookieOptions = () => ({
   path: '/api',
 });
 
+const CUSTOMER_SESSION_COOKIE = 'brewlite_session';
+const ADMIN_SESSION_COOKIE = 'brewlite_admin_session';
+
+type AuthenticatedRequest = Request & {
+  user: {
+    userId: string;
+    email: string;
+    name: string;
+    loyaltyPoints: number;
+    role: string;
+  };
+};
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -35,7 +52,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.auth.register(input);
-    response.cookie('brewlite_session', result.accessToken, {
+    response.cookie(CUSTOMER_SESSION_COOKIE, result.accessToken, {
       ...cookieOptions(),
       maxAge: 86400000,
     });
@@ -49,7 +66,11 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.auth.login(input);
-    response.cookie('brewlite_session', result.accessToken, {
+    const cookieName =
+      result.user.role === Role.ADMIN
+        ? ADMIN_SESSION_COOKIE
+        : CUSTOMER_SESSION_COOKIE;
+    response.cookie(cookieName, result.accessToken, {
       ...cookieOptions(),
       maxAge: 86400000,
     });
@@ -84,16 +105,17 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(
     @Req()
-    request: Request & {
-      user: {
-        userId: string;
-        email: string;
-        name: string;
-        loyaltyPoints: number;
-        role: string;
-      };
-    },
+    request: AuthenticatedRequest,
   ) {
+    const { userId, email, name, loyaltyPoints, role } = request.user;
+    return { user: { id: userId, email, name, loyaltyPoints, role } };
+  }
+
+  @Get('admin/me')
+  @Header('Cache-Control', 'no-store')
+  @UseGuards(AdminJwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  adminMe(@Req() request: AuthenticatedRequest) {
     const { userId, email, name, loyaltyPoints, role } = request.user;
     return { user: { id: userId, email, name, loyaltyPoints, role } };
   }
@@ -106,7 +128,17 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     await this.auth.logout(request.user.userId);
-    response.clearCookie('brewlite_session', cookieOptions());
+    response.clearCookie(CUSTOMER_SESSION_COOKIE, cookieOptions());
     return { message: 'Đã đăng xuất' };
+  }
+
+  @Post('admin/logout')
+  @Header('Cache-Control', 'no-store')
+  @UseGuards(AdminJwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  adminLogout(@Res({ passthrough: true }) response: Response) {
+    // The shared demo Admin account must not invalidate other members' sessions.
+    response.clearCookie(ADMIN_SESSION_COOKIE, cookieOptions());
+    return { message: 'Đã đăng xuất quản trị' };
   }
 }

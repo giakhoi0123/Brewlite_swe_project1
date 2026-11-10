@@ -24,8 +24,35 @@ async function provisionBarista() {
   console.log('Đã tạo tài khoản Barista');
 }
 
+async function provisionAdmin() {
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email && !password) return;
+  if (process.env.NODE_ENV === 'production')
+    throw new Error('Không chạy seed quản trị viên trong production');
+  if (!email || !password || password.length < 8)
+    throw new Error('Cần ADMIN_EMAIL và ADMIN_PASSWORD (ít nhất 8 ký tự)');
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    if (existing.role !== Role.ADMIN)
+      throw new Error('Email đã thuộc về tài khoản không phải Admin');
+    console.log('Tài khoản Admin đã tồn tại');
+    return;
+  }
+  await prisma.user.create({
+    data: {
+      email,
+      fullName: process.env.ADMIN_NAME?.trim() || 'Quản trị viên thanh toán',
+      passwordHash: await bcrypt.hash(password, 10),
+      role: Role.ADMIN,
+    },
+  });
+  console.log('Đã tạo tài khoản Admin');
+}
+
 async function main() {
   await provisionBarista();
+  await provisionAdmin();
   // Insert only: re-running seed must not restock products or overwrite edited prices.
   await prisma.product.createMany({ data: sampleProducts, skipDuplicates: true });
   await seedProductCustomization(prisma);

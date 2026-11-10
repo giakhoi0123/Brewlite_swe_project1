@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UserStatus } from '@prisma/client';
+import { Role, UserStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -38,6 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
     if (
       !user ||
+      user.role === Role.ADMIN ||
       user.status !== UserStatus.ACTIVE ||
       (payload.sessionVersion ?? 0) !== user.sessionVersion
     )

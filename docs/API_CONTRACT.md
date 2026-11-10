@@ -1,5 +1,24 @@
 # Hợp đồng API BrewLite
 
+## Thanh toán do Admin quyết định — 2026-11-09
+
+Phương thức `ADMIN_APPROVAL` chạy song song và không thay đổi VNPAY. Đây là luồng yêu cầu nội bộ: khách bấm thanh toán chỉ tạo Payment `PROCESSING`; không có chuyển khoản, cổng tiền hoặc kết quả do client truyền lên. Chỉ tài khoản role `ADMIN` mới được quyết định Thành công/Thất bại. Quyết định cập nhật Payment và Order qua `PAYMENT_ORDER_PORT` trong cùng transaction; Thành công chuyển sang `PAID`, Thất bại chuyển sang `PAYMENT_FAILED` và dùng logic Orders hiện hữu để hoàn kho/giải phóng voucher. Một Payment chỉ được xử lý một lần bằng conditional update.
+
+Trạng thái vận hành hiện tại: frontend khóa lựa chọn `VNPAY_QR` và hiển thị “Đang bảo trì”; `ADMIN_APPROVAL` được chọn mặc định. API/schema VNPAY không bị xóa để giữ tương thích dữ liệu lịch sử và có thể mở lại sau này. Client hiện tại không được tạo giao dịch VNPAY mới từ UI.
+
+| Endpoint | Quyền | Input | Kết quả |
+|---|---|---|---|
+| POST `/payments` | CUSTOMER | `{orderId,method:"ADMIN_APPROVAL",idempotencyKey}` hoặc header key | `201 Payment` trạng thái `PROCESSING`, không có `paymentUrl` |
+| GET `/payments/order/:orderId` | CUSTOMER, owner | UUID order | Payment mới nhất để màn chờ khôi phục sau reload |
+| GET `/admin/payments?status=PROCESSING\|PAID\|PAYMENT_FAILED` | ADMIN | status tùy chọn | Danh sách yêu cầu Admin kèm khách, đơn, số tiền và audit xử lý |
+| PATCH `/admin/payments/:paymentId/review` | ADMIN | `{decision:"APPROVE"}` hoặc `{decision:"REJECT",note:"..."}` | Payment đã chốt; `note` 1–500 ký tự bắt buộc khi từ chối |
+| GET `/auth/admin/me` | ADMIN | Cookie `brewlite_admin_session` | `{user}` của Admin hiện tại; `401` nếu thiếu/hết hạn |
+| POST `/auth/admin/logout` | ADMIN | Cookie `brewlite_admin_session` + Origin hợp lệ | Xóa cookie Admin cục bộ; không tăng `sessionVersion` |
+
+Role `ADMIN`, method `ADMIN_APPROVAL` và audit `reviewedById/reviewedAt/reviewNote` được thêm bởi migration `20261109000000_admin_approval_payments`. Đăng ký công khai vẫn luôn tạo `CUSTOMER`; Admin chỉ được provision qua seed bằng biến `ADMIN_EMAIL`/`ADMIN_PASSWORD` ngoài production.
+
+Login dùng chung `POST /auth/login` nhưng chọn cookie theo role: CUSTOMER/BARISTA nhận `brewlite_session`, ADMIN nhận `brewlite_admin_session`. Hai cookie có thể cùng tồn tại trong một browser context; API khách không đọc cookie Admin và API Admin không đọc cookie khách. Logout Admin là cục bộ vì tài khoản demo được chia sẻ cho nhóm; production phải provision tài khoản quản trị riêng thay vì giữ chính sách này.
+
 ## Endpoint Xem trước Giới hạn & Cảnh báo Nguyên liệu (`POST /products/preview`) — 2026-10-30
 
 Cung cấp API preview chỉ đọc (read-only), không giữ hoặc trừ kho, hỗ trợ Frontend kiểm tra giới hạn mua và cảnh báo nguyên liệu thiếu theo thời gian thực trên trang chi tiết sản phẩm (`products/[id]`):
@@ -121,7 +140,7 @@ QR hiển thị trong Sandbox có thể báo “QR không tồn tại” khi đ�
 
 | Endpoint | Auth | Input | Output / hành vi |
 |---|---|---|---|
-| POST `/payments` | CUSTOMER | `{orderId,method:"VNPAY_QR",idempotencyKey?}` và/hoặc header `Idempotency-Key`; bắt buộc có UUID ở ít nhất một nguồn, hai nguồn phải khớp | `201 Payment` trạng thái `PROCESSING`, có `paymentUrl,expiresAt`; amount/user lấy từ Order |
+| POST `/payments` | CUSTOMER | `{orderId,method:"VNPAY_QR"\|"ADMIN_APPROVAL",idempotencyKey?}` và/hoặc header `Idempotency-Key`; bắt buộc có UUID ở ít nhất một nguồn, hai nguồn phải khớp | `201 Payment` trạng thái `PROCESSING`; VNPAY có `paymentUrl,expiresAt`, Admin approval không có URL; amount/user lấy từ Order |
 | POST `/payments/:orderId/reconcile` | CUSTOMER, owner của Order | UUID `orderId`; không có body | `200 Payment`; trả trạng thái hiện có hoặc gọi QueryDR để đối soát Payment `PROCESSING` |
 | GET `/payments/vnpay/ipn` | Public, chữ ký VNPAY | Query `vnp_*` | HTTP 200 JSON `{RspCode,Message}`; nguồn chốt Payment/Order chính |
 | GET `/payments/vnpay/return` | Public, chữ ký VNPAY | Query `vnp_*` | Không cập nhật dữ liệu; chữ ký/reference/amount hợp lệ và mã thành công chuyển tới `/payment/:orderId/verifying`, mã không thành công tới `/payment/:orderId/unknown`, callback không hợp lệ tới `/payment/error` |
@@ -152,7 +171,7 @@ Phạm vi này chỉ sửa trạng thái và ownership. Replay vào trạng thá
 
 Cập nhật kiểm chứng TV4 2026-10-15: Orders đã qua test HTTP + PostgreSQL thật (POST 201/PENDING, size L+topping 45.000đ, JWT cookie/Origin, history và inventory). Quan hệ Prisma nội bộ là `Order.statusHistory`; sửa service từ `history` sang `statusHistory` không thay đổi JSON API và không cần migration mới. Các ghi chú chưa kiểm chứng PostgreSQL ở mốc cũ bên dưới được thay thế bằng kết quả trong `TESTING.md`.
 
-Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie `brewlite_session` HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory và migration Auth đã có bằng chứng PostgreSQL trước đó. Payments đã nối Orders trong mã; test PostgreSQL Payment mới còn chờ URL DB test.
+Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie khách/Barista `brewlite_session` và cookie Admin `brewlite_admin_session` đều HttpOnly, SameSite=Lax; request từ browser phải dùng `credentials: include`. Lệnh ghi có cookie cần Origin đúng `FRONTEND_ORIGIN` (browser tự gửi Origin; không có CSRF token riêng). Lỗi NestJS: `{statusCode, message, error}`; `message` có thể là chuỗi hoặc mảng. Orders/Inventory, Auth và Payments đã có bằng chứng PostgreSQL; bộ Payment gần nhất PASS 108/108 trên database tạm đủ 18 migration rồi đã xóa database đó.
 
 ## Endpoint chính thức
 
@@ -163,7 +182,7 @@ Base URL: `http://localhost:3001/api`. JSON; tiền là số nguyên VND. Cookie
 | TV1 | POST `/auth/register` | Không | `{name,email,password}` | `{user}` và cookie | 400, 409 | Đăng ký | Backend + PostgreSQL HTTP đã xác minh |
 | TV1 | POST `/auth/login` | Không | `{email,password}` | `{user}` và cookie | 400, 401 | Đăng nhập | Backend + PostgreSQL HTTP đã xác minh |
 | TV4 | POST `/orders` | CUSTOMER | `{items:[{productId,size,toppingIds,quantity,ice,sugar,note?}],promotionCode?}` (`note` ≤ 120 ký tự, ghi chú cho Barista) | `Order` PENDING | 400, 401, 403, 409, 422 | Checkout | Backend + PostgreSQL tests sau merge qua; browser API E2E chưa chạy |
-| TV5 | POST `/payments` | CUSTOMER | `{orderId,method:"VNPAY_QR",idempotencyKey?}` và/hoặc `Idempotency-Key` header | `Payment` PROCESSING + `paymentUrl,expiresAt` | 400, 401, 404, 409, 503 | Khởi tạo VNPAY-QR | Không nhận amount/status/demoOutcome từ client; header/body key không khớp trả 400 |
+| TV5 | POST `/payments` | CUSTOMER | `{orderId,method:"VNPAY_QR"\|"ADMIN_APPROVAL",idempotencyKey?}` và/hoặc `Idempotency-Key` header | `Payment` PROCESSING; URL chỉ có với VNPAY | 400, 401, 404, 409, 503 | Khởi tạo VNPAY hoặc yêu cầu Admin | Không nhận amount/status/demoOutcome từ client; header/body key không khớp trả 400 |
 | TV5 | POST `/payments/:orderId/reconcile` | CUSTOMER | UUID path, không body | Payment mới nhất; QueryDR có thể finalize `PAID`/`PAYMENT_FAILED` | 400, 401, 403, 404, 503 | Verifying / kiểm tra trạng thái | Kiểm tra ownership và response VNPAY có chữ ký; fallback khi IPN trễ/mất |
 | TV4+TV6 | GET `/orders/me` | CUSTOMER | Không | `Order[]` | 401, 403, 500 | Đơn của tôi | Backend; chỉ đơn của người đăng nhập, mới nhất trước |
 
@@ -195,7 +214,7 @@ Mọi route cần đăng nhập (cookie hoặc Bearer); 401 nếu chưa đăng n
 ### Ví dụ Orders và Payments
 `POST /orders` body `{"items":[{"productId":"uuid","size":"M","toppingIds":[],"quantity":2,"ice":"70% đá","sugar":"50% ít ngọt"}]}` → `201 {"id":"uuid","userId":"uuid","items":[...],"subtotal":98000,"discount":0,"total":98000,"status":"PENDING","createdAt":"2026-10-14T00:00:00Z"}`. `POST /payments` body `{"orderId":"uuid","method":"VNPAY_QR","idempotencyKey":"uuid"}` → `201 {"id":"uuid","orderId":"uuid","method":"VNPAY_QR","status":"PROCESSING","idempotencyKey":"uuid","paymentUrl":"https://...","expiresAt":"..."}`. `GET /orders/me` → mảng Order cùng cấu trúc. Backend phải tính giá lại, kiểm tra tồn kho và sở hữu đơn.
 
-Order đã thanh toán trả thêm `paymentMethod:"WALLET"|"CARD"|"VNPAY_QR"`, lấy từ Payment `PAID` mới nhất của order. Màn kết quả phải dùng trường này để hiển thị đúng phương thức kể cả sau khi tải lại trang; không suy đoán từ query Return hoặc payment intent đã xóa.
+Order đã thanh toán trả thêm `paymentMethod:"WALLET"|"CARD"|"VNPAY_QR"|"ADMIN_APPROVAL"`, lấy từ Payment `PAID` mới nhất của order. Màn kết quả phải dùng trường này để hiển thị đúng phương thức kể cả sau khi tải lại trang; không suy đoán từ query Return hoặc payment intent đã xóa.
 
 ### Quy ước Payment đã chốt
 - `idempotencyKey` là UUID và duy nhất theo user. Cùng user + key + order + method trả lại Payment/URL đã lưu, không tạo VNPAY transaction lần hai.
@@ -211,6 +230,8 @@ Order đã thanh toán trả thêm `paymentMethod:"WALLET"|"CARD"|"VNPAY_QR"`, l
 ## Endpoint bổ sung đề xuất, chưa thuộc 7 endpoint chính thức
 - GET `/auth/me`: TV1, JWT bắt buộc, trả `{user}`; 401 khi hết hạn. Đã triển khai.
 - POST `/auth/logout`: TV1, cần JWT hợp lệ; tăng `users.session_version` rồi xóa cookie. JWT cũ trả 401 ngay sau đó. Đã kiểm tra với PostgreSQL QA.
+- GET `/auth/admin/me`: ADMIN, chỉ đọc `brewlite_admin_session`, trả `{user}`; không dùng cookie khách.
+- POST `/auth/admin/logout`: ADMIN, xóa `brewlite_admin_session` cục bộ, không tăng `sessionVersion` để không vô hiệu phiên của các thành viên khác dùng tài khoản demo chung.
 - GET `/orders/:id`: TV4, CUSTOMER, trả `Order` cùng cấu trúc POST; 404 nếu không tồn tại hoặc không thuộc người đăng nhập, 400 nếu UUID sai. Đã có backend.
 - GET `/orders/:id/status`: TV4, cùng auth/ownership; trả JSON `{ "status": "PENDING" }`. REST adapter unwrap thành `OrderStatus` theo interface frontend. Đã có backend.
 - POST `/promotions/validate`: TV6, `{code,subtotal}` → `{code,discount}`.
@@ -249,7 +270,7 @@ Hủy lưu reason, tăng version, chuyển trạng thái, hoàn kho nếu còn g
 
 Danh sách hiện chưa phân trang; dùng cho quy mô demo hiện tại, UI lọc PAID cho hàng chờ và COMPLETED/CANCELLED cho lịch sử. TV1 cần bật các nhánh API mode đang ẩn history/KPI/nút hủy trong `barista-board.tsx`, sau đó chạy browser E2E; backend hoàn tất không tự bật các nhánh giao diện này.
 
-Auth response register/login/me/logout đặt `Cache-Control: no-store`. Cookie `brewlite_session` được ký JWT với `sessionVersion`; phiên cũ 401 sau logout. Migration `20261016000000_session_version` chỉ thêm cột mặc định 0, không xóa dữ liệu.
+Auth response register/login/me/logout và admin/me/admin/logout đặt `Cache-Control: no-store`. Cookie `brewlite_session` và `brewlite_admin_session` đều là JWT HttpOnly có `sessionVersion`. Logout khách/Barista tăng version nên phiên cũ 401; logout Admin demo chỉ xóa cookie cục bộ. Migration `20261016000000_session_version` chỉ thêm cột mặc định 0, không xóa dữ liệu.
 ## Orders/Inventory TV4 — contract triển khai 2026-10-15
 
 - `items` bắt buộc có 1–100 dòng; `productId` UUID; `size` S/M/L; `toppingIds` mảng UUID không trùng, tối đa 30; `quantity` số nguyên 1–99; `ice`/`sugar` chuỗi 1–40 ký tự; `note` tùy chọn tối đa 120; `promotionCode` tùy chọn 1–64 ký tự và không chỉ có khoảng trắng. Các field lạ như `price`, `unitPrice`, `total`, `userId`, `discount` bị từ chối 400. Tồn kho là theo Product, không theo size/topping.

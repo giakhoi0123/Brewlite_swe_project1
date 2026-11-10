@@ -3,8 +3,10 @@ import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Role } from '@prisma/client';
 import request from 'supertest';
+import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
+  AdminPaymentsController,
   normalizeVnpayIp,
   PaymentsController,
 } from './payments.controller';
@@ -14,6 +16,9 @@ describe('Payments HTTP contract', () => {
   let app: INestApplication;
   const pay = jest.fn<PaymentsService['pay']>();
   const reconcile = jest.fn<PaymentsService['reconcile']>();
+  const current = jest.fn<PaymentsService['current']>();
+  const listAdminApprovals = jest.fn<PaymentsService['listAdminApprovals']>();
+  const reviewAdminApproval = jest.fn<PaymentsService['reviewAdminApproval']>();
   const handleIpn = jest.fn<PaymentsService['handleIpn']>();
   const handleReturn = jest.fn<PaymentsService['handleReturn']>();
   const orderId = '21a650c7-8597-4a01-a8e2-000000000001';
@@ -30,29 +35,40 @@ describe('Payments HTTP contract', () => {
   };
 
   beforeAll(async () => {
+    const authenticationGuard = {
+      canActivate: (context: {
+        switchToHttp(): {
+          getRequest(): { user?: { userId: string; role: Role } };
+        };
+      }) => {
+        context.switchToHttp().getRequest().user = {
+          userId: 'customer-1',
+          role,
+        };
+        return true;
+      },
+    };
     const module = await Test.createTestingModule({
-      controllers: [PaymentsController],
+      controllers: [PaymentsController, AdminPaymentsController],
       providers: [
         {
           provide: PaymentsService,
-          useValue: { pay, reconcile, handleIpn, handleReturn },
+          useValue: {
+            pay,
+            reconcile,
+            current,
+            listAdminApprovals,
+            reviewAdminApproval,
+            handleIpn,
+            handleReturn,
+          },
         },
       ],
     })
       .overrideGuard(JwtAuthGuard)
-      .useValue({
-        canActivate: (context: {
-          switchToHttp(): {
-            getRequest(): { user?: { userId: string; role: Role } };
-          };
-        }) => {
-          context.switchToHttp().getRequest().user = {
-            userId: 'customer-1',
-            role,
-          };
-          return true;
-        },
-      })
+      .useValue(authenticationGuard)
+      .overrideGuard(AdminJwtAuthGuard)
+      .useValue(authenticationGuard)
       .compile();
 
     app = module.createNestApplication({ logger: false });
@@ -68,6 +84,9 @@ describe('Payments HTTP contract', () => {
     role = Role.CUSTOMER;
     pay.mockResolvedValue(response);
     reconcile.mockResolvedValue(response);
+    current.mockResolvedValue(response);
+    listAdminApprovals.mockResolvedValue([]);
+    reviewAdminApproval.mockResolvedValue(response);
     handleIpn.mockResolvedValue({
       RspCode: '00',
       Message: 'Confirm Success',
@@ -89,6 +108,18 @@ describe('Payments HTTP contract', () => {
     expect(pay).toHaveBeenCalledWith(
       'customer-1',
       { orderId, method: 'VNPAY_QR', idempotencyKey },
+      expect.any(String),
+    );
+  });
+
+  it('accepts an authenticated ADMIN_APPROVAL request without client outcome', async () => {
+    await request(app.getHttpServer())
+      .post('/api/payments')
+      .send({ orderId, method: 'ADMIN_APPROVAL', idempotencyKey })
+      .expect(201);
+    expect(pay).toHaveBeenCalledWith(
+      'customer-1',
+      { orderId, method: 'ADMIN_APPROVAL', idempotencyKey },
       expect.any(String),
     );
   });
@@ -127,6 +158,38 @@ describe('Payments HTTP contract', () => {
     await request(app.getHttpServer())
       .post(`/api/payments/${orderId}/reconcile`)
       .expect(403);
+  });
+
+  it('restricts the admin queue and decisions to ADMIN accounts', async () => {
+    await request(app.getHttpServer()).get('/api/admin/payments').expect(403);
+
+    role = Role.ADMIN;
+    await request(app.getHttpServer())
+      .get('/api/admin/payments?status=PROCESSING')
+      .expect(200, []);
+    expect(listAdminApprovals).toHaveBeenCalledWith('PROCESSING');
+
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${response.id}/review`)
+      .send({ decision: 'REJECT', note: 'Không xác nhận yêu cầu' })
+      .expect(200, response);
+    expect(reviewAdminApproval).toHaveBeenCalledWith(
+      'customer-1',
+      response.id,
+      { decision: 'REJECT', note: 'Không xác nhận yêu cầu' },
+    );
+  });
+
+  it('requires a rejection reason and rejects client-controlled result fields', async () => {
+    role = Role.ADMIN;
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${response.id}/review`)
+      .send({ decision: 'REJECT' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${response.id}/review`)
+      .send({ decision: 'APPROVE', status: 'PAID' })
+      .expect(400);
   });
 
   it('exposes public IPN as HTTP 200 JSON', async () => {

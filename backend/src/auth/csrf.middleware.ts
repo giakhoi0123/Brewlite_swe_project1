@@ -11,18 +11,18 @@ export function cookieOriginGuard(
     const validOrigin = Boolean(
       request.headers.origin && allowed.includes(request.headers.origin),
     );
-    const hasSession = request.headers.cookie?.includes('brewlite_session=');
+    const hasSession =
+      request.headers.cookie?.includes('brewlite_session=') ||
+      request.headers.cookie?.includes('brewlite_admin_session=');
     if (
       (request.headers.origin && !validOrigin) ||
       (hasSession && !validOrigin)
     ) {
-      response
-        .status(403)
-        .json({
-          statusCode: 403,
-          message: 'Nguồn yêu cầu không hợp lệ',
-          error: 'Forbidden',
-        });
+      response.status(403).json({
+        statusCode: 403,
+        message: 'Nguồn yêu cầu không hợp lệ',
+        error: 'Forbidden',
+      });
       return;
     }
   }

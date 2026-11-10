@@ -9,6 +9,7 @@ test.skip(!process.env.BREWLITE_RUN_AUTH_SESSION_E2E || !databaseUrl,
 const db = new PrismaClient({ datasources: { db: { url: databaseUrl || 'postgresql://unused:unused@localhost:1/unused' } } });
 const email = `qa-relogin-${randomUUID()}@example.test`;
 const password = `BrewLite-${randomUUID()}`;
+test.describe.configure({ mode: 'serial' });
 
 test.afterAll(async () => {
   await db.user.deleteMany({ where: { email } });
@@ -48,4 +49,40 @@ test('customer can register, log out, log in again, and coexist with Barista in 
       await staffContext.close();
     }
   }
+});
+
+test('Customer and Admin stay logged in concurrently in the same browser context', async ({ page }) => {
+  test.skip(
+    !process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD,
+    'Requires the shared demo Admin credentials',
+  );
+
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Đăng xuất' })).toBeVisible();
+
+  const adminPage = await page.context().newPage();
+  await adminPage.goto('/login');
+  await adminPage.getByLabel('Email').fill(process.env.ADMIN_EMAIL!);
+  await adminPage
+    .getByLabel('Mật khẩu', { exact: true })
+    .fill(process.env.ADMIN_PASSWORD!);
+  await adminPage
+    .getByRole('button', { name: 'Đăng nhập', exact: true })
+    .click();
+  await expect(adminPage).toHaveURL(/\/admin\/payments$/);
+  await expect(
+    adminPage.getByText('Quản lý yêu cầu thanh toán'),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Đăng xuất' })).toBeVisible();
+  await expect(page.getByText('Khách kiểm thử')).toBeVisible();
+
+  await adminPage.getByRole('button', { name: 'Đăng xuất' }).click();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Đăng xuất' })).toBeVisible();
+  await expect(page.getByText('Khách kiểm thử')).toBeVisible();
 });

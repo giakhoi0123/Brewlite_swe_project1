@@ -5,7 +5,7 @@ export class CreatePaymentDto {
   @IsUUID()
   orderId!: string;
 
-  @IsIn(['VNPAY_QR'])
+  @IsIn(['VNPAY_QR', 'ADMIN_APPROVAL'])
   method!: PaymentMethod;
 
   // Also accepted from the Idempotency-Key header; controller requires one source.

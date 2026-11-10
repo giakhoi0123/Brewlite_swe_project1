@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   CUSTOMER
   BARISTA
+  ADMIN
 }
 
 enum UserStatus {
@@ -32,6 +33,7 @@ enum PaymentMethod {
   WALLET
   CARD
   VNPAY_QR
+  ADMIN_APPROVAL
 }
 
 enum PaymentStatus {
@@ -56,6 +58,7 @@ model User {
   orders        Order[]
   cart          Cart?
   payments      Payment[]
+  reviewedPayments Payment[] @relation("PaymentReviewer")
   loyaltyLogs   LoyaltyLog[]
   passwordResetTokens PasswordResetToken[]
   vouchers      Voucher[]
@@ -309,14 +312,20 @@ model Payment {
   vnpCardType           String?        @map("vnp_card_type")
   vnpPayDate            String?        @map("vnp_pay_date")
   processedAt           DateTime?      @map("processed_at")
+  reviewedById          String?        @map("reviewed_by_id") @db.Uuid
+  reviewedAt            DateTime?      @map("reviewed_at")
+  reviewNote            String?        @map("review_note") @db.VarChar(500)
   createdAt             DateTime       @default(now()) @map("created_at")
   updatedAt             DateTime       @updatedAt @map("updated_at")
   user                  User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  reviewedBy            User?          @relation("PaymentReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
   order                 Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
   // SQL migration also owns a partial unique order_id index for active attempts.
   @@index([orderId])
+  @@index([method, status, createdAt])
+  @@index([reviewedById])
   @@map("payments")
 }
 
