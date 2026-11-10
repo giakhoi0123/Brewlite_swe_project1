@@ -43,6 +43,12 @@ function payment(status: Payment['status'] = 'PROCESSING'): Payment {
     reviewedById: null,
     reviewedAt: null,
     reviewNote: null,
+    cancelRequestStatus: null,
+    cancelRequestReason: null,
+    cancelRequestedAt: null,
+    cancelReviewedById: null,
+    cancelReviewedAt: null,
+    cancelReviewNote: null,
     createdAt: new Date('2026-10-21T03:00:00.000Z'),
     updatedAt: new Date('2026-10-21T03:00:00.000Z'),
   };
@@ -58,11 +64,15 @@ describe('PaymentsService VNPAY flow', () => {
   const conditionalFinalize =
     jest.fn<PaymentsRepository['conditionalFinalize']>();
   const findById = jest.fn<PaymentsRepository['findById']>();
-  const listAdminApprovals = jest.fn<PaymentsRepository['listAdminApprovals']>();
+  const listAdminApprovals =
+    jest.fn<PaymentsRepository['listAdminApprovals']>();
   const conditionalAdminFinalize =
     jest.fn<PaymentsRepository['conditionalAdminFinalize']>();
-  const isUniqueViolation =
-    jest.fn<PaymentsRepository['isUniqueViolation']>();
+  const conditionalRequestAdminCancellation =
+    jest.fn<PaymentsRepository['conditionalRequestAdminCancellation']>();
+  const conditionalReviewAdminCancellation =
+    jest.fn<PaymentsRepository['conditionalReviewAdminCancellation']>();
+  const isUniqueViolation = jest.fn<PaymentsRepository['isUniqueViolation']>();
   const transaction = jest.fn<PaymentsRepository['transaction']>();
   const repository = {
     findByKey,
@@ -73,6 +83,8 @@ describe('PaymentsService VNPAY flow', () => {
     findById,
     listAdminApprovals,
     conditionalAdminFinalize,
+    conditionalRequestAdminCancellation,
+    conditionalReviewAdminCancellation,
     isUniqueViolation,
     transaction,
   } as unknown as PaymentsRepository;
@@ -80,10 +92,12 @@ describe('PaymentsService VNPAY flow', () => {
   const findOwned = jest.fn<PaymentOrderPort['findOwned']>();
   const prepareRetry = jest.fn<PaymentOrderPort['prepareRetry']>();
   const applyPaymentResult = jest.fn<PaymentOrderPort['applyPaymentResult']>();
+  const cancelAdminPayment = jest.fn<PaymentOrderPort['cancelAdminPayment']>();
   const orders: PaymentOrderPort = {
     findOwned,
     prepareRetry,
     applyPaymentResult,
+    cancelAdminPayment,
   };
 
   const createPaymentUrl = jest.fn<PaymentGateway['createPaymentUrl']>();
@@ -124,8 +138,11 @@ describe('PaymentsService VNPAY flow', () => {
     findLatestForOwnedOrder.mockResolvedValue(payment());
     conditionalFinalize.mockResolvedValue({ count: 1 });
     conditionalAdminFinalize.mockResolvedValue({ count: 1 });
+    conditionalRequestAdminCancellation.mockResolvedValue({ count: 1 });
+    conditionalReviewAdminCancellation.mockResolvedValue({ count: 1 });
     isUniqueViolation.mockReturnValue(false);
     applyPaymentResult.mockResolvedValue(undefined);
+    cancelAdminPayment.mockResolvedValue(undefined);
     isExpectedMerchant.mockReturnValue(true);
     frontendRedirect.mockImplementation((path) => `https://shop.test${path}`);
     queryTransaction.mockResolvedValue({
@@ -190,11 +207,7 @@ describe('PaymentsService VNPAY flow', () => {
     create.mockResolvedValue(adminPayment);
 
     await expect(
-      service.pay(
-        userId,
-        { ...input, method: 'ADMIN_APPROVAL' },
-        '127.0.0.1',
-      ),
+      service.pay(userId, { ...input, method: 'ADMIN_APPROVAL' }, '127.0.0.1'),
     ).resolves.toEqual({
       id: paymentId,
       orderId,
@@ -257,9 +270,124 @@ describe('PaymentsService VNPAY flow', () => {
     );
   });
 
+  it('lets the customer request cancellation of a PROCESSING Admin payment', async () => {
+    const adminPayment: Payment = {
+      ...payment(),
+      method: 'ADMIN_APPROVAL',
+      vnpTxnRef: null,
+      paymentUrl: null,
+      expiresAt: null,
+    };
+    const requested: Payment = {
+      ...adminPayment,
+      cancelRequestStatus: 'PENDING',
+      cancelRequestReason: 'Khách đổi kế hoạch',
+      cancelRequestedAt: new Date(),
+    };
+    findLatestForOwnedOrder.mockResolvedValue(adminPayment);
+    findById.mockResolvedValue(requested);
+
+    await expect(
+      service.requestAdminCancellation(userId, orderId, {
+        reason: '  Khách đổi kế hoạch  ',
+      }),
+    ).resolves.toMatchObject({
+      status: 'PROCESSING',
+      cancelRequestStatus: 'PENDING',
+      cancelRequestReason: 'Khách đổi kế hoạch',
+    });
+    expect(conditionalRequestAdminCancellation).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        id: paymentId,
+        userId,
+        reason: 'Khách đổi kế hoạch',
+      }),
+    );
+    expect(cancelAdminPayment).not.toHaveBeenCalled();
+  });
+
+  it('keeps the payment PROCESSING when Admin rejects cancellation', async () => {
+    const requested: Payment = {
+      ...payment(),
+      method: 'ADMIN_APPROVAL',
+      vnpTxnRef: null,
+      paymentUrl: null,
+      expiresAt: null,
+      cancelRequestStatus: 'PENDING',
+      cancelRequestReason: 'Không còn nhu cầu',
+      cancelRequestedAt: new Date(),
+    };
+    const rejected: Payment = {
+      ...requested,
+      cancelRequestStatus: 'REJECTED',
+      cancelReviewedById: '51a650c7-8597-4a01-a8e2-000000000001',
+      cancelReviewedAt: new Date(),
+      cancelReviewNote: 'Đơn đã được xác nhận nội bộ',
+    };
+    findById.mockResolvedValueOnce(requested).mockResolvedValueOnce(rejected);
+
+    await expect(
+      service.reviewAdminCancellation(rejected.cancelReviewedById!, paymentId, {
+        decision: 'REJECT',
+        note: 'Đơn đã được xác nhận nội bộ',
+      }),
+    ).resolves.toMatchObject({
+      status: 'PROCESSING',
+      cancelRequestStatus: 'REJECTED',
+    });
+    expect(conditionalReviewAdminCancellation).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ id: paymentId, decision: 'REJECT' }),
+    );
+    expect(cancelAdminPayment).not.toHaveBeenCalled();
+  });
+
+  it('atomically cancels the Order only after Admin approves cancellation', async () => {
+    const requested: Payment = {
+      ...payment(),
+      method: 'ADMIN_APPROVAL',
+      vnpTxnRef: null,
+      paymentUrl: null,
+      expiresAt: null,
+      cancelRequestStatus: 'PENDING',
+      cancelRequestReason: 'Khách đặt nhầm món',
+      cancelRequestedAt: new Date(),
+    };
+    const approved: Payment = {
+      ...requested,
+      status: 'PAYMENT_FAILED',
+      cancelRequestStatus: 'APPROVED',
+      cancelReviewedById: '51a650c7-8597-4a01-a8e2-000000000001',
+      cancelReviewedAt: new Date(),
+      processedAt: new Date(),
+    };
+    findById.mockResolvedValueOnce(requested).mockResolvedValueOnce(approved);
+
+    await expect(
+      service.reviewAdminCancellation(approved.cancelReviewedById!, paymentId, {
+        decision: 'APPROVE',
+      }),
+    ).resolves.toMatchObject({
+      status: 'PAYMENT_FAILED',
+      cancelRequestStatus: 'APPROVED',
+    });
+    expect(cancelAdminPayment).toHaveBeenCalledWith(
+      {
+        orderId,
+        userId,
+        reason: 'Khách đặt nhầm món',
+      },
+      tx,
+    );
+    expect(applyPaymentResult).not.toHaveBeenCalled();
+  });
+
   it('replays the same PROCESSING payment and URL without signing again', async () => {
     findByKey.mockResolvedValue(payment());
-    await expect(service.pay(userId, input, '127.0.0.1')).resolves.toMatchObject({
+    await expect(
+      service.pay(userId, input, '127.0.0.1'),
+    ).resolves.toMatchObject({
       id: paymentId,
       status: 'PROCESSING',
       paymentUrl: payment().paymentUrl,
@@ -271,9 +399,9 @@ describe('PaymentsService VNPAY flow', () => {
 
   it('rejects reuse of an idempotency key for another request', async () => {
     findByKey.mockResolvedValue({ ...payment(), orderId: randomUUID() });
-    await expect(service.pay(userId, input, '127.0.0.1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.pay(userId, input, '127.0.0.1'),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('reserves a failed order before building its retry URL', async () => {
@@ -295,9 +423,11 @@ describe('PaymentsService VNPAY flow', () => {
     transaction.mockRejectedValue(uniqueError);
     isUniqueViolation.mockImplementation((error) => error === uniqueError);
     findByKey.mockResolvedValue(null);
-    await expect(service.pay(userId, input, '127.0.0.1')).rejects.toMatchObject({
-      status: 409,
-    });
+    await expect(service.pay(userId, input, '127.0.0.1')).rejects.toMatchObject(
+      {
+        status: 409,
+      },
+    );
   });
 
   it.each([
@@ -390,7 +520,9 @@ describe('PaymentsService VNPAY flow', () => {
       },
     });
     findByTxnRef.mockResolvedValueOnce(payment());
-    await expect(service.handleIpn({})).resolves.toMatchObject({ RspCode: '00' });
+    await expect(service.handleIpn({})).resolves.toMatchObject({
+      RspCode: '00',
+    });
     expect(applyPaymentResult).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'PAYMENT_FAILED' }),
       tx,
@@ -538,8 +670,7 @@ describe('PaymentsService VNPAY flow', () => {
     expect(queryTransaction).toHaveBeenCalledWith({
       txnRef: payment().vnpTxnRef,
       transactionDate: '20261021100000',
-      orderInfo:
-        'Thanh toan don hang 0123456789abcdef0123456789abcdef',
+      orderInfo: 'Thanh toan don hang 0123456789abcdef0123456789abcdef',
     });
     expect(conditionalFinalize).toHaveBeenCalledWith(
       tx,

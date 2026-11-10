@@ -24,6 +24,10 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import {
+  RequestAdminPaymentCancellationDto,
+  ReviewAdminPaymentCancellationDto,
+} from './dto/admin-payment-cancellation.dto';
+import {
   AdminPaymentQueryDto,
   ReviewAdminPaymentDto,
 } from './dto/review-admin-payment.dto';
@@ -86,6 +90,22 @@ export class PaymentsController {
     return this.payments.current(request.user.userId, orderId);
   }
 
+  @Post(':orderId/cancel-request')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER)
+  requestCancellation(
+    @Req() request: Request & { user: { userId: string } },
+    @Param('orderId', new ParseUUIDPipe()) orderId: string,
+    @Body() input: RequestAdminPaymentCancellationDto,
+  ) {
+    return this.payments.requestAdminCancellation(
+      request.user.userId,
+      orderId,
+      input,
+    );
+  }
+
   @Get('vnpay/ipn')
   ipn(@Query() query: VnpayQuery) {
     return this.payments.handleIpn(query);
@@ -115,6 +135,19 @@ export class AdminPaymentsController {
     @Body() input: ReviewAdminPaymentDto,
   ) {
     return this.payments.reviewAdminApproval(
+      request.user.userId,
+      paymentId,
+      input,
+    );
+  }
+
+  @Patch(':paymentId/cancel-review')
+  reviewCancellation(
+    @Req() request: Request & { user: { userId: string } },
+    @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
+    @Body() input: ReviewAdminPaymentCancellationDto,
+  ) {
+    return this.payments.reviewAdminCancellation(
       request.user.userId,
       paymentId,
       input,

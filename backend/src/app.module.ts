@@ -151,6 +151,25 @@ import { cartConfigKey, normalizeToppingIds } from './cart/cart-pricing';
             if (transaction) await apply(transaction);
             else await prisma.$transaction(apply);
           },
+          async cancelAdminPayment(input, transaction) {
+            const cancel = async (tx: Prisma.TransactionClient) => {
+              const order = await tx.order.findFirst({
+                where: { id: input.orderId, userId: input.userId },
+                select: { id: true },
+              });
+              if (!order)
+                throw new NotFoundException('Không tìm thấy đơn hàng');
+              await orders.transitionInTransaction(
+                tx,
+                input.orderId,
+                OrderStatus.CANCELLED,
+                input.reason,
+              );
+            };
+
+            if (transaction) await cancel(transaction);
+            else await prisma.$transaction(cancel);
+          },
         }),
         inject: [OrdersService, PrismaService],
       },

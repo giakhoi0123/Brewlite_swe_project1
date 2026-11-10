@@ -73,8 +73,11 @@ export class PaymentsRepository {
       },
       include: {
         user: { select: { fullName: true, email: true } },
-        order: { select: { id: true, status: true, total: true, createdAt: true } },
+        order: {
+          select: { id: true, status: true, total: true, createdAt: true },
+        },
         reviewedBy: { select: { fullName: true, email: true } },
+        cancelReviewedBy: { select: { fullName: true, email: true } },
       },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     });
@@ -117,6 +120,10 @@ export class PaymentsRepository {
         id: input.id,
         method: 'ADMIN_APPROVAL',
         status: 'PROCESSING',
+        OR: [
+          { cancelRequestStatus: null },
+          { cancelRequestStatus: 'REJECTED' },
+        ],
       },
       data: {
         status: input.status,
@@ -124,6 +131,61 @@ export class PaymentsRepository {
         reviewedAt: input.processedAt,
         reviewNote: input.reviewNote,
         processedAt: input.processedAt,
+      },
+    });
+  }
+
+  conditionalRequestAdminCancellation(
+    tx: Prisma.TransactionClient,
+    input: {
+      id: string;
+      userId: string;
+      reason: string;
+      requestedAt: Date;
+    },
+  ) {
+    return tx.payment.updateMany({
+      where: {
+        id: input.id,
+        userId: input.userId,
+        method: 'ADMIN_APPROVAL',
+        status: 'PROCESSING',
+        cancelRequestStatus: null,
+      },
+      data: {
+        cancelRequestStatus: 'PENDING',
+        cancelRequestReason: input.reason,
+        cancelRequestedAt: input.requestedAt,
+      },
+    });
+  }
+
+  conditionalReviewAdminCancellation(
+    tx: Prisma.TransactionClient,
+    input: {
+      id: string;
+      decision: 'APPROVE' | 'REJECT';
+      reviewedById: string;
+      reviewNote?: string;
+      reviewedAt: Date;
+    },
+  ) {
+    const approved = input.decision === 'APPROVE';
+    return tx.payment.updateMany({
+      where: {
+        id: input.id,
+        method: 'ADMIN_APPROVAL',
+        status: 'PROCESSING',
+        cancelRequestStatus: 'PENDING',
+      },
+      data: {
+        cancelRequestStatus: approved ? 'APPROVED' : 'REJECTED',
+        cancelReviewedById: input.reviewedById,
+        cancelReviewedAt: input.reviewedAt,
+        cancelReviewNote: input.reviewNote,
+        ...(approved
+          ? { status: 'PAYMENT_FAILED', processedAt: input.reviewedAt }
+          : {}),
       },
     });
   }

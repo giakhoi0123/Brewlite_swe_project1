@@ -211,6 +211,11 @@ export const mockPayments: PaymentService = {
     if (!payment) throw new Error("Không tìm thấy giao dịch");
     return payment;
   },
+  async requestCancellation() {
+    throw new Error(
+      "Yêu cầu hủy thanh toán qua Admin chỉ khả dụng ở chế độ API",
+    );
+  },
 };
 
 export const mockPromotions: PromotionService = {

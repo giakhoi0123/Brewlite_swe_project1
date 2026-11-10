@@ -39,11 +39,17 @@ export interface PaymentService {
   ): Promise<Payment>;
   reconcile(orderId: string): Promise<Payment>;
   get(orderId: string): Promise<Payment>;
+  requestCancellation(orderId: string, reason: string): Promise<Payment>;
 }
 
 export interface AdminPaymentService {
   list(status?: AdminPayment["status"]): Promise<AdminPayment[]>;
   review(
+    paymentId: string,
+    decision: "APPROVE" | "REJECT",
+    note?: string,
+  ): Promise<Payment>;
+  reviewCancellation(
     paymentId: string,
     decision: "APPROVE" | "REJECT",
     note?: string,

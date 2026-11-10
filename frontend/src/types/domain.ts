@@ -112,6 +112,11 @@ export type Payment = {
   expiresAt?: string;
   reviewedAt?: string;
   reviewNote?: string;
+  cancelRequestStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  cancelRequestReason?: string;
+  cancelRequestedAt?: string;
+  cancelReviewedAt?: string;
+  cancelReviewNote?: string;
 };
 export type AdminPayment = {
   id: string;
@@ -125,6 +130,12 @@ export type AdminPayment = {
   reviewedAt?: string;
   reviewNote?: string;
   reviewedBy?: { name: string; email: string };
+  cancelRequestStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  cancelRequestReason?: string;
+  cancelRequestedAt?: string;
+  cancelReviewedAt?: string;
+  cancelReviewNote?: string;
+  cancelReviewedBy?: { name: string; email: string };
 };
 export type Promotion = { code: string; discount: number };
 export type LoyaltyPoints = { points: number };

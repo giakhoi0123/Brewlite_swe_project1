@@ -138,6 +138,21 @@ test('payments reconciliation is an authenticated POST scoped to the order', asy
   assert.equal(call.init?.body, undefined);
 });
 
+test('customer cancellation request sends only its trimmed reason', async () => {
+  let call: { url: string; init?: RequestInit } | undefined;
+  globalThis.fetch = async (url, init) => {
+    call = { url: String(url), init };
+    return Response.json({ status: 'PROCESSING', cancelRequestStatus: 'PENDING' });
+  };
+  await apiPayments.requestCancellation('order/id', '  Khách đổi ý  ');
+  assert.ok(call);
+  assert.ok(call.url.endsWith('/payments/order%2Fid/cancel-request'));
+  assert.equal(call.init?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(call.init?.body)), {
+    reason: 'Khách đổi ý',
+  });
+});
+
 test('Admin payment adapter lists the queue and sends only decision plus note', async () => {
   const calls: { url: string; init?: RequestInit }[] = [];
   globalThis.fetch = async (url, init) => {
@@ -146,6 +161,11 @@ test('Admin payment adapter lists the queue and sends only decision plus note', 
   };
   await apiAdminPayments.list('PROCESSING');
   await apiAdminPayments.review('payment/id', 'REJECT', '  Không hợp lệ  ');
+  await apiAdminPayments.reviewCancellation(
+    'payment/id',
+    'REJECT',
+    '  Không cho hủy  ',
+  );
 
   assert.ok(calls[0].url.endsWith('/admin/payments?status=PROCESSING'));
   assert.equal(calls[0].init?.cache, 'no-store');
@@ -154,6 +174,14 @@ test('Admin payment adapter lists the queue and sends only decision plus note', 
   assert.deepEqual(JSON.parse(String(calls[1].init?.body)), {
     decision: 'REJECT',
     note: 'Không hợp lệ',
+  });
+  assert.ok(
+    calls[2].url.endsWith('/admin/payments/payment%2Fid/cancel-review'),
+  );
+  assert.equal(calls[2].init?.method, 'PATCH');
+  assert.deepEqual(JSON.parse(String(calls[2].init?.body)), {
+    decision: 'REJECT',
+    note: 'Không cho hủy',
   });
 });
 

@@ -422,4 +422,112 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
       await db.order.findUniqueOrThrow({ where: { id: rejectedOrder.id } }),
     ).toMatchObject({ status: 'PAYMENT_FAILED', inventoryHeld: false });
   });
+
+  it('requires Admin approval before a customer cancellation can cancel the Order', async () => {
+    const rejectedOrder = await createOrder();
+    const rejectedPayment = await request(app.getHttpServer())
+      .post('/api/payments')
+      .set('Cookie', cookie())
+      .set('Origin', origin)
+      .send({
+        orderId: rejectedOrder.id,
+        method: 'ADMIN_APPROVAL',
+        idempotencyKey: randomUUID(),
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/orders/${rejectedOrder.id}/cancel`)
+      .set('Cookie', cookie())
+      .set('Origin', origin)
+      .send({ reason: 'Đường hủy trực tiếp' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post(`/api/payments/${rejectedOrder.id}/cancel-request`)
+      .set('Cookie', cookie())
+      .set('Origin', origin)
+      .send({ reason: 'Khách đổi kế hoạch' })
+      .expect(200)
+      .expect((response) =>
+        expect(response.body).toMatchObject({
+          status: 'PROCESSING',
+          cancelRequestStatus: 'PENDING',
+          cancelRequestReason: 'Khách đổi kế hoạch',
+        }),
+      );
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: rejectedOrder.id } }),
+    ).toMatchObject({ status: 'PENDING', inventoryHeld: true });
+
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${rejectedPayment.body.id}/cancel-review`)
+      .set('Cookie', adminCookie())
+      .set('Origin', origin)
+      .send({ decision: 'REJECT', note: 'Đơn đã được xác nhận nội bộ' })
+      .expect(200)
+      .expect((response) =>
+        expect(response.body).toMatchObject({
+          status: 'PROCESSING',
+          cancelRequestStatus: 'REJECTED',
+          cancelReviewNote: 'Đơn đã được xác nhận nội bộ',
+        }),
+      );
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: rejectedOrder.id } }),
+    ).toMatchObject({ status: 'PENDING', inventoryHeld: true });
+
+    const approvedOrder = await createOrder();
+    const approvedPayment = await request(app.getHttpServer())
+      .post('/api/payments')
+      .set('Cookie', cookie())
+      .set('Origin', origin)
+      .send({
+        orderId: approvedOrder.id,
+        method: 'ADMIN_APPROVAL',
+        idempotencyKey: randomUUID(),
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/payments/${approvedOrder.id}/cancel-request`)
+      .set('Cookie', cookie())
+      .set('Origin', origin)
+      .send({ reason: 'Khách đặt nhầm món' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${approvedPayment.body.id}/cancel-review`)
+      .set('Cookie', adminCookie())
+      .set('Origin', origin)
+      .send({ decision: 'APPROVE' })
+      .expect(200)
+      .expect((response) =>
+        expect(response.body).toMatchObject({
+          status: 'PAYMENT_FAILED',
+          cancelRequestStatus: 'APPROVED',
+        }),
+      );
+
+    expect(
+      await db.payment.findUniqueOrThrow({
+        where: { id: approvedPayment.body.id },
+      }),
+    ).toMatchObject({
+      status: 'PAYMENT_FAILED',
+      cancelRequestStatus: 'APPROVED',
+      cancelRequestReason: 'Khách đặt nhầm món',
+      cancelReviewedById: adminId,
+    });
+    const cancelled = await db.order.findUniqueOrThrow({
+      where: { id: approvedOrder.id },
+      include: { statusHistory: { orderBy: { version: 'asc' } } },
+    });
+    expect(cancelled).toMatchObject({
+      status: 'CANCELLED',
+      cancelReason: 'Khách đặt nhầm món',
+      inventoryHeld: false,
+    });
+    expect(cancelled.statusHistory.map((item) => item.toStatus)).toEqual([
+      'PENDING',
+      'CANCELLED',
+    ]);
+  });
 });
