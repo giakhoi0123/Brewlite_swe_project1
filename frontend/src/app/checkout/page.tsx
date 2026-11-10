@@ -15,7 +15,7 @@ import {
   removePaymentIntent,
 } from "@/services/payment-intent";
 
-const VNPAY_UNDER_MAINTENANCE = true;
+const VNPAY_MAINTENANCE = true;
 
 function CheckoutContent() {
   const router = useRouter(),
@@ -100,6 +100,8 @@ function CheckoutContent() {
               "Không tìm thấy yêu cầu thanh toán hiện tại. Hãy kiểm tra trạng thái đơn trước khi thanh toán lại.",
             );
           setPaymentMethod(intent.method);
+        } else if (retryOrderId) {
+          setPaymentMethod("ADMIN_APPROVAL");
         }
         setExistingOrderReady(true);
       })
@@ -210,9 +212,9 @@ function CheckoutContent() {
 
   const submit = async () => {
     if (!user || !displayItems.length || submitting.current) return;
-    if (VNPAY_UNDER_MAINTENANCE && paymentMethod === "VNPAY_QR") {
+    if (VNPAY_MAINTENANCE && paymentMethod === "VNPAY_QR") {
       setError(
-        "VNPAY đang bảo trì. Vui lòng chọn Thanh toán qua Admin.",
+        "VNPAY đang bảo trì. Vui lòng chọn thanh toán qua Admin.",
       );
       return;
     }
@@ -348,13 +350,15 @@ function CheckoutContent() {
             )}
             <section className="card panel">
               <h2>Phương thức thanh toán trực tuyến</h2>
-              <label className="vnpay-option maintenance">
+              <label
+                className={`vnpay-option maintenance ${paymentMethod === "VNPAY_QR" ? "selected" : ""}`}
+              >
                 <input
                   type="radio"
                   name="payment-method"
                   value="VNPAY_QR"
                   checked={paymentMethod === "VNPAY_QR"}
-                  disabled
+                  disabled={VNPAY_MAINTENANCE || Boolean(resumeOrderId)}
                   onChange={() => setPaymentMethod("VNPAY_QR")}
                 />
                 <span className="vnpay-option-body">
@@ -365,11 +369,11 @@ function CheckoutContent() {
                     </span>
                   </span>
                   <span className="vnpay-option-copy">
-                    Cổng VNPAY Sandbox hiện tạm ngưng hoạt động. Vui lòng sử
-                    dụng phương thức Thanh toán qua Admin.
+                    Tạm thời không thể tạo hoặc tiếp tục giao dịch VNPAY từ
+                    checkout. Backend và dữ liệu giao dịch cũ vẫn được giữ.
                   </span>
                   <span className="vnpay-option-meta">
-                    Tạm ngưng tiếp nhận giao dịch
+                    Tạm ngừng nhận giao dịch mới
                   </span>
                 </span>
               </label>
@@ -405,7 +409,7 @@ function CheckoutContent() {
                 <span aria-hidden="true">🔒</span>
                 <span>
                   {paymentMethod === "VNPAY_QR"
-                    ? "VNPAY đang bảo trì và không tiếp nhận giao dịch mới."
+                    ? "VNPAY đang bảo trì. Hãy đối soát giao dịch cũ hoặc chọn thanh toán qua Admin."
                     : "BrewLite chỉ gửi một yêu cầu tới trang quản trị; không tự động đánh dấu đơn đã thanh toán."}
                 </span>
               </div>
@@ -424,9 +428,8 @@ function CheckoutContent() {
               style={{ width: "100%", marginTop: 20 }}
               disabled={
                 busy ||
-                (VNPAY_UNDER_MAINTENANCE &&
-                  paymentMethod === "VNPAY_QR") ||
-                Boolean(existingOrderId && !existingOrderReady)
+                Boolean(existingOrderId && !existingOrderReady) ||
+                (VNPAY_MAINTENANCE && paymentMethod === "VNPAY_QR")
               }
               onClick={submit}
             >

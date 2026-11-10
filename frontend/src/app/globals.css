@@ -510,13 +510,6 @@ body { color: #27211e; }
   box-shadow: 0 8px 20px -8px rgba(75, 46, 43, .16), 0 0 0 1px var(--coffee);
 }
 .vnpay-option:has(input:disabled) { opacity: .68; }
-.vnpay-option.maintenance {
-  border-style: dashed;
-  background: #f6f3ee;
-  box-shadow: none;
-  cursor: not-allowed;
-  opacity: 1;
-}
 .vnpay-option input {
   width: 20px;
   height: 20px;
@@ -537,16 +530,17 @@ body { color: #27211e; }
   letter-spacing: .04em;
   text-transform: uppercase;
 }
+.vnpay-option.maintenance { background: #faf7f3; border-color: #dccfc2; }
 .vnpay-maintenance-badge {
   flex: none;
   padding: 4px 9px;
   border-radius: 999px;
-  background: #fff0d9;
-  color: #9a5a00;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .04em;
+  background: #fff0ee;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
+  letter-spacing: .04em;
 }
 .vnpay-option-copy { color: #504443; font-size: 13px; line-height: 1.6; }
 .vnpay-option-meta { color: #827472; font-size: 11px; font-weight: 600; }

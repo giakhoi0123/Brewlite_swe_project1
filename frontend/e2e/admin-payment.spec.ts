@@ -52,9 +52,11 @@ test('checkout marks VNPAY as maintenance and defaults to Admin approval without
     await page.goto('/checkout');
     await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeDisabled();
     await expect(page.getByText('Đang bảo trì')).toBeVisible();
-    await expect(
-      page.getByRole('radio', { name: /^Thanh toán qua Admin/ }),
-    ).toBeChecked();
+    const adminOption = page.getByRole('radio', {
+      name: /^Thanh toán qua Admin/,
+    });
+    await expect(adminOption).toBeEnabled();
+    await expect(adminOption).toBeChecked();
     await expect(page.getByRole('button', { name: /Gửi Admin duyệt/ })).toBeVisible();
     expect(
       await page.evaluate(
@@ -308,4 +310,167 @@ test('a stale failed poll cannot overwrite a newer successful Admin refresh', as
     page.getByText('Bạn không có quyền truy cập trang này'),
   ).toHaveCount(0);
   await expect(page.getByText('Không có yêu cầu phù hợp')).toBeVisible();
+});
+
+test('a cancelled VNPAY attempt is reconciled before another method is enabled', async ({ page }) => {
+  const orderId = '21a650c7-8597-4a01-a8e2-000000000099';
+  let reconciled = false;
+  const order = () => ({
+    id: orderId,
+    userId: 'customer-1',
+    items: [
+      {
+        key: 'coffee|M||70% đá|50% ít ngọt|',
+        productId: 'coffee',
+        name: 'Cà phê sữa đá',
+        imageUrl: '/coffee.svg',
+        size: 'M',
+        toppingIds: [],
+        toppingNames: [],
+        unitPrice: 43000,
+        quantity: 1,
+        ice: '70% đá',
+        sugar: '50% ít ngọt',
+      },
+    ],
+    subtotal: 43000,
+    discount: 0,
+    total: 43000,
+    status: reconciled ? 'PAYMENT_FAILED' : 'PENDING',
+    createdAt: '2026-11-10T12:34:37.393Z',
+  });
+
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: 'customer-1',
+          email: 'customer@example.test',
+          name: 'Khách kiểm thử',
+          role: 'CUSTOMER',
+          loyaltyPoints: 0,
+        },
+      },
+    }),
+  );
+  await page.route(`**/api/payments/${orderId}/reconcile`, (route) => {
+    reconciled = true;
+    return route.fulfill({
+      json: {
+        id: 'payment-1',
+        orderId,
+        method: 'VNPAY_QR',
+        status: 'PAYMENT_FAILED',
+        idempotencyKey: 'payment-key',
+      },
+    });
+  });
+  await page.route(`**/api/orders/${orderId}`, (route) =>
+    route.fulfill({ json: order() }),
+  );
+
+  await page.goto(`/payment/${orderId}/unknown`);
+  await page.getByRole('button', { name: 'Kiểm tra để đổi phương thức' }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/checkout\\?retryOrder=${orderId}$`),
+  );
+  await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeDisabled();
+  const adminOption = page.getByRole('radio', {
+    name: /^Thanh toán qua Admin/,
+  });
+  await expect(adminOption).toBeEnabled();
+  await expect(adminOption).toBeChecked();
+});
+
+test('a resumed VNPAY checkout can reconcile and unlock another method', async ({ page }) => {
+  const orderId = '21a650c7-8597-4a01-a8e2-000000000100';
+  let reconciled = false;
+  const order = () => ({
+    id: orderId,
+    userId: 'customer-1',
+    items: [
+      {
+        key: 'coffee|M||70% đá|50% ít ngọt|',
+        productId: 'coffee',
+        name: 'Cà phê sữa đá',
+        imageUrl: '/coffee.svg',
+        size: 'M',
+        toppingIds: [],
+        toppingNames: [],
+        unitPrice: 43000,
+        quantity: 1,
+        ice: '70% đá',
+        sugar: '50% ít ngọt',
+      },
+    ],
+    subtotal: 43000,
+    discount: 0,
+    total: 43000,
+    status: reconciled ? 'PAYMENT_FAILED' : 'PENDING',
+    createdAt: '2026-11-10T12:34:37.393Z',
+  });
+
+  await page.addInitScript(
+    ({ key, value }) => sessionStorage.setItem(key, value),
+    {
+      key: `brewlite-payment-${orderId}`,
+      value: JSON.stringify({ key: 'old-payment-key', method: 'VNPAY_QR' }),
+    },
+  );
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: 'customer-1',
+          email: 'customer@example.test',
+          name: 'Khách kiểm thử',
+          role: 'CUSTOMER',
+          loyaltyPoints: 0,
+        },
+      },
+    }),
+  );
+  await page.route(`**/api/payments/${orderId}/reconcile`, (route) => {
+    reconciled = true;
+    return route.fulfill({
+      json: {
+        id: 'payment-1',
+        orderId,
+        method: 'VNPAY_QR',
+        status: 'PAYMENT_FAILED',
+        idempotencyKey: 'old-payment-key',
+      },
+    });
+  });
+  await page.route(`**/api/orders/${orderId}`, (route) =>
+    route.fulfill({ json: order() }),
+  );
+
+  for (const viewport of viewports) {
+    reconciled = false;
+    await page.setViewportSize(viewport);
+    await page.goto(`/checkout?resumeOrder=${orderId}`);
+    await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeDisabled();
+    await expect(
+      page.getByRole('radio', { name: /^Thanh toán qua Admin/ }),
+    ).toBeDisabled();
+    await page
+      .getByRole('button', { name: 'Kiểm tra để đổi phương thức' })
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`/checkout\\?retryOrder=${orderId}$`),
+    );
+    await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeDisabled();
+    await expect(
+      page.getByRole('radio', { name: /^Thanh toán qua Admin/ }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole('radio', { name: /^Thanh toán qua Admin/ }),
+    ).toBeChecked();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBeTruthy();
+  }
 });
