@@ -530,18 +530,6 @@ body { color: #27211e; }
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.vnpay-option.maintenance { background: #faf7f3; border-color: #dccfc2; }
-.vnpay-maintenance-badge {
-  flex: none;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: #fff0ee;
-  color: var(--red);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
 .vnpay-option-copy { color: #504443; font-size: 13px; line-height: 1.6; }
 .vnpay-option-meta { color: #827472; font-size: 11px; font-weight: 600; }
 .vnpay-secure-note {

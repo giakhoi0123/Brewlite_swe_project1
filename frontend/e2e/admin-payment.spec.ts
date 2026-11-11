@@ -6,7 +6,7 @@ const viewports = [
   { width: 390, height: 844 },
 ];
 
-test('checkout marks VNPAY as maintenance and defaults to Admin approval without overflow', async ({ page }) => {
+test('checkout enables VNPAY by default and keeps Admin approval available without overflow', async ({ page }) => {
   await page.route('**/api/auth/me', (route) =>
     route.fulfill({
       json: {
@@ -50,14 +50,15 @@ test('checkout marks VNPAY as maintenance and defaults to Admin approval without
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     await page.goto('/checkout');
-    await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeDisabled();
-    await expect(page.getByText('Đang bảo trì')).toBeVisible();
+    const vnpayOption = page.getByRole('radio', { name: /VNPAY-QR/ });
+    await expect(vnpayOption).toBeEnabled();
+    await expect(vnpayOption).toBeChecked();
     const adminOption = page.getByRole('radio', {
       name: /^Thanh toán qua Admin/,
     });
     await expect(adminOption).toBeEnabled();
-    await expect(adminOption).toBeChecked();
-    await expect(page.getByRole('button', { name: /Gửi Admin duyệt/ })).toBeVisible();
+    await expect(adminOption).not.toBeChecked();
+    await expect(page.getByRole('button', { name: /Thanh toán qua VNPAY/ })).toBeVisible();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -374,12 +375,14 @@ test('a cancelled VNPAY attempt is reconciled before another method is enabled',
   await expect(page).toHaveURL(
     new RegExp(`/checkout\\?retryOrder=${orderId}$`),
   );
-  await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeDisabled();
+  const vnpayOption = page.getByRole('radio', { name: /VNPAY-QR/ });
+  await expect(vnpayOption).toBeEnabled();
+  await expect(vnpayOption).toBeChecked();
   const adminOption = page.getByRole('radio', {
     name: /^Thanh toán qua Admin/,
   });
   await expect(adminOption).toBeEnabled();
-  await expect(adminOption).toBeChecked();
+  await expect(adminOption).not.toBeChecked();
 });
 
 test('a resumed VNPAY checkout can reconcile and unlock another method', async ({ page }) => {
@@ -460,13 +463,14 @@ test('a resumed VNPAY checkout can reconcile and unlock another method', async (
     await expect(page).toHaveURL(
       new RegExp(`/checkout\\?retryOrder=${orderId}$`),
     );
-    await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeDisabled();
+    await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeEnabled();
+    await expect(page.getByRole('radio', { name: /VNPAY-QR/ })).toBeChecked();
     await expect(
       page.getByRole('radio', { name: /^Thanh toán qua Admin/ }),
     ).toBeEnabled();
     await expect(
       page.getByRole('radio', { name: /^Thanh toán qua Admin/ }),
-    ).toBeChecked();
+    ).not.toBeChecked();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,

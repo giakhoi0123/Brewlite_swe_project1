@@ -1,5 +1,9 @@
 # Hợp đồng API BrewLite
 
+## Trạng thái vận hành checkout — 2026-11-11
+
+Frontend mở `VNPAY_QR` làm lựa chọn mặc định và giữ `ADMIN_APPROVAL` song song. Cấu hình local `VNPAY_BANK_CODE=` không thay đổi contract: backend chỉ bỏ `vnp_BankCode` khỏi URL đã ký để hosted page hiển thị phương thức TEST được terminal cấp. Retry sau khi IPN/QueryDR đã chốt `PAYMENT_FAILED` tạo attempt mới và mở lại hai phương thức; Payment còn `PROCESSING` vẫn giữ intent cũ và không được tạo attempt song song.
+
 ## Khách yêu cầu hủy thanh toán qua Admin — 2026-11-10
 
 Khi Payment mới nhất thuộc method `ADMIN_APPROVAL`, Payment còn `PROCESSING` và Order còn `PENDING`, khách owner có thể gửi một yêu cầu hủy kèm lý do. Việc gửi yêu cầu chỉ ghi `cancelRequestStatus=PENDING`; không tự hủy Order. Trong lúc yêu cầu hủy chờ xử lý, Admin không được chốt Thành công/Thất bại qua endpoint review thanh toán thông thường. Admin phải chấp nhận hoặc từ chối yêu cầu hủy trước.
@@ -13,13 +17,13 @@ Khi Payment mới nhất thuộc method `ADMIN_APPROVAL`, Payment còn `PROCESSI
 
 ## Đổi phương thức sau khi hủy VNPAY — 2026-11-10
 
-Return VNPAY luôn chỉ đọc. Mọi Return có chữ ký hợp lệ, gồm mã hủy `24`, được điều hướng tới `/payment/:orderId/verifying`; frontend không suy ra `PAYMENT_FAILED` từ query của trình duyệt. Màn `unknown` và checkout `resumeOrder` đều gọi owner-auth `POST /payments/:orderId/reconcile` trước khi cho đổi phương thức. Chỉ khi IPN hoặc QueryDR hợp lệ đã chốt Order thành `PAYMENT_FAILED`, frontend mới dùng `/checkout?retryOrder=<id>` với idempotency key mới. Trong trạng thái bảo trì hiện tại, retry chỉ mở `ADMIN_APPROVAL`; `VNPAY_QR` và nút tiếp tục URL cũ đều bị khóa. Nếu Payment cũ còn `PROCESSING`, checkout không tạo attempt song song.
+Return VNPAY luôn chỉ đọc. Mọi Return có chữ ký hợp lệ, gồm mã hủy `24`, được điều hướng tới `/payment/:orderId/verifying`; frontend không suy ra `PAYMENT_FAILED` từ query của trình duyệt. Màn `unknown` và checkout `resumeOrder` đều gọi owner-auth `POST /payments/:orderId/reconcile` trước khi cho đổi phương thức. Chỉ khi IPN hoặc QueryDR hợp lệ đã chốt Order thành `PAYMENT_FAILED`, frontend mới dùng `/checkout?retryOrder=<id>` với idempotency key mới và mở lại VNPAY mặc định cùng Admin. Nếu Payment cũ còn `PROCESSING`, checkout không tạo attempt song song.
 
 ## Thanh toán do Admin quyết định — 2026-11-09
 
 Phương thức `ADMIN_APPROVAL` chạy song song và không thay đổi VNPAY. Đây là luồng yêu cầu nội bộ: khách bấm thanh toán chỉ tạo Payment `PROCESSING`; không có chuyển khoản, cổng tiền hoặc kết quả do client truyền lên. Chỉ tài khoản role `ADMIN` mới được quyết định Thành công/Thất bại. Quyết định cập nhật Payment và Order qua `PAYMENT_ORDER_PORT` trong cùng transaction; Thành công chuyển sang `PAID`, Thất bại chuyển sang `PAYMENT_FAILED` và dùng logic Orders hiện hữu để hoàn kho/giải phóng voucher. Một Payment chỉ được xử lý một lần bằng conditional update.
 
-Trạng thái vận hành mới nhất ngày 2026-11-10: frontend khóa `VNPAY_QR`, hiển thị badge “Đang bảo trì” và chọn `ADMIN_APPROVAL` mặc định. UI không tạo/tiếp tục giao dịch VNPAY; với attempt lịch sử đang `PROCESSING`, khách chỉ được đối soát để chờ trạng thái cuối rồi chuyển sang Admin. Backend/schema và quy tắc xác minh VNPAY không thay đổi: Return chỉ điều hướng; chỉ IPN hợp lệ hoặc QueryDR đã kiểm chữ ký mới được chốt kết quả.
+Lịch sử vận hành ngày 2026-11-10: frontend từng khóa `VNPAY_QR`, hiển thị badge “Đang bảo trì” và chọn `ADMIN_APPROVAL` mặc định. Trạng thái này đã được thay thế bởi lần mở lại ngày 2026-11-11; backend/schema và quy tắc xác minh VNPAY không thay đổi: Return chỉ điều hướng, chỉ IPN hợp lệ hoặc QueryDR đã kiểm chữ ký mới được chốt kết quả.
 
 | Endpoint | Quyền | Input | Kết quả |
 |---|---|---|---|
@@ -149,7 +153,7 @@ Hai nhánh cùng thêm `orders.cancel_reason`: migration `20261019000000_loyalty
 
 Payment hiện được cấu hình cho VNPAY Sandbox/TEST theo luồng bất đồng bộ, không còn nhận kết quả demo từ client. Backend tạo URL có chữ ký HMAC-SHA512. `VNPAY_BANK_CODE` là cấu hình backend tùy chọn: khi để trống, request không có `vnp_BankCode` và trang hosted của VNPAY hiển thị các phương thức terminal được cấp; chỉ đặt `VNPAYQR` khi VNPAY đã bật kênh QR cho merchant TEST. `VNPAY_HASH_SECRET` chỉ tồn tại ở backend.
 
-Ngày 2026-10-22, request ép `vnp_BankCode=VNPAYQR` ban đầu bị VNPAY trả “Ngân hàng thanh toán không được hỗ trợ”. Bộ phận kỹ thuật VNPAY sau đó xác nhận đã active VNPAYQR cho terminal TEST, nên cấu hình local hiện gửi `VNPAY_BANK_CODE=VNPAYQR`; URL ký thử đã chứa đúng bank code. Thanh toán bằng tài khoản TEST trước đó đã được QueryDR có chữ ký xác minh và lưu `PAID`; IPN vẫn là nguồn xác nhận chính và E2E callback IPN còn chờ cấu hình trong công cụ VSM Sandbox.
+Ngày 2026-10-22, request ép `vnp_BankCode=VNPAYQR` ban đầu bị VNPAY trả “Ngân hàng thanh toán không được hỗ trợ”. Bộ phận kỹ thuật VNPAY sau đó xác nhận đã active VNPAYQR cho terminal TEST và URL ép QR đã được xác minh chữ ký. Từ ngày 2026-11-11, cấu hình local để `VNPAY_BANK_CODE=` nên request mới không gửi `vnp_BankCode`, cho hosted page hiển thị các phương thức TEST được terminal cấp; việc này không thay đổi request/response contract. Thanh toán bằng tài khoản TEST trước đó đã được QueryDR có chữ ký xác minh và lưu `PAID`; IPN vẫn là nguồn xác nhận chính và E2E callback IPN còn chờ cấu hình trong công cụ VSM Sandbox.
 
 QR hiển thị trong Sandbox có thể báo “QR không tồn tại” khi được quét bằng ứng dụng ngân hàng LIVE vì TEST/LIVE là hai môi trường tách biệt. Kiểm thử bằng thẻ test VNPAY hoặc ứng dụng QR TEST iOS/Android do VNPAY vừa cấp qua email; việc QR xuất hiện trên hosted page không thay thế bằng chứng IPN thành công. Credential công cụ TEST là secret vận hành, không thuộc API contract và không được commit.
 
@@ -165,6 +169,8 @@ IPN phải kiểm checksum, `vnp_TmnCode`, `vnp_TxnRef` và `vnp_Amount === paym
 QueryDR là fallback khi IPN bị trễ hoặc mất, không thay vai trò nguồn chính của IPN. Backend gửi request HMAC-SHA512 tới `VNPAY_QUERY_URL` bằng `VNPAY_QUERY_IP_ADDRESS` (IPv4 egress công khai của backend, không dùng loopback/private IP), rồi kiểm chữ ký response, `querydr`, merchant, transaction reference, amount và loại giao dịch trước khi ghi. Transaction status `00` được finalize `PAID`; `02` (lỗi), `08` (quá hạn) và `11` (hủy/hết hạn theo WebPay 2.1.0 và phản hồi Sandbox đã quan sát) được finalize `PAYMENT_FAILED`. Các trạng thái đảo giao dịch, hoàn tiền, nghi ngờ gian lận, lifecycle khác hoặc mã query lỗi giữ Payment `PROCESSING` để kiểm tra lại/thủ công. Response lỗi không có `vnp_SecureHash` (ví dụ Sandbox trả `99`) không bao giờ được dùng để finalize. Việc finalize dùng cùng transaction/idempotency guard như IPN. Return vẫn chỉ xác minh và điều hướng, tuyệt đối không ghi DB.
 
 Bằng chứng Sandbox/DB ngày 2026-10-22: `POST /payments/66e28a10-a95e-45ee-b877-a1617e9c3abf/reconcile` đã khôi phục giao dịch bị thiếu IPN; Payment và Order lưu `PAID`, `vnp_TransactionNo=15711511`, `vnp_BankCode=NCB`, `vnp_PayDate=20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`. Đây là bằng chứng QueryDR, chưa phải bằng chứng callback IPN thật.
+
+Bằng chứng Sandbox/DB ngày 2026-11-11 khi không ép bank code: Order `ac15afd4-9cf8-461d-81a4-fe359cb21e43` có attempt đầu mã hủy `24`/transaction status `02` được lưu `PAYMENT_FAILED`, sau đó attempt mới qua NCB được lưu `PAID` với response/status `00` và `vnp_TransactionNo=15733709`; Order cũng đã thành `PAID`. Schema không lưu nguồn finalize nên dữ liệu này xác nhận kết quả Sandbox nhưng không phân biệt IPN với QueryDR.
 
 `vnp_TxnRef` là mã chữ/số riêng cho từng Payment attempt, nên retry cùng Order vẫn có reference mới. Retry từ PAYMENT_FAILED phải giữ lại tồn kho trong cùng transaction tạo Payment trước khi phát URL. Mỗi Order chỉ có tối đa một Payment PROCESSING/PAID; PROCESSING quá hạn và UNKNOWN cần QueryDR/reconciliation trước khi cho phép attempt mới.
 

@@ -1,5 +1,14 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Cho VNPAY hosted hiển thị các phương thức TEST được cấp — 2026-11-11
+
+- [x] Để `VNPAY_BANK_CODE=` trong `.env` local; gateway không thêm `vnp_BankCode` và không ép luồng QR.
+- [x] Recreate backend Compose, xác nhận API HTTP 200 và gateway test 10/10 PASS.
+- [x] Mở lại `VNPAY_QR` làm lựa chọn mặc định ở checkout, giữ `ADMIN_APPROVAL` song song; retry sau đối soát cũng mở lại hai lựa chọn.
+- [x] Tạo giao dịch TEST mới: attempt mã hủy `24` được lưu `PAYMENT_FAILED`; attempt kế tiếp qua NCB được lưu `PAID` (`vnp_TransactionNo=15733709`, response/status `00`) và Order `ac15afd4-9cf8-461d-81a4-fe359cb21e43` thành `PAID`.
+- [x] Frontend 32/32 unit, TypeScript `--noEmit`, production build, lint 0 lỗi/2 warning cũ và Playwright `admin-payment.spec.ts` 6/6 PASS; checkout được kiểm tra ở 1440/768/390 trong fixture.
+- [ ] Schema không lưu nguồn finalize nên giao dịch mới chưa chứng minh callback IPN HTTPS; T08 tiếp tục `IN_PROGRESS`.
+
 ## Khóa VNPAY ở trạng thái bảo trì — 2026-11-10
 
 - [x] Hiển thị badge “Đang bảo trì”, khóa radio `VNPAY_QR` và chọn `ADMIN_APPROVAL` mặc định tại checkout.
@@ -132,7 +141,7 @@ Thay đổi local trước merge được lưu bằng stash `codex-before-main-u
 
 ## VNPAY-QR — 2026-10-21
 
-Đã thay gateway mock bằng VNPAY WebPay 2.1.0 cho môi trường TEST: backend tạo URL HMAC-SHA512, Return chỉ điều hướng, IPN public HTTPS là nguồn chốt Payment/Order chính và QueryDR có chữ ký là fallback khi IPN trễ/mất. `VNPAY_BANK_CODE` là biến backend tùy chọn và mặc định để trống trong file mẫu; ngày 2026-10-22 VNPAY đã xác nhận active QR cho terminal TEST hiện tại nên `.env` local dùng `VNPAYQR`. Frontend bỏ chọn kết quả demo, chuyển sang trang hosted của VNPAY và chờ trạng thái backend đã xác minh. Cấu hình secret chỉ nằm backend; Docker frontend không còn nhận root `.env`.
+Đã thay gateway mock bằng VNPAY WebPay 2.1.0 cho môi trường TEST: backend tạo URL HMAC-SHA512, Return chỉ điều hướng, IPN public HTTPS là nguồn chốt Payment/Order chính và QueryDR có chữ ký là fallback khi IPN trễ/mất. `VNPAY_BANK_CODE` là biến backend tùy chọn và mặc định để trống; dù ngày 2026-10-22 VNPAY đã active QR cho terminal TEST, từ 2026-11-11 `.env` local để trống bank code để hosted page tự hiển thị các phương thức TEST được cấp. Frontend bỏ chọn kết quả demo, chuyển sang trang hosted của VNPAY và chờ trạng thái backend đã xác minh. Cấu hình secret chỉ nằm backend; Docker frontend không còn nhận root `.env`.
 
 Mã và kiểm tra đã cập nhật ngày 2026-10-22: backend 191 test + build/lint, frontend 19 unit + typecheck/build/lint phạm vi, Compose config và QA 1440/768/390 đều PASS. Compose đang chạy đủ ba service và migration VNPAY đã áp dụng. Giao dịch Sandbox bằng tài khoản TEST đã được QueryDR xác minh và lưu DB `PAID` cho Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` (`vnp_TransactionNo=15711511`, `NCB`, pay date `20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`). T08/10B vẫn **IN_PROGRESS**, không nâng `VERIFIED_COMPLETE` cho tới khi cấu hình portal và kiểm chứng IPN HTTPS thật. Bộ credential ghi “môi trường TEST” không phải giao dịch production.
 
