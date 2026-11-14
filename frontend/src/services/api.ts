@@ -143,6 +143,14 @@ export const apiPayments: PaymentService = {
     request<Payment>(`/payments/order/${encodeURIComponent(orderId)}`, {
       cache: "no-store",
     }),
+  requestCancellation: (orderId, reason) =>
+    request<Payment>(
+      `/payments/${encodeURIComponent(orderId)}/cancel-request`,
+      {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      },
+    ),
 };
 
 export const apiAdminPayments: AdminPaymentService = {
@@ -157,6 +165,17 @@ export const apiAdminPayments: AdminPaymentService = {
       {
         method: "PATCH",
         body: JSON.stringify({ decision, ...(note?.trim() ? { note: note.trim() } : {}) }),
+      },
+    ),
+  reviewCancellation: (paymentId, decision, note) =>
+    request<Payment>(
+      `/admin/payments/${encodeURIComponent(paymentId)}/cancel-review`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          decision,
+          ...(note?.trim() ? { note: note.trim() } : {}),
+        }),
       },
     ),
 };

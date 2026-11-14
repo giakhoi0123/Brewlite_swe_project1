@@ -151,7 +151,9 @@ export class OrdersService {
 
         if (voucher) {
           if (voucher.userId !== userId) {
-            throw new BadRequestException('Mã ưu đãi này không thuộc tài khoản của bạn');
+            throw new BadRequestException(
+              'Mã ưu đãi này không thuộc tài khoản của bạn',
+            );
           }
           // Chuyển trạng thái voucher sang RESERVED một cách nguyên tử
           const reserved = await tx.voucher.updateMany({
@@ -163,7 +165,9 @@ export class OrdersService {
             },
           });
           if (reserved.count !== 1) {
-            throw new ConflictException('Mã ưu đãi đã được sử dụng hoặc đang trong đơn hàng khác');
+            throw new ConflictException(
+              'Mã ưu đãi đã được sử dụng hoặc đang trong đơn hàng khác',
+            );
           }
         } else {
           // 2. Nếu là mã Promotion chung
@@ -417,6 +421,20 @@ export class OrdersService {
       ) {
         throw new BadRequestException(
           'Chỉ có thể hủy đơn hàng đang chờ thanh toán hoặc thanh toán thất bại',
+        );
+      }
+      const activeAdminPayment = await tx.payment.findFirst({
+        where: {
+          orderId: id,
+          userId,
+          method: 'ADMIN_APPROVAL',
+          status: 'PROCESSING',
+        },
+        select: { id: true },
+      });
+      if (activeAdminPayment) {
+        throw new BadRequestException(
+          'Thanh toán qua Admin phải gửi yêu cầu hủy và chờ Admin chấp nhận',
         );
       }
       const cancelReason = (reason || 'Khách hàng tự hủy đơn').trim();

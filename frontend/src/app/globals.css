@@ -510,13 +510,6 @@ body { color: #27211e; }
   box-shadow: 0 8px 20px -8px rgba(75, 46, 43, .16), 0 0 0 1px var(--coffee);
 }
 .vnpay-option:has(input:disabled) { opacity: .68; }
-.vnpay-option.maintenance {
-  border-style: dashed;
-  background: #f6f3ee;
-  box-shadow: none;
-  cursor: not-allowed;
-  opacity: 1;
-}
 .vnpay-option input {
   width: 20px;
   height: 20px;
@@ -532,17 +525,6 @@ body { color: #27211e; }
   border-radius: 999px;
   background: #e8f4eb;
   color: var(--green);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-.vnpay-maintenance-badge {
-  flex: none;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: #fff0d9;
-  color: #9a5a00;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .04em;
@@ -637,6 +619,11 @@ body { color: #27211e; }
 .payment-receipt > p { margin: 14px 0 0; color: #625650; font-size: 13px; }
 .payment-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
 .payment-actions .btn { min-width: 170px; }
+.customer-cancel-request { display: grid; gap: 10px; width: min(100%, 560px); margin: 22px auto 0; text-align: left; }
+.customer-cancel-request label { color: var(--coffee); font-weight: 700; }
+.customer-cancel-request textarea { resize: vertical; min-height: 86px; }
+.customer-cancel-request .btn { justify-self: start; }
+.customer-cancel-request p { margin: 0; }
 
 .admin-payment-main { max-width: 1000px; }
 .admin-payment-heading {
@@ -673,6 +660,8 @@ body { color: #27211e; }
 .admin-payment-review label { display: grid; gap: 7px; color: var(--coffee); font-weight: 600; }
 .admin-payment-review textarea { resize: vertical; min-height: 72px; }
 .admin-payment-actions { display: flex; gap: 9px; }
+.admin-cancel-notice { display: grid; gap: 5px; margin-bottom: 16px; }
+.admin-cancel-notice p { margin: 0; overflow-wrap: anywhere; }
 .admin-payment-empty { text-align: center; padding-block: 52px; }
 
 @media (max-width: 768px) {

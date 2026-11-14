@@ -1,5 +1,47 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Cho VNPAY hosted hiển thị các phương thức TEST được cấp — 2026-11-11
+
+- [x] Để `VNPAY_BANK_CODE=` trong `.env` local; gateway không thêm `vnp_BankCode` và không ép luồng QR.
+- [x] Recreate backend Compose, xác nhận API HTTP 200 và gateway test 10/10 PASS.
+- [x] Mở lại `VNPAY_QR` làm lựa chọn mặc định ở checkout, giữ `ADMIN_APPROVAL` song song; retry sau đối soát cũng mở lại hai lựa chọn.
+- [x] Tạo giao dịch TEST mới: attempt mã hủy `24` được lưu `PAYMENT_FAILED`; attempt kế tiếp qua NCB được lưu `PAID` (`vnp_TransactionNo=15733709`, response/status `00`) và Order `ac15afd4-9cf8-461d-81a4-fe359cb21e43` thành `PAID`.
+- [x] Frontend 32/32 unit, TypeScript `--noEmit`, production build, lint 0 lỗi/2 warning cũ và Playwright `admin-payment.spec.ts` 6/6 PASS; checkout được kiểm tra ở 1440/768/390 trong fixture.
+- [ ] Schema không lưu nguồn finalize nên giao dịch mới chưa chứng minh callback IPN HTTPS; T08 tiếp tục `IN_PROGRESS`.
+
+## Khóa VNPAY ở trạng thái bảo trì — 2026-11-10
+
+- [x] Hiển thị badge “Đang bảo trì”, khóa radio `VNPAY_QR` và chọn `ADMIN_APPROVAL` mặc định tại checkout.
+- [x] Không cho submit hoặc tiếp tục VNPAY từ UI; attempt lịch sử chỉ được đối soát rồi chuyển sang Admin khi backend xác minh đã thất bại.
+- [x] Giữ nguyên backend/schema/dữ liệu VNPAY để không phá giao dịch lịch sử.
+- [x] Frontend **32/32 unit**, TypeScript, production build và lint 0 lỗi/2 warning cũ PASS; Playwright Docker **6/6 PASS** tại 1440/768/390.
+
+## Khách yêu cầu hủy thanh toán qua Admin — 2026-11-10
+
+- [x] Thêm API owner-auth để khách gửi yêu cầu hủy `ADMIN_APPROVAL` kèm lý do 1–300 ký tự; Order chưa đổi trạng thái tại bước gửi.
+- [x] Chặn endpoint hủy Order trực tiếp khi Payment Admin còn `PROCESSING`, không cho bỏ qua bước duyệt.
+- [x] Admin thấy lý do khách, phải chọn “Cho phép hủy” hoặc “Từ chối hủy”; từ chối bắt buộc ghi phản hồi và giữ Payment `PROCESSING`.
+- [x] Chấp nhận hủy cập nhật Payment/audit và chuyển Order sang `CANCELLED` trong cùng transaction, hoàn kho/voucher theo state machine hiện hành.
+- [x] Migration `20261110000000_admin_payment_cancel_requests` đã áp trên DB ứng dụng; bộ PostgreSQL tạm đủ **19 migration**, **7 suite/113 test PASS** và tự xóa.
+- [x] Backend non-DB **30 suite/339 test PASS**; frontend **32/32 unit**, TypeScript, build, lint 0 lỗi/2 warning cũ; Playwright Docker **6/6 PASS** tại 1440/768/390.
+
+## Cho đổi phương thức an toàn sau khi hủy VNPAY — 2026-11-10
+
+- [x] Điều hướng mọi VNPAY Return có chữ ký hợp lệ, kể cả mã hủy, tới màn `verifying`; Return vẫn không ghi trạng thái Payment/Order.
+- [x] Thay nút “Thử lại” gây hiểu nhầm bằng “Kiểm tra để đổi phương thức” ở màn `unknown`, đồng thời thêm chính nút này vào checkout `resumeOrder`; gọi reconcile trước và chỉ mở `/checkout?retryOrder=<id>` khi backend đã xác minh `PAYMENT_FAILED`.
+- [x] Khi attempt cũ còn `PROCESSING`, giữ khóa phương thức và chỉ cho tiếp tục VNPAY cũ để tránh tạo hai Payment đồng thời.
+- [x] Backend targeted **20/20 PASS**; frontend **31/31 unit**, TypeScript, production build và lint **0 lỗi/2 warning cũ PASS**; PostgreSQL tạm đủ **18 migration**, **7 suite/108 test PASS** và đã tự xóa; Playwright Docker **5/5 PASS**, gồm cả màn `unknown` và checkout `resumeOrder` đối soát rồi mở phương thức khác.
+- [ ] T08 vẫn `IN_PROGRESS` tới khi quan sát callback IPN HTTPS thật; test retry không thay thế bằng chứng gateway E2E.
+
+## Lịch sử: mở lại VNPAY tại checkout — 2026-11-10
+
+- [x] Đọc `BrewLite_Bai1_User_Stories_Cau_Truc_Thu_Muc_Phan_Cong.docx` ở chế độ chỉ đọc và thêm đúng file gốc vào `.gitignore`; không chỉnh sửa DOCX.
+- [x] Đối chiếu US06/UC-CHK với Payment hiện hành: tài liệu Bài tập 1 yêu cầu Ví/Thẻ mô phỏng, trong khi ứng dụng hiện dùng `VNPAY_QR` Sandbox và `ADMIN_APPROVAL`; không dùng VNPAY để tuyên bố đã đáp ứng phần mock của đề.
+- [x] Gỡ cờ/nhãn/khóa “Đang bảo trì”, chọn `VNPAY_QR` mặc định và giữ `ADMIN_APPROVAL` là lựa chọn song song ở API mode.
+- [x] Giữ nguyên resume/idempotency: attempt đang xử lý không được đổi method hoặc sinh key/Payment mới; không thay backend/schema/API.
+- [x] Frontend 31/31 unit, TypeScript, production build và lint 0 lỗi/2 warning cũ PASS; backend VNPAY/Payment 2 suite/30 test local PASS; PostgreSQL tạm đủ 18 migration, 7 suite/108 test PASS và đã tự xóa; Compose healthy, frontend/backend HTTP 200; Playwright Docker Admin/checkout 3/3 PASS, riêng checkout kiểm tra 1440/768/390 và chuyển qua lại VNPAY ↔ Admin không tràn ngang.
+- [ ] T08 vẫn `IN_PROGRESS` cho tới khi quan sát IPN HTTPS E2E thật; mở khóa giao diện không phải bằng chứng callback.
+
 ## Phương thức thanh toán chờ Admin quyết định — 2026-11-09
 
 - [x] Giữ nguyên luồng VNPAY và thêm lựa chọn `ADMIN_APPROVAL` tại checkout.
@@ -99,7 +141,7 @@ Thay đổi local trước merge được lưu bằng stash `codex-before-main-u
 
 ## VNPAY-QR — 2026-10-21
 
-Đã thay gateway mock bằng VNPAY WebPay 2.1.0 cho môi trường TEST: backend tạo URL HMAC-SHA512, Return chỉ điều hướng, IPN public HTTPS là nguồn chốt Payment/Order chính và QueryDR có chữ ký là fallback khi IPN trễ/mất. `VNPAY_BANK_CODE` là biến backend tùy chọn và mặc định để trống trong file mẫu; ngày 2026-10-22 VNPAY đã xác nhận active QR cho terminal TEST hiện tại nên `.env` local dùng `VNPAYQR`. Frontend bỏ chọn kết quả demo, chuyển sang trang hosted của VNPAY và chờ trạng thái backend đã xác minh. Cấu hình secret chỉ nằm backend; Docker frontend không còn nhận root `.env`.
+Đã thay gateway mock bằng VNPAY WebPay 2.1.0 cho môi trường TEST: backend tạo URL HMAC-SHA512, Return chỉ điều hướng, IPN public HTTPS là nguồn chốt Payment/Order chính và QueryDR có chữ ký là fallback khi IPN trễ/mất. `VNPAY_BANK_CODE` là biến backend tùy chọn và mặc định để trống; dù ngày 2026-10-22 VNPAY đã active QR cho terminal TEST, từ 2026-11-11 `.env` local để trống bank code để hosted page tự hiển thị các phương thức TEST được cấp. Frontend bỏ chọn kết quả demo, chuyển sang trang hosted của VNPAY và chờ trạng thái backend đã xác minh. Cấu hình secret chỉ nằm backend; Docker frontend không còn nhận root `.env`.
 
 Mã và kiểm tra đã cập nhật ngày 2026-10-22: backend 191 test + build/lint, frontend 19 unit + typecheck/build/lint phạm vi, Compose config và QA 1440/768/390 đều PASS. Compose đang chạy đủ ba service và migration VNPAY đã áp dụng. Giao dịch Sandbox bằng tài khoản TEST đã được QueryDR xác minh và lưu DB `PAID` cho Order `66e28a10-a95e-45ee-b877-a1617e9c3abf` (`vnp_TransactionNo=15711511`, `NCB`, pay date `20261022114118`, idempotency key `3998d99e-ff66-4ee6-a204-0a22cc35b60c`). T08/10B vẫn **IN_PROGRESS**, không nâng `VERIFIED_COMPLETE` cho tới khi cấu hình portal và kiểm chứng IPN HTTPS thật. Bộ credential ghi “môi trường TEST” không phải giao dịch production.
 

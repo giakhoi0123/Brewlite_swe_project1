@@ -32,6 +32,10 @@ export interface PaymentOrderPort {
     },
     tx?: Prisma.TransactionClient,
   ): Promise<void>;
+  cancelAdminPayment(
+    input: { orderId: string; userId: string; reason: string },
+    tx?: Prisma.TransactionClient,
+  ): Promise<void>;
 }
 
 export interface PaymentGateway {

@@ -104,6 +104,44 @@ export default function AdminPaymentsPage() {
     }
   };
 
+  const reviewCancellation = async (
+    row: AdminPayment,
+    decision: "APPROVE" | "REJECT",
+  ) => {
+    const note = notes[row.id]?.trim();
+    if (decision === "REJECT" && !note) {
+      setError("Vui lòng nhập lý do khi từ chối yêu cầu hủy.");
+      return;
+    }
+    if (
+      !window.confirm(
+        decision === "APPROVE"
+          ? `Cho phép khách hủy đơn ${row.orderId}?`
+          : `Từ chối yêu cầu hủy đơn ${row.orderId}?`,
+      )
+    )
+      return;
+
+    setBusyId(row.id);
+    setError("");
+    try {
+      await services.adminPayments.reviewCancellation(
+        row.id,
+        decision,
+        note,
+      );
+      await load();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Không xử lý được yêu cầu hủy",
+      );
+    } finally {
+      setBusyId("");
+    }
+  };
+
   if (authLoading || (loading && !rows.length))
     return (
       <main className="container main">
@@ -187,41 +225,99 @@ export default function AdminPaymentsPage() {
                 )}
               </dl>
 
-              {row.status === "PROCESSING" ? (
-                <div className="admin-payment-review">
-                  <label>
-                    Ghi chú / lý do thất bại
-                    <textarea
-                      className="field"
-                      rows={2}
-                      maxLength={500}
-                      value={notes[row.id] ?? ""}
-                      onChange={(event) =>
-                        setNotes((current) => ({
-                          ...current,
-                          [row.id]: event.target.value,
-                        }))
-                      }
-                      placeholder="Bắt buộc khi chọn Thất bại"
-                    />
-                  </label>
-                  <div className="admin-payment-actions">
-                    <button
-                      className="btn btn-primary"
-                      disabled={busyId === row.id}
-                      onClick={() => review(row, "APPROVE")}
-                    >
-                      Thành công
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      disabled={busyId === row.id}
-                      onClick={() => review(row, "REJECT")}
-                    >
-                      Thất bại
-                    </button>
-                  </div>
+              {row.cancelRequestStatus && (
+                <div className="notice admin-cancel-notice">
+                  <strong>
+                    {row.cancelRequestStatus === "PENDING"
+                      ? "Khách đang yêu cầu hủy"
+                      : row.cancelRequestStatus === "APPROVED"
+                        ? "Đã chấp nhận yêu cầu hủy"
+                        : "Đã từ chối yêu cầu hủy"}
+                  </strong>
+                  <p>Lý do khách: {row.cancelRequestReason}</p>
+                  {row.cancelReviewNote && (
+                    <p>Phản hồi Admin: {row.cancelReviewNote}</p>
+                  )}
+                  {row.cancelReviewedBy && (
+                    <p className="muted">
+                      Xử lý bởi {row.cancelReviewedBy.name}
+                    </p>
+                  )}
                 </div>
+              )}
+
+              {row.status === "PROCESSING" ? (
+                row.cancelRequestStatus === "PENDING" ? (
+                  <div className="admin-payment-review">
+                    <label>
+                      Phản hồi khi từ chối hủy
+                      <textarea
+                        className="field"
+                        rows={2}
+                        maxLength={500}
+                        value={notes[row.id] ?? ""}
+                        onChange={(event) =>
+                          setNotes((current) => ({
+                            ...current,
+                            [row.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Bắt buộc khi từ chối hủy"
+                      />
+                    </label>
+                    <div className="admin-payment-actions">
+                      <button
+                        className="btn btn-danger"
+                        disabled={busyId === row.id}
+                        onClick={() => reviewCancellation(row, "APPROVE")}
+                      >
+                        Cho phép hủy
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        disabled={busyId === row.id}
+                        onClick={() => reviewCancellation(row, "REJECT")}
+                      >
+                        Từ chối hủy
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="admin-payment-review">
+                    <label>
+                      Ghi chú / lý do thất bại
+                      <textarea
+                        className="field"
+                        rows={2}
+                        maxLength={500}
+                        value={notes[row.id] ?? ""}
+                        onChange={(event) =>
+                          setNotes((current) => ({
+                            ...current,
+                            [row.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Bắt buộc khi chọn Thất bại"
+                      />
+                    </label>
+                    <div className="admin-payment-actions">
+                      <button
+                        className="btn btn-primary"
+                        disabled={busyId === row.id}
+                        onClick={() => review(row, "APPROVE")}
+                      >
+                        Thành công
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        disabled={busyId === row.id}
+                        onClick={() => review(row, "REJECT")}
+                      >
+                        Thất bại
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 row.reviewNote && <p className="notice">Ghi chú: {row.reviewNote}</p>
               )}

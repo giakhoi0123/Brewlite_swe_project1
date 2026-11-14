@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -8,6 +9,10 @@ import {
 } from '@nestjs/common';
 import type { Payment, Prisma } from '@prisma/client';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import {
+  RequestAdminPaymentCancellationDto,
+  ReviewAdminPaymentCancellationDto,
+} from './dto/admin-payment-cancellation.dto';
 import { ReviewAdminPaymentDto } from './dto/review-admin-payment.dto';
 import {
   PAYMENT_GATEWAY,
@@ -67,7 +72,10 @@ function classifyFinalStatus(
     return 'PAID';
   }
 
-  if (!transactionStatus || !FAILED_TRANSACTION_STATUSES.has(transactionStatus)) {
+  if (
+    !transactionStatus ||
+    !FAILED_TRANSACTION_STATUSES.has(transactionStatus)
+  ) {
     return null;
   }
 
@@ -129,7 +137,9 @@ export class PaymentsService {
           });
         }
         if (input.method !== 'VNPAY_QR') {
-          throw new ConflictException('Phương thức thanh toán không được hỗ trợ');
+          throw new ConflictException(
+            'Phương thức thanh toán không được hỗ trợ',
+          );
         }
 
         const vnpTxnRef = randomBytes(16).toString('hex');
@@ -177,14 +187,73 @@ export class PaymentsService {
   async current(userId: string, orderId: string) {
     const order = await this.orders.findOwned(orderId, userId);
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
-    const payment = await this.payments.findLatestForOwnedOrder(orderId, userId);
-    if (!payment) throw new NotFoundException('Không tìm thấy yêu cầu thanh toán');
+    const payment = await this.payments.findLatestForOwnedOrder(
+      orderId,
+      userId,
+    );
+    if (!payment)
+      throw new NotFoundException('Không tìm thấy yêu cầu thanh toán');
     return this.toResponse(payment);
   }
 
-  async listAdminApprovals(
-    status?: 'PROCESSING' | 'PAID' | 'PAYMENT_FAILED',
+  async requestAdminCancellation(
+    userId: string,
+    orderId: string,
+    input: RequestAdminPaymentCancellationDto,
   ) {
+    const reason = input.reason.trim();
+    if (!reason || Array.from(reason).length > 300) {
+      throw new BadRequestException('Lý do hủy phải có từ 1 đến 300 ký tự');
+    }
+
+    const payment = await this.payments.transaction(async (tx) => {
+      const order = await this.orders.findOwned(orderId, userId, tx);
+      if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
+      if (order.status !== 'PENDING') {
+        throw new ConflictException('Đơn hàng không còn chờ Admin xử lý');
+      }
+
+      const current = await this.payments.findLatestForOwnedOrder(
+        orderId,
+        userId,
+        tx,
+      );
+      if (!current || current.method !== 'ADMIN_APPROVAL') {
+        throw new NotFoundException(
+          'Không tìm thấy yêu cầu thanh toán qua Admin',
+        );
+      }
+      if (current.status !== 'PROCESSING') {
+        throw new ConflictException('Yêu cầu thanh toán đã được xử lý');
+      }
+      if (current.cancelRequestStatus === 'PENDING') {
+        if (current.cancelRequestReason === reason) return current;
+        throw new ConflictException('Yêu cầu hủy đang chờ Admin xử lý');
+      }
+      if (current.cancelRequestStatus) {
+        throw new ConflictException('Yêu cầu hủy đã được Admin xử lý');
+      }
+
+      const requested = await this.payments.conditionalRequestAdminCancellation(
+        tx,
+        {
+          id: current.id,
+          userId,
+          reason,
+          requestedAt: new Date(),
+        },
+      );
+      if (requested.count !== 1) {
+        throw new ConflictException('Yêu cầu thanh toán vừa thay đổi');
+      }
+      const updated = await this.payments.findById(current.id, tx);
+      if (!updated) throw new NotFoundException('Không tìm thấy giao dịch');
+      return updated;
+    });
+    return this.toResponse(payment);
+  }
+
+  async listAdminApprovals(status?: 'PROCESSING' | 'PAID' | 'PAYMENT_FAILED') {
     const rows = await this.payments.listAdminApprovals(status);
     return rows.map((payment) => ({
       id: payment.id,
@@ -210,6 +279,29 @@ export class PaymentsService {
             },
           }
         : {}),
+      ...(payment.cancelRequestStatus
+        ? { cancelRequestStatus: payment.cancelRequestStatus }
+        : {}),
+      ...(payment.cancelRequestReason
+        ? { cancelRequestReason: payment.cancelRequestReason }
+        : {}),
+      ...(payment.cancelRequestedAt
+        ? { cancelRequestedAt: payment.cancelRequestedAt.toISOString() }
+        : {}),
+      ...(payment.cancelReviewedAt
+        ? { cancelReviewedAt: payment.cancelReviewedAt.toISOString() }
+        : {}),
+      ...(payment.cancelReviewNote
+        ? { cancelReviewNote: payment.cancelReviewNote }
+        : {}),
+      ...(payment.cancelReviewedBy
+        ? {
+            cancelReviewedBy: {
+              name: payment.cancelReviewedBy.fullName,
+              email: payment.cancelReviewedBy.email,
+            },
+          }
+        : {}),
     }));
   }
 
@@ -227,6 +319,11 @@ export class PaymentsService {
       }
       if (current.status !== 'PROCESSING') {
         throw new ConflictException('Yêu cầu thanh toán đã được xử lý');
+      }
+      if (current.cancelRequestStatus === 'PENDING') {
+        throw new ConflictException(
+          'Phải xử lý yêu cầu hủy của khách trước khi chốt thanh toán',
+        );
       }
 
       const finalized = await this.payments.conditionalAdminFinalize(tx, {
@@ -249,6 +346,61 @@ export class PaymentsService {
         },
         tx,
       );
+      const updated = await this.payments.findById(current.id, tx);
+      if (!updated) throw new NotFoundException('Không tìm thấy giao dịch');
+      return updated;
+    });
+    return this.toResponse(payment);
+  }
+
+  async reviewAdminCancellation(
+    adminId: string,
+    paymentId: string,
+    input: ReviewAdminPaymentCancellationDto,
+  ) {
+    const note = input.note?.trim();
+    if (input.decision === 'REJECT' && !note) {
+      throw new BadRequestException('Phải nhập lý do từ chối hủy');
+    }
+
+    const payment = await this.payments.transaction(async (tx) => {
+      const current = await this.payments.findById(paymentId, tx);
+      if (!current || current.method !== 'ADMIN_APPROVAL') {
+        throw new NotFoundException('Không tìm thấy yêu cầu thanh toán Admin');
+      }
+      if (
+        current.status !== 'PROCESSING' ||
+        current.cancelRequestStatus !== 'PENDING' ||
+        !current.cancelRequestReason
+      ) {
+        throw new ConflictException('Yêu cầu hủy không còn chờ xử lý');
+      }
+
+      const reviewed = await this.payments.conditionalReviewAdminCancellation(
+        tx,
+        {
+          id: current.id,
+          decision: input.decision,
+          reviewedById: adminId,
+          reviewNote: note,
+          reviewedAt: new Date(),
+        },
+      );
+      if (reviewed.count !== 1) {
+        throw new ConflictException('Yêu cầu hủy vừa được xử lý');
+      }
+
+      if (input.decision === 'APPROVE') {
+        await this.orders.cancelAdminPayment(
+          {
+            orderId: current.orderId,
+            userId: current.userId,
+            reason: current.cancelRequestReason,
+          },
+          tx,
+        );
+      }
+
       const updated = await this.payments.findById(current.id, tx);
       if (!updated) throw new NotFoundException('Không tìm thấy giao dịch');
       return updated;
@@ -361,10 +513,7 @@ export class PaymentsService {
     if (!status) return this.toResponse(payment);
 
     await this.payments.transaction(async (tx) => {
-      const current = await this.payments.findByTxnRef(
-        payment.vnpTxnRef!,
-        tx,
-      );
+      const current = await this.payments.findByTxnRef(payment.vnpTxnRef!, tx);
       if (
         !current ||
         current.orderId !== orderId ||
@@ -405,13 +554,8 @@ export class PaymentsService {
       ) {
         return errorRedirect();
       }
-      const stage =
-        params.vnp_ResponseCode === '00' &&
-        params.vnp_TransactionStatus === '00'
-          ? 'verifying'
-          : 'unknown';
       return this.gateway.frontendRedirect(
-        `/payment/${encodeURIComponent(payment.orderId)}/${stage}`,
+        `/payment/${encodeURIComponent(payment.orderId)}/verifying`,
       );
     } catch {
       return errorRedirect();
@@ -503,6 +647,21 @@ export class PaymentsService {
         ? { reviewedAt: payment.reviewedAt.toISOString() }
         : {}),
       ...(payment.reviewNote ? { reviewNote: payment.reviewNote } : {}),
+      ...(payment.cancelRequestStatus
+        ? { cancelRequestStatus: payment.cancelRequestStatus }
+        : {}),
+      ...(payment.cancelRequestReason
+        ? { cancelRequestReason: payment.cancelRequestReason }
+        : {}),
+      ...(payment.cancelRequestedAt
+        ? { cancelRequestedAt: payment.cancelRequestedAt.toISOString() }
+        : {}),
+      ...(payment.cancelReviewedAt
+        ? { cancelReviewedAt: payment.cancelReviewedAt.toISOString() }
+        : {}),
+      ...(payment.cancelReviewNote
+        ? { cancelReviewNote: payment.cancelReviewNote }
+        : {}),
     };
   }
 }

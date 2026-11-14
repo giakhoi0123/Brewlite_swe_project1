@@ -43,6 +43,9 @@ export default function PaymentPage({
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
   const [verifyBusy, setVerifyBusy] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState("");
   const [pollAttempt, setPollAttempt] = useState(0);
   const [error, setError] = useState("");
   const processingStarted = useRef(false);
@@ -341,9 +344,75 @@ export default function PaymentPage({
     router.push(`/checkout?retryOrder=${encodeURIComponent(id)}`);
   };
 
-  const resume = () => {
-    if (order?.status !== "PENDING") return;
-    router.push(`/checkout?resumeOrder=${encodeURIComponent(id)}`);
+  const requestAdminCancellation = async () => {
+    if (cancelBusy || payment?.method !== "ADMIN_APPROVAL") return;
+    const reason = cancelReason.trim();
+    if (!reason || Array.from(reason).length > 300) {
+      setCancelError("Lý do hủy phải có từ 1 đến 300 ký tự.");
+      return;
+    }
+    setCancelBusy(true);
+    setCancelError("");
+    try {
+      const updated = await services.payments.requestCancellation(id, reason);
+      setPayment(updated);
+      setCancelReason("");
+    } catch (cause) {
+      setCancelError(
+        cause instanceof Error
+          ? cause.message
+          : "Không gửi được yêu cầu hủy.",
+      );
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+
+  const chooseAnotherMethod = async () => {
+    if (verifyBusy || order?.status !== "PENDING") return;
+    setVerifyBusy(true);
+    setError("");
+    try {
+      try {
+        const reconciled = await services.payments.reconcile(id);
+        setPayment(reconciled);
+      } catch {
+        // QueryDR có thể đang bị giới hạn hoặc tạm lỗi, nhưng IPN có thể đã
+        // chốt Order; luôn đọc lại nguồn trạng thái tin cậy trước khi quyết định.
+      }
+      const current = await services.orders.get(id);
+      if (!current || current.userId !== user?.id) {
+        setError("Không tìm thấy đơn hàng");
+        return;
+      }
+      if (isPaidOrder(current.status)) {
+        await clearPaidCart();
+        router.replace(`/payment/${encodeURIComponent(id)}/success`);
+        return;
+      }
+      if (current.status === "PAYMENT_FAILED") {
+        removePaymentIntent(id);
+        router.push(`/checkout?retryOrder=${encodeURIComponent(id)}`);
+        return;
+      }
+      if (current.status === "CANCELLED") {
+        removePaymentIntent(id);
+        router.replace(`/payment/${encodeURIComponent(id)}/failure`);
+        return;
+      }
+      setOrder(current);
+      setError(
+        "VNPAY chưa xác nhận giao dịch cũ đã kết thúc. Hãy kiểm tra lại sau; BrewLite chưa thể mở phương thức khác để tránh thanh toán trùng.",
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Không thể đối soát giao dịch VNPAY hiện tại.",
+      );
+    } finally {
+      setVerifyBusy(false);
+    }
   };
 
   if (loading || authLoading)
@@ -404,6 +473,54 @@ export default function PaymentPage({
               <span>Mã đơn #{order.id}</span>
               <strong>{money(order.total)}</strong>
             </div>
+            {payment?.cancelRequestStatus === "PENDING" ? (
+              <div className="customer-cancel-request notice" role="status">
+                <strong>Đang chờ Admin duyệt hủy</strong>
+                <p>Lý do của bạn: {payment.cancelRequestReason}</p>
+                <p className="muted">
+                  Đơn chưa bị hủy cho tới khi Admin chấp nhận.
+                </p>
+              </div>
+            ) : payment?.cancelRequestStatus === "REJECTED" ? (
+              <div className="customer-cancel-request notice" role="status">
+                <strong>Admin không chấp nhận hủy</strong>
+                <p>
+                  {payment.cancelReviewNote ||
+                    "Yêu cầu thanh toán tiếp tục chờ Admin xử lý."}
+                </p>
+              </div>
+            ) : payment?.cancelRequestStatus === "APPROVED" ? (
+              <div className="customer-cancel-request notice" role="status">
+                <strong>Admin đã chấp nhận hủy</strong>
+              </div>
+            ) : payment ? (
+              <div className="customer-cancel-request">
+                <label htmlFor="admin-cancel-reason">
+                  Lý do muốn hủy thanh toán
+                </label>
+                <textarea
+                  id="admin-cancel-reason"
+                  className="field"
+                  rows={3}
+                  maxLength={300}
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="Nhập lý do để Admin xem xét"
+                />
+                {cancelError && (
+                  <p className="error" role="alert">
+                    {cancelError}
+                  </p>
+                )}
+                <button
+                  className="btn btn-danger"
+                  disabled={cancelBusy || !cancelReason.trim()}
+                  onClick={requestAdminCancellation}
+                >
+                  {cancelBusy ? "Đang gửi..." : "Gửi yêu cầu hủy"}
+                </button>
+              </div>
+            ) : null}
             <div className="payment-actions">
               <button
                 className="btn btn-primary"
@@ -489,7 +606,9 @@ export default function PaymentPage({
             <StatusBadge status={order.status} />
             <p className="payment-lead">
               {order.status === "CANCELLED"
-                ? "Đơn hàng này đã bị hủy."
+                ? payment?.cancelRequestStatus === "APPROVED"
+                  ? `Admin đã chấp nhận hủy. Lý do: ${payment.cancelRequestReason || order.cancelReason || "Khách yêu cầu hủy"}`
+                  : "Đơn hàng này đã bị hủy."
                 : payment?.method === "ADMIN_APPROVAL"
                   ? payment.reviewNote ||
                     "Admin đã đánh dấu yêu cầu thanh toán là Thất bại."
@@ -526,17 +645,24 @@ export default function PaymentPage({
             </div>
             <div className="payment-actions">
               {order.status === "PENDING" && (
-                <button className="btn btn-primary" onClick={resume}>
-                  Thử lại
-                </button>
+                <>
+                  <button
+                    className="btn btn-primary"
+                    disabled={verifyBusy}
+                    onClick={chooseAnotherMethod}
+                  >
+                    {verifyBusy
+                      ? "Đang đối soát..."
+                      : "Kiểm tra để đổi phương thức"}
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    disabled
+                  >
+                    VNPAY đang bảo trì
+                  </button>
+                </>
               )}
-              <button
-                className="btn btn-secondary"
-                disabled={verifyBusy}
-                onClick={verify}
-              >
-                {verifyBusy ? "Đang kiểm tra..." : "Kiểm tra trạng thái đơn"}
-              </button>
               <Link className="btn btn-outline" href={`/orders/${id}`}>
                 Xem chi tiết đơn
               </Link>

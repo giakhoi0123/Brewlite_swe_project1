@@ -34,6 +34,9 @@ describe('OrdersService - Voucher Lifecycle, Concurrency & Customer Cancellation
       orderStatusHistory: {
         create: jest.fn(),
       },
+      payment: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
       user: {
         update: jest.fn(),
       },
@@ -129,7 +132,11 @@ describe('OrdersService - Voucher Lifecycle, Concurrency & Customer Cancellation
         userId: 'user-1',
         status: 'AVAILABLE',
       });
-      mockPrisma.order.create.mockResolvedValue({ id: 'order-2', items: [], statusHistory: [] });
+      mockPrisma.order.create.mockResolvedValue({
+        id: 'order-2',
+        items: [],
+        statusHistory: [],
+      });
       // updateMany returns count 0 because another concurrent tx already reserved it
       mockPrisma.voucher.updateMany.mockResolvedValue({ count: 0 });
 
@@ -164,10 +171,18 @@ describe('OrdersService - Voucher Lifecycle, Concurrency & Customer Cancellation
       };
       mockPrisma.order.findUnique.mockResolvedValue(mockOrder);
       mockPrisma.order.updateMany.mockResolvedValue({ count: 1 });
-      mockPrisma.order.findUniqueOrThrow.mockResolvedValue({ ...mockOrder, status: OrderStatus.PAID, version: 2 });
+      mockPrisma.order.findUniqueOrThrow.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PAID,
+        version: 2,
+      });
       mockPrisma.loyaltyLog.findUnique.mockResolvedValue(null);
 
-      await ordersService.transitionInTransaction(mockPrisma, 'order-1', OrderStatus.PAID);
+      await ordersService.transitionInTransaction(
+        mockPrisma,
+        'order-1',
+        OrderStatus.PAID,
+      );
 
       expect(mockPrisma.voucher.updateMany).toHaveBeenCalledWith({
         where: { orderId: 'order-1', status: 'RESERVED' },
@@ -187,7 +202,11 @@ describe('OrdersService - Voucher Lifecycle, Concurrency & Customer Cancellation
       };
       mockPrisma.order.findUnique.mockResolvedValue(mockOrder);
       mockPrisma.order.updateMany.mockResolvedValue({ count: 1 });
-      mockPrisma.order.findUniqueOrThrow.mockResolvedValue({ ...mockOrder, status: OrderStatus.CANCELLED, version: 2 });
+      mockPrisma.order.findUniqueOrThrow.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.CANCELLED,
+        version: 2,
+      });
 
       await ordersService.transitionInTransaction(
         mockPrisma,
@@ -231,7 +250,11 @@ describe('OrdersService - Voucher Lifecycle, Concurrency & Customer Cancellation
         statusHistory: [],
       });
 
-      const res = await ordersService.customerCancel('order-1', 'user-1', 'Đổi ý không mua nữa');
+      const res = await ordersService.customerCancel(
+        'order-1',
+        'user-1',
+        'Đổi ý không mua nữa',
+      );
 
       expect(mockPrisma.order.findFirst).toHaveBeenCalledWith({
         where: { id: 'order-1', userId: 'user-1' },
@@ -250,7 +273,25 @@ describe('OrdersService - Voucher Lifecycle, Concurrency & Customer Cancellation
 
       await expect(
         ordersService.customerCancel('order-1', 'user-1'),
-      ).rejects.toThrow('Chỉ có thể hủy đơn hàng đang chờ thanh toán hoặc thanh toán thất bại');
+      ).rejects.toThrow(
+        'Chỉ có thể hủy đơn hàng đang chờ thanh toán hoặc thanh toán thất bại',
+      );
+    });
+
+    it('requires Admin review when an ADMIN_APPROVAL payment is active', async () => {
+      mockPrisma.order.findFirst.mockResolvedValue({
+        id: 'order-1',
+        userId: 'user-1',
+        status: OrderStatus.PENDING,
+      });
+      mockPrisma.payment.findFirst.mockResolvedValue({ id: 'payment-1' });
+
+      await expect(
+        ordersService.customerCancel('order-1', 'user-1', 'Khách đổi ý'),
+      ).rejects.toThrow(
+        'Thanh toán qua Admin phải gửi yêu cầu hủy và chờ Admin chấp nhận',
+      );
+      expect(mockPrisma.order.updateMany).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException if customer does not own the order', async () => {

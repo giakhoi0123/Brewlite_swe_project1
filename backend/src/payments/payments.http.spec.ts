@@ -17,8 +17,12 @@ describe('Payments HTTP contract', () => {
   const pay = jest.fn<PaymentsService['pay']>();
   const reconcile = jest.fn<PaymentsService['reconcile']>();
   const current = jest.fn<PaymentsService['current']>();
+  const requestAdminCancellation =
+    jest.fn<PaymentsService['requestAdminCancellation']>();
   const listAdminApprovals = jest.fn<PaymentsService['listAdminApprovals']>();
   const reviewAdminApproval = jest.fn<PaymentsService['reviewAdminApproval']>();
+  const reviewAdminCancellation =
+    jest.fn<PaymentsService['reviewAdminCancellation']>();
   const handleIpn = jest.fn<PaymentsService['handleIpn']>();
   const handleReturn = jest.fn<PaymentsService['handleReturn']>();
   const orderId = '21a650c7-8597-4a01-a8e2-000000000001';
@@ -57,8 +61,10 @@ describe('Payments HTTP contract', () => {
             pay,
             reconcile,
             current,
+            requestAdminCancellation,
             listAdminApprovals,
             reviewAdminApproval,
+            reviewAdminCancellation,
             handleIpn,
             handleReturn,
           },
@@ -85,8 +91,10 @@ describe('Payments HTTP contract', () => {
     pay.mockResolvedValue(response);
     reconcile.mockResolvedValue(response);
     current.mockResolvedValue(response);
+    requestAdminCancellation.mockResolvedValue(response);
     listAdminApprovals.mockResolvedValue([]);
     reviewAdminApproval.mockResolvedValue(response);
+    reviewAdminCancellation.mockResolvedValue(response);
     handleIpn.mockResolvedValue({
       RspCode: '00',
       Message: 'Confirm Success',
@@ -160,6 +168,28 @@ describe('Payments HTTP contract', () => {
       .expect(403);
   });
 
+  it('lets a CUSTOMER request Admin cancellation with a required reason', async () => {
+    await request(app.getHttpServer())
+      .post(`/api/payments/${orderId}/cancel-request`)
+      .send({ reason: 'Khách đổi kế hoạch' })
+      .expect(200, response);
+    expect(requestAdminCancellation).toHaveBeenCalledWith(
+      'customer-1',
+      orderId,
+      { reason: 'Khách đổi kế hoạch' },
+    );
+
+    await request(app.getHttpServer())
+      .post(`/api/payments/${orderId}/cancel-request`)
+      .send({ reason: '' })
+      .expect(400);
+    role = Role.BARISTA;
+    await request(app.getHttpServer())
+      .post(`/api/payments/${orderId}/cancel-request`)
+      .send({ reason: 'Không được phép' })
+      .expect(403);
+  });
+
   it('restricts the admin queue and decisions to ADMIN accounts', async () => {
     await request(app.getHttpServer()).get('/api/admin/payments').expect(403);
 
@@ -178,6 +208,16 @@ describe('Payments HTTP contract', () => {
       response.id,
       { decision: 'REJECT', note: 'Không xác nhận yêu cầu' },
     );
+
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${response.id}/cancel-review`)
+      .send({ decision: 'APPROVE' })
+      .expect(200, response);
+    expect(reviewAdminCancellation).toHaveBeenCalledWith(
+      'customer-1',
+      response.id,
+      { decision: 'APPROVE' },
+    );
   });
 
   it('requires a rejection reason and rejects client-controlled result fields', async () => {
@@ -189,6 +229,10 @@ describe('Payments HTTP contract', () => {
     await request(app.getHttpServer())
       .patch(`/api/admin/payments/${response.id}/review`)
       .send({ decision: 'APPROVE', status: 'PAID' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/admin/payments/${response.id}/cancel-review`)
+      .send({ decision: 'REJECT' })
       .expect(400);
   });
 
