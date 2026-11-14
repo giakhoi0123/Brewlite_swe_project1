@@ -1,0 +1,339 @@
+{
+  "info": {
+    "_postman_id": "a4000004-0000-4000-8000-000000000004",
+    "name": "BrewLite - TV4 Orders & Inventory",
+    "description": "Collection kiem thu luong Orders & Staff/Inventory (TV4): Tao don PENDING, xem danh sach/chi tiet don, khach tu huy don, kiem tra phan quyen 403 va luong Barista xem don/ton kho. Luu y: dien baristaEmail va baristaPassword trong Collection Variables theo .env cua ban truoc khi chay step 07-08.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api"
+    },
+    {
+      "key": "frontendOrigin",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "customerEmail",
+      "value": ""
+    },
+    {
+      "key": "customerPassword",
+      "value": "Password123"
+    },
+    {
+      "key": "baristaEmail",
+      "value": "barista@brewlite.local"
+    },
+    {
+      "key": "baristaPassword",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": "31a650c7-8597-4a01-a8e2-000000000001"
+    },
+    {
+      "key": "toppingId",
+      "value": "b4151b67-4044-43ce-9cac-000000000001"
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({ key: 'Origin', value: pm.collectionVariables.get('frontendOrigin') || 'http://localhost:3000' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Register Customer (Setup)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('customerEmail', 'tv4-' + Date.now() + '@brewlite.local');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"TV4 Order Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "02. Create Order (PENDING)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Order created in PENDING status with server-calculated total', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.have.property('id');",
+              "  pm.expect(json.status).to.eql('PENDING');",
+              "  pm.expect(json.total).to.be.above(0);",
+              "  pm.expect(json.items).to.be.an('array').with.lengthOf(1);",
+              "  pm.collectionVariables.set('orderId', json.id);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"toppingIds\": [\"{{toppingId}}\"],\n      \"quantity\": 1,\n      \"ice\": \"100% đá\",\n      \"sugar\": \"100% chuẩn\",\n      \"note\": \"Giao nhanh\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
+        }
+      }
+    },
+    {
+      "name": "03. Get My Orders",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Order list contains created orderId', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.be.an('array').that.is.not.empty;",
+              "  const found = json.find(function (o) { return o.id === pm.collectionVariables.get('orderId'); });",
+              "  pm.expect(found).to.be.an('object');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "me"]
+        }
+      }
+    },
+    {
+      "name": "04. Get Order Detail by ID",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Order detail matches created order', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.id).to.eql(pm.collectionVariables.get('orderId'));",
+              "  pm.expect(json.status).to.eql('PENDING');",
+              "  pm.expect(json).to.have.property('subtotal');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{orderId}}"]
+        }
+      }
+    },
+    {
+      "name": "05. Error - Customer Calling Staff Orders (403 Forbidden)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 403 for CUSTOMER role', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/staff/orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["staff", "orders"]
+        }
+      }
+    },
+    {
+      "name": "06. Customer Cancel Order (PENDING -> CANCELLED)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Order transitioned to CANCELLED', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.id).to.eql(pm.collectionVariables.get('orderId'));",
+              "  pm.expect(json.status).to.eql('CANCELLED');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Đổi ý khi kiểm thử API\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}/cancel",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{orderId}}", "cancel"]
+        }
+      }
+    },
+    {
+      "name": "07. Barista Login (Setup)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('User has BARISTA role', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.user.role).to.eql('BARISTA');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{baristaEmail}}\",\n  \"password\": \"{{baristaPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "08. Staff List Orders (Barista)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Returns staff order list', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/staff/orders",
+          "host": ["{{baseUrl}}"],
+          "path": ["staff", "orders"]
+        }
+      }
+    }
+  ]
+}

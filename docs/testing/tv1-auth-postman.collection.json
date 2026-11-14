@@ -1,0 +1,335 @@
+{
+  "info": {
+    "_postman_id": "a1000001-0000-4000-8000-000000000001",
+    "name": "BrewLite - TV1 Auth",
+    "description": "Collection kiem thu luong Auth (TV1): Dang ky, Dang nhap, Lay thong tin ca nhan, Doi mat khau, Dang xuat (huy session_version) va case loi 400/401.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api"
+    },
+    {
+      "key": "frontendOrigin",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "customerEmail",
+      "value": ""
+    },
+    {
+      "key": "customerPassword",
+      "value": "Password123"
+    },
+    {
+      "key": "newPassword",
+      "value": "NewPassword123"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({ key: 'Origin', value: pm.collectionVariables.get('frontendOrigin') || 'http://localhost:3000' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Register Customer (Happy Path)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const uniqueEmail = 'tv1-' + Date.now() + '@brewlite.local';",
+              "pm.collectionVariables.set('customerEmail', uniqueEmail);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Response contains user object with CUSTOMER role', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.have.property('user');",
+              "  pm.expect(json.user).to.have.property('id');",
+              "  pm.expect(json.user.email).to.eql(pm.collectionVariables.get('customerEmail'));",
+              "  pm.expect(json.user.role).to.eql('CUSTOMER');",
+              "  pm.collectionVariables.set('userId', json.user.id);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Nguyen Van A\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "02. Login Customer (Happy Path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Login returns user profile', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.user.id).to.eql(pm.collectionVariables.get('userId'));",
+              "  pm.expect(json.user.email).to.eql(pm.collectionVariables.get('customerEmail'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "03. Get Current User Profile (Me)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Returns authenticated user info', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.user.id).to.eql(pm.collectionVariables.get('userId'));",
+              "  pm.expect(json.user).to.have.property('loyaltyPoints');",
+              "  pm.expect(json.user.role).to.eql('CUSTOMER');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "me"]
+        }
+      }
+    },
+    {
+      "name": "04. Change Password",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Password changed message returned', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.have.property('message');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"{{customerPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/change-password",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "change-password"]
+        }
+      }
+    },
+    {
+      "name": "05. Login with New Password",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Logged in with updated password', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.user.id).to.eql(pm.collectionVariables.get('userId'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{newPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "06. Logout (Invalidate Session)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Logout message returned', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.message).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/logout",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "logout"]
+        }
+      }
+    },
+    {
+      "name": "07. Error - Get Me After Logout (401 Unauthorized)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 401 after logout', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "me"]
+        }
+      }
+    },
+    {
+      "name": "08. Error - Register Weak Password (400 Bad Request)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400 for invalid DTO', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"A\",\n  \"email\": \"invalid-email\",\n  \"password\": \"123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "register"]
+        }
+      }
+    }
+  ]
+}
