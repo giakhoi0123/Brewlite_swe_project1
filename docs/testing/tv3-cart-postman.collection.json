@@ -1,0 +1,346 @@
+{
+  "info": {
+    "_postman_id": "a3000003-0000-4000-8000-000000000003",
+    "name": "BrewLite - TV3 Cart",
+    "description": "Collection kiem thu luong Cart (TV3): Kiem tra 401, dang ky khach hang, lay gio hang, them mon, cap nhat so luong/size, merge gio, xoa mon va case loi DTO 400.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api"
+    },
+    {
+      "key": "frontendOrigin",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "customerEmail",
+      "value": ""
+    },
+    {
+      "key": "customerPassword",
+      "value": "Password123"
+    },
+    {
+      "key": "productId",
+      "value": "31a650c7-8597-4a01-a8e2-000000000001"
+    },
+    {
+      "key": "secondProductId",
+      "value": "31a650c7-8597-4a01-a8e2-000000000002"
+    },
+    {
+      "key": "toppingId",
+      "value": "b4151b67-4044-43ce-9cac-000000000001"
+    },
+    {
+      "key": "cartItemId",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({ key: 'Origin', value: pm.collectionVariables.get('frontendOrigin') || 'http://localhost:3000' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Error - Get Cart Unauthenticated (401)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 401 without valid session', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "brewlite_session=invalid.jwt.token"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      }
+    },
+    {
+      "name": "02. Register Customer (Setup)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('customerEmail', 'tv3-' + Date.now() + '@brewlite.local');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"TV3 Cart Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "03. Get Empty Cart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Cart starts empty', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.items).to.be.an('array').that.is.empty;",
+              "  pm.expect(json.totalQuantity).to.eql(0);",
+              "  pm.expect(json.valid).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/cart",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart"]
+        }
+      }
+    },
+    {
+      "name": "04. Add Item to Cart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Cart contains added item with computed price', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.items).to.be.an('array').with.lengthOf(1);",
+              "  pm.expect(json.totalQuantity).to.eql(1);",
+              "  pm.expect(json.subtotal).to.be.above(0);",
+              "  pm.collectionVariables.set('cartItemId', json.items[0].id);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"toppingIds\": [\"{{toppingId}}\"],\n  \"quantity\": 1,\n  \"ice\": \"100% đá\",\n  \"sugar\": \"100% chuẩn\",\n  \"note\": \"Ít bọt\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/cart/items",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart", "items"]
+        }
+      }
+    },
+    {
+      "name": "05. Update Cart Item Quantity & Size",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Cart item updated to quantity 2 and size L', function () {",
+              "  const json = pm.response.json();",
+              "  const updated = json.items.find(function (i) { return i.id === pm.collectionVariables.get('cartItemId'); });",
+              "  pm.expect(updated).to.be.an('object');",
+              "  pm.expect(updated.quantity).to.eql(2);",
+              "  pm.expect(updated.size).to.eql('L');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quantity\": 2,\n  \"size\": \"L\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart", "items", "{{cartItemId}}"]
+        }
+      }
+    },
+    {
+      "name": "06. Merge Cart Items",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Cart merged successfully', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.totalQuantity).to.be.at.least(3);",
+              "  pm.expect(json).to.have.property('skipped');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{secondProductId}}\",\n      \"size\": \"S\",\n      \"toppingIds\": [],\n      \"quantity\": 1,\n      \"ice\": \"70% đá\",\n      \"sugar\": \"70% ngọt vừa\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/cart/merge",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart", "merge"]
+        }
+      }
+    },
+    {
+      "name": "07. Remove Cart Item",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Removed item is no longer in cart', function () {",
+              "  const json = pm.response.json();",
+              "  const removed = json.items.find(function (i) { return i.id === pm.collectionVariables.get('cartItemId'); });",
+              "  pm.expect(removed).to.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart", "items", "{{cartItemId}}"]
+        }
+      }
+    },
+    {
+      "name": "08. Error - Add Invalid Ice Level (400 Bad Request)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400 for invalid ice option', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"toppingIds\": [],\n  \"quantity\": 1,\n  \"ice\": \"INVALID_ICE\",\n  \"sugar\": \"100% chuẩn\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/cart/items",
+          "host": ["{{baseUrl}}"],
+          "path": ["cart", "items"]
+        }
+      }
+    }
+  ]
+}

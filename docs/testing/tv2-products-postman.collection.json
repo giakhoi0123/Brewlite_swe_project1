@@ -1,0 +1,238 @@
+{
+  "info": {
+    "_postman_id": "a2000002-0000-4000-8000-000000000002",
+    "name": "BrewLite - TV2 Products",
+    "description": "Collection kiem thu luong Products (TV2): Danh sach san pham, Chi tiet san pham, Preview ton kho nguyen lieu, Kiem tra kha dung gio hang va case loi 400/404.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api"
+    },
+    {
+      "key": "frontendOrigin",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "productId",
+      "value": "31a650c7-8597-4a01-a8e2-000000000001"
+    },
+    {
+      "key": "toppingId",
+      "value": "b4151b67-4044-43ce-9cac-000000000001"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({ key: 'Origin', value: pm.collectionVariables.get('frontendOrigin') || 'http://localhost:3000' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Get All Products (Happy Path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Returns non-empty product list', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.be.an('array').that.is.not.empty;",
+              "  pm.expect(json[0]).to.have.property('id');",
+              "  pm.expect(json[0]).to.have.property('name');",
+              "  pm.expect(json[0]).to.have.property('price');",
+              "  pm.collectionVariables.set('productId', json[0].id);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products",
+          "host": ["{{baseUrl}}"],
+          "path": ["products"]
+        }
+      }
+    },
+    {
+      "name": "02. Get Product Detail by ID",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Product detail includes sizes and toppings', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.id).to.eql(pm.collectionVariables.get('productId'));",
+              "  pm.expect(json.sizes).to.be.an('array').that.is.not.empty;",
+              "  pm.expect(json.toppings).to.be.an('array');",
+              "  if (json.toppings.length > 0 && json.toppings[0].id) {",
+              "    pm.collectionVariables.set('toppingId', json.toppings[0].id);",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products/{{productId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["products", "{{productId}}"]
+        }
+      }
+    },
+    {
+      "name": "03. Preview Selection Capacity",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Preview returns availability fields', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.be.an('object');",
+              "  pm.expect(json).to.have.property('valid');",
+              "  pm.expect(json).to.have.property('canAddOne');",
+              "  pm.expect(json).to.have.property('maxAvailable');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"candidate\": {\n    \"productId\": \"{{productId}}\",\n    \"size\": \"M\",\n    \"toppingIds\": [\"{{toppingId}}\"],\n    \"quantity\": 1,\n    \"ice\": \"100% đá\",\n    \"sugar\": \"100% chuẩn\"\n  },\n  \"cartItems\": []\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/products/preview",
+          "host": ["{{baseUrl}}"],
+          "path": ["products", "preview"]
+        }
+      }
+    },
+    {
+      "name": "04. Check Cart Availability",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Availability returns valid status', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.be.an('object');",
+              "  pm.expect(json).to.have.property('valid', true);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"toppingIds\": [\"{{toppingId}}\"],\n      \"quantity\": 2,\n      \"ice\": \"70% đá\",\n      \"sugar\": \"70% ngọt vừa\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/products/availability",
+          "host": ["{{baseUrl}}"],
+          "path": ["products", "availability"]
+        }
+      }
+    },
+    {
+      "name": "05. Error - Product Not Found (404)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 404', function () {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products/00000000-0000-4000-8000-000000000000",
+          "host": ["{{baseUrl}}"],
+          "path": ["products", "00000000-0000-4000-8000-000000000000"]
+        }
+      }
+    },
+    {
+      "name": "06. Error - Invalid Product UUID (400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400 for invalid UUID', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products/not-a-valid-uuid",
+          "host": ["{{baseUrl}}"],
+          "path": ["products", "not-a-valid-uuid"]
+        }
+      }
+    }
+  ]
+}

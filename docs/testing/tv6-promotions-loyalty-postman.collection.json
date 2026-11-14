@@ -1,0 +1,280 @@
+{
+  "info": {
+    "_postman_id": "a6000006-0000-4000-8000-000000000006",
+    "name": "BrewLite - TV6 Promotions & Loyalty",
+    "description": "Collection kiem thu luong Promotions & Loyalty (TV6): Kiem tra 401, xem diem tich luy (/loyalty/me), lay danh sach voucher (/loyalty/vouchers), kiem tra ma khuyen mai (/promotions/validate) va case loi doi thuong khong du diem (400).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api"
+    },
+    {
+      "key": "frontendOrigin",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "customerEmail",
+      "value": ""
+    },
+    {
+      "key": "customerPassword",
+      "value": "Password123"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({ key: 'Origin', value: pm.collectionVariables.get('frontendOrigin') || 'http://localhost:3000' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Error - Get Loyalty Points Unauthenticated (401)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 401 without valid session', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "brewlite_session=invalid.jwt.token"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/loyalty/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["loyalty", "me"]
+        }
+      }
+    },
+    {
+      "name": "02. Register Customer (Setup)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('customerEmail', 'tv6-' + Date.now() + '@brewlite.local');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"TV6 Loyalty Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "03. Get My Loyalty Points",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Returns numeric points balance', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.have.property('points');",
+              "  pm.expect(json.points).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/loyalty/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["loyalty", "me"]
+        }
+      }
+    },
+    {
+      "name": "04. Get Available Vouchers",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Returns array of vouchers', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/loyalty/vouchers",
+          "host": ["{{baseUrl}}"],
+          "path": ["loyalty", "vouchers"]
+        }
+      }
+    },
+    {
+      "name": "05. Validate Empty Promotion Code",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Returns zero discount for empty code', function () {",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.valid).to.eql(true);",
+              "  pm.expect(json.discountAmount).to.eql(0);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"\",\n  \"subtotal\": 50000\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/promotions/validate",
+          "host": ["{{baseUrl}}"],
+          "path": ["promotions", "validate"]
+        }
+      }
+    },
+    {
+      "name": "06. Error - Validate Non-existent Promotion Code (400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400 for unknown promotion code', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"KHONG_TON_TAI_2026\",\n  \"subtotal\": 50000\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/promotions/validate",
+          "host": ["{{baseUrl}}"],
+          "path": ["promotions", "validate"]
+        }
+      }
+    },
+    {
+      "name": "07. Error - Redeem Reward Insufficient Points (400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400 when user has insufficient loyalty points', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rewardId\": \"rw-10k\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/loyalty/redeem",
+          "host": ["{{baseUrl}}"],
+          "path": ["loyalty", "redeem"]
+        }
+      }
+    }
+  ]
+}
