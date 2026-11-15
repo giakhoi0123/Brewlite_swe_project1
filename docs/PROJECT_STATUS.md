@@ -1,5 +1,9 @@
 # Trạng thái dự án
 
+## Sửa đối soát QueryDR khi VNPAY trả mã lỗi không chữ ký — 2026-11-15
+
+**IMPLEMENTED / BACKEND VERIFIED**: Khi VNPAY Sandbox QueryDR trả mã lỗi truy vấn khác `00` (như `91`, `94`, `99` khi giao dịch chưa thanh toán trên trang hosted) mà không kèm `vnp_SecureHash`, `PaymentsService.reconcile` giữ nguyên trạng thái `PROCESSING` (chỉ đọc, không cập nhật Order/Payment) và trả HTTP 200 thay vì ném `503`. Các phản hồi `vnp_ResponseCode === '00'` vẫn bắt buộc kiểm tra chữ ký HMAC-SHA512, merchant, reference và số tiền trước khi chốt trạng thái. Đồng thời chuẩn hóa lại các chuỗi thông báo tiếng Việt UTF-8 trong `payments.service.ts` và `vnpay.gateway.ts`. Bộ unit test `payments.service.spec.ts` và `vnpay.gateway.spec.ts` **2 suite / 33 test PASS**, build backend và Docker Compose backend PASS.
+
 ## Mở lại VNPAY, không ép QR và xác minh NCB TEST — 2026-11-11
 
 **IMPLEMENTED / FRONTEND AND SANDBOX DB VERIFIED**: Checkout mở `VNPAY_QR` làm lựa chọn mặc định và giữ `ADMIN_APPROVAL` song song. `.env` local để `VNPAY_BANK_CODE=` nên backend không gửi `vnp_BankCode`; trang hosted được quyền hiển thị các phương thức TEST mà terminal cấp. Backend Compose đã được recreate, `GET /api/products` HTTP 200 và gateway 10/10 PASS.

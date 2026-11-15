@@ -458,7 +458,7 @@ export class PaymentsService {
 
   async reconcile(userId: string, orderId: string) {
     const order = await this.orders.findOwned(orderId, userId);
-    if (!order) throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng');
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
 
     const payment = await this.payments.findLatestForOwnedOrder(
       orderId,
@@ -468,12 +468,12 @@ export class PaymentsService {
       return this.toResponse(payment);
     }
     if (!payment || payment.method !== 'VNPAY_QR') {
-      throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y giao dá»‹ch VNPAY');
+      throw new NotFoundException('Không tìm thấy giao dịch VNPAY');
     }
     if (payment.status !== 'PROCESSING') return this.toResponse(payment);
     if (!payment.vnpTxnRef || !payment.paymentUrl) {
       throw new ServiceUnavailableException(
-        'Giao dá»‹ch VNPAY thiáº¿u dá»¯ liá»‡u Ä‘á»ƒ Ä‘á»‘i soÃ¡t',
+        'Giao dịch VNPAY thiếu dữ liệu để đối soát',
       );
     }
 
@@ -483,18 +483,21 @@ export class PaymentsService {
       transactionDate: paymentUrl.transactionDate,
       orderInfo: paymentUrl.orderInfo,
     });
+    const params = verification.params;
+    if (
+      /^[0-9]{2}$/.test(params.vnp_ResponseCode ?? '') &&
+      params.vnp_ResponseCode !== '00'
+    ) {
+      // QueryDR can answer 91/94/99 (often without vnp_SecureHash) while VNPAY
+      // is still synchronizing, throttling, or before the hosted page is paid.
+      // A query error never finalizes an Order; IPN or a later signed query
+      // remains authoritative.
+      return this.toResponse(payment);
+    }
     if (!verification.valid) {
       throw new ServiceUnavailableException(
-        'Chá»¯ kÃ½ pháº£n há»“i truy váº¥n VNPAY khÃ´ng há»£p lá»‡',
+        'Chữ ký phản hồi truy vấn VNPAY không hợp lệ',
       );
-    }
-
-    const params = verification.params;
-    if (params.vnp_ResponseCode !== '00') {
-      // QueryDR can answer 91/94 while VNPAY is still synchronizing or
-      // throttling repeated requests. A signed query error never finalizes an
-      // Order; IPN or a later reconciliation remains authoritative.
-      return this.toResponse(payment);
     }
     if (
       params.vnp_Command !== 'querydr' ||
@@ -505,7 +508,7 @@ export class PaymentsService {
       !/^[0-9]{2}$/.test(params.vnp_TransactionStatus ?? '')
     ) {
       throw new ServiceUnavailableException(
-        'Pháº£n há»“i truy váº¥n VNPAY khÃ´ng khá»›p giao dá»‹ch',
+        'Phản hồi truy vấn VNPAY không khớp giao dịch',
       );
     }
 
@@ -529,7 +532,7 @@ export class PaymentsService {
     const reconciled = await this.payments.findByTxnRef(payment.vnpTxnRef);
     if (!reconciled) {
       throw new ServiceUnavailableException(
-        'KhÃ´ng thá»ƒ Ä‘á»c káº¿t quáº£ Ä‘á»‘i soÃ¡t VNPAY',
+        'Không thể đọc kết quả đối soát VNPAY',
       );
     }
     return this.toResponse(reconciled);
@@ -587,7 +590,7 @@ export class PaymentsService {
       return { transactionDate, orderInfo };
     } catch {
       throw new ServiceUnavailableException(
-        'URL giao dá»‹ch VNPAY khÃ´ng thá»ƒ Ä‘á»‘i soÃ¡t',
+        'URL giao dịch VNPAY không thể đối soát',
       );
     }
   }
