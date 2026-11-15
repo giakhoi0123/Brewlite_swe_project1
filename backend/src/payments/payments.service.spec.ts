@@ -696,6 +696,14 @@ describe('PaymentsService VNPAY flow', () => {
       status: 'PROCESSING',
     });
 
+    queryTransaction.mockResolvedValueOnce({
+      valid: false,
+      params: { vnp_ResponseCode: '99', vnp_Message: 'Unexpected error' },
+    });
+    await expect(service.reconcile(userId, orderId)).resolves.toMatchObject({
+      status: 'PROCESSING',
+    });
+
     for (const transactionStatus of ['01', '04', '07', '10', '20']) {
       queryTransaction.mockResolvedValueOnce({
         valid: true,

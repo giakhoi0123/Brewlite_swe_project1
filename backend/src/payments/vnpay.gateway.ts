@@ -128,7 +128,7 @@ function configuredBankCode(): string | undefined {
   if (!value) return undefined;
   if (!/^[A-Za-z0-9]{3,20}$/.test(value)) {
     throw new ServiceUnavailableException(
-      'Cáº¥u hÃ¬nh thanh toÃ¡n VNPAY_BANK_CODE khÃ´ng há»£p lá»‡',
+      'Cấu hình thanh toán VNPAY_BANK_CODE không hợp lệ',
     );
   }
   return value;
@@ -253,7 +253,7 @@ export class VnpayGateway implements PaymentGateway {
       input.orderInfo.length > 255
     ) {
       throw new ServiceUnavailableException(
-        'KhÃ´ng thá»ƒ truy váº¥n giao dá»‹ch VNPAY',
+        'Không thể truy vấn giao dịch VNPAY',
       );
     }
 
@@ -296,12 +296,12 @@ export class VnpayGateway implements PaymentGateway {
       );
     } catch {
       throw new ServiceUnavailableException(
-        'KhÃ´ng thá»ƒ káº¿t ná»‘i API truy váº¥n VNPAY',
+        'Không thể kết nối API truy vấn VNPAY',
       );
     }
     if (!response.ok) {
       throw new ServiceUnavailableException(
-        'API truy váº¥n VNPAY khÃ´ng sáºµn sÃ ng',
+        'API truy vấn VNPAY không sẵn sàng',
       );
     }
 
@@ -310,12 +310,12 @@ export class VnpayGateway implements PaymentGateway {
       body = await response.json();
     } catch {
       throw new ServiceUnavailableException(
-        'Pháº£n há»“i truy váº¥n VNPAY khÃ´ng há»£p lá»‡',
+        'Phản hồi truy vấn VNPAY không hợp lệ',
       );
     }
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       throw new ServiceUnavailableException(
-        'Pháº£n há»“i truy váº¥n VNPAY khÃ´ng há»£p lá»‡',
+        'Phản hồi truy vấn VNPAY không hợp lệ',
       );
     }
 
