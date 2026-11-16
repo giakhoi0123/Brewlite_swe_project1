@@ -1,5 +1,11 @@
 # Trạng thái dự án
 
+## Chốt ngay PAYMENT_FAILED khi khách hủy trên VNPAY Return — 2026-11-16
+
+**IMPLEMENTED / TESTS PASS (IPN HTTPS E2E STILL PENDING)**: Khi khách bấm hủy trên trang thanh toán VNPAY (`vnp_ResponseCode=24`) hoặc VNPAY trả về mã thất bại rõ ràng qua `GET /api/payments/vnpay/return`, backend sau khi xác minh chữ ký HMAC-SHA512, `vnp_TmnCode`, `vnp_TxnRef` và `vnp_Amount` sẽ cập nhật atomic `Payment` và `Order` sang `PAYMENT_FAILED` (hoàn tồn kho và giải phóng voucher nếu còn `PROCESSING`, không ghi đè đơn đã `PAID`) rồi chuyển hướng thẳng về `/payment/:orderId/failure`, không còn qua màn `verifying` chờ polling/QueryDR tới 60 giây. Các kết quả `00` hoặc mã chưa rõ ràng vẫn không chốt trên Return và giữ luồng `/payment/:orderId/verifying` để IPN/QueryDR xác minh; màn `failure` đồng thời dọn `paymentIntent` cũ trong `sessionStorage`.
+
+Bằng chứng đã chạy sau sửa đổi cuối: backend `nest build`, `oxlint` (0 lỗi/0 cảnh báo), `check:payments` (`tsc --noEmit`), non-DB Jest **30/37 suite PASS (339 passed, 73 skipped opt-in DB)**; PostgreSQL Payment trên database tạm áp đủ **19 migration** (**7 suite / 114 test PASS** rồi tự xóa DB); frontend **32/32 unit**, `tsc --noEmit`, production build, lint **0 lỗi / 2 cảnh báo cũ**; Compose `backend`/`frontend` rebuild HTTP 200 và Playwright `admin-payment.spec.ts` **7/7 PASS** tại **1440/768/390** (fixture route). Callback IPN HTTPS thật trên portal VSM chưa quan sát E2E nên T08 tiếp tục `IN_PROGRESS`.
+
 ## Sửa đối soát QueryDR khi VNPAY trả mã lỗi không chữ ký — 2026-11-15
 
 **IMPLEMENTED / BACKEND VERIFIED**: Khi VNPAY Sandbox QueryDR trả mã lỗi truy vấn khác `00` (như `91`, `94`, `99` khi giao dịch chưa thanh toán trên trang hosted) mà không kèm `vnp_SecureHash`, `PaymentsService.reconcile` giữ nguyên trạng thái `PROCESSING` (chỉ đọc, không cập nhật Order/Payment) và trả HTTP 200 thay vì ném `503`. Các phản hồi `vnp_ResponseCode === '00'` vẫn bắt buộc kiểm tra chữ ký HMAC-SHA512, merchant, reference và số tiền trước khi chốt trạng thái. Đồng thời chuẩn hóa lại các chuỗi thông báo tiếng Việt UTF-8 trong `payments.service.ts` và `vnpay.gateway.ts`. Bộ unit test `payments.service.spec.ts` và `vnpay.gateway.spec.ts` **2 suite / 33 test PASS**, build backend và Docker Compose backend PASS.

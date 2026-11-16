@@ -96,6 +96,21 @@ function classifyFinalStatus(
     : null;
 }
 
+/**
+ * Signed VNPAY Return callbacks with explicit customer cancellation (24) or
+ * unambiguous failure can finalize PAYMENT_FAILED immediately without waiting
+ * on QueryDR/IPN polling. Success (00) and ambiguous codes still verify server-side.
+ */
+function classifyReturnFailure(
+  params: Readonly<Record<string, string>>,
+): PaymentFinalStatus | null {
+  if (params.vnp_ResponseCode === '24') {
+    return params.vnp_TransactionStatus === '00' ? null : 'PAYMENT_FAILED';
+  }
+  const status = classifyFinalStatus(params, 'ipn');
+  return status === 'PAYMENT_FAILED' ? 'PAYMENT_FAILED' : null;
+}
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -547,8 +562,9 @@ export class PaymentsService {
       if (!this.gateway.isExpectedMerchant(params.vnp_TmnCode)) {
         return errorRedirect();
       }
-      const payment = params.vnp_TxnRef
-        ? await this.payments.findByTxnRef(params.vnp_TxnRef)
+      const txnRef = params.vnp_TxnRef;
+      const payment = txnRef
+        ? await this.payments.findByTxnRef(txnRef)
         : null;
       if (
         !payment ||
@@ -557,6 +573,36 @@ export class PaymentsService {
       ) {
         return errorRedirect();
       }
+
+      if (txnRef && classifyReturnFailure(params) === 'PAYMENT_FAILED') {
+        let finalStatus = payment.status;
+        if (payment.status === 'PROCESSING') {
+          finalStatus = await this.payments.transaction(async (tx) => {
+            const current = await this.payments.findByTxnRef(txnRef, tx);
+            if (!current || current.method !== 'VNPAY_QR') {
+              return payment.status;
+            }
+            if (current.status !== 'PROCESSING') return current.status;
+            const finalized = await this.finalizeInTransaction(
+              tx,
+              current,
+              'PAYMENT_FAILED',
+              params,
+            );
+            if (finalized) return 'PAYMENT_FAILED';
+            return (
+              (await this.payments.findByTxnRef(txnRef, tx))?.status ??
+              payment.status
+            );
+          });
+        }
+        if (finalStatus === 'PAYMENT_FAILED') {
+          return this.gateway.frontendRedirect(
+            `/payment/${encodeURIComponent(payment.orderId)}/failure`,
+          );
+        }
+      }
+
       return this.gateway.frontendRedirect(
         `/payment/${encodeURIComponent(payment.orderId)}/verifying`,
       );

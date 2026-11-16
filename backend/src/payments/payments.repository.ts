@@ -17,8 +17,8 @@ type CreateInput = {
 type FinalizeInput = {
   id: string;
   status: PaymentFinalStatus;
-  responseCode: string;
-  transactionStatus: string;
+  responseCode?: string;
+  transactionStatus?: string;
   transactionNo?: string;
   bankCode?: string;
   cardType?: string;

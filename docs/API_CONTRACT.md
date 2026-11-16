@@ -1,5 +1,12 @@
 # Hợp đồng API BrewLite
 
+## Chốt ngay PAYMENT_FAILED khi hủy trên VNPAY Return — 2026-11-16
+
+`GET /payments/vnpay/return` sau khi xác minh đầy đủ chữ ký HMAC-SHA512 (`vnp_SecureHash`), `vnp_TmnCode`, `vnp_TxnRef` và `vnp_Amount === payment.amount * 100`:
+- Nếu callback là hủy giao dịch (`vnp_ResponseCode === '24'` với `vnp_TransactionStatus !== '00'`) hoặc mã lỗi cuối rõ ràng (`classifyFinalStatus(..., 'ipn') === 'PAYMENT_FAILED'`), backend chốt atomic `Payment` và `Order` sang `PAYMENT_FAILED` (hoàn tồn kho và giải phóng voucher nếu còn `PROCESSING`, bỏ qua nếu đã xử lý trước đó và không ghi đè `PAID`), rồi redirect `302` thẳng tới `/payment/:orderId/failure`.
+- Nếu `vnp_ResponseCode === '00'` hoặc mã chưa rõ ràng (hoặc đơn đã `PAID`), Return tuyệt đối không chốt thành công và vẫn redirect `302` tới `/payment/:orderId/verifying` để IPN hoặc QueryDR xác minh.
+- Callback không hợp lệ tiếp tục redirect `302` tới `/payment/error`.
+
 ## Trạng thái vận hành checkout — 2026-11-11
 
 Frontend mở `VNPAY_QR` làm lựa chọn mặc định và giữ `ADMIN_APPROVAL` song song. Cấu hình local `VNPAY_BANK_CODE=` không thay đổi contract: backend chỉ bỏ `vnp_BankCode` khỏi URL đã ký để hosted page hiển thị phương thức TEST được terminal cấp. Retry sau khi IPN/QueryDR đã chốt `PAYMENT_FAILED` tạo attempt mới và mở lại hai phương thức; Payment còn `PROCESSING` vẫn giữ intent cũ và không được tạo attempt song song.

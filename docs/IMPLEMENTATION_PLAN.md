@@ -1,5 +1,13 @@
 # Kế hoạch triển khai BrewLite 1.0
 
+## Chốt ngay PAYMENT_FAILED khi khách hủy trên VNPAY Return — 2026-11-16
+
+- [x] Trong `PaymentsService.handleReturn`, sau khi kiểm tra chữ ký HMAC-SHA512, `vnp_TmnCode`, `vnp_TxnRef` và `vnp_Amount`, nếu callback mang mã hủy `vnp_ResponseCode=24` (không phải `vnp_TransactionStatus=00`) hoặc lỗi cuối rõ ràng, chốt `PAYMENT_FAILED` trong transaction nếu Payment đang `PROCESSING` (giữ nguyên nếu đã `PAID`, không double-release nếu đã `PAYMENT_FAILED`) và redirect thẳng về `/payment/:orderId/failure`.
+- [x] Giữ nguyên quy tắc Return `00` và mã chưa rõ ràng: không tự chốt `PAID`, vẫn điều hướng `/payment/:orderId/verifying` để IPN/QueryDR xác minh.
+- [x] Frontend `stage === "failure"` dọn `brewlite-payment-${orderId}` trong `sessionStorage` khi đơn ở trạng thái `PAYMENT_FAILED` hoặc `CANCELLED`.
+- [x] Kiểm chứng: backend build/lint/`check:payments`, non-DB Jest **30 suite/339 test PASS (7 suite DB opt-in skip)**, PostgreSQL tạm đủ **19 migration** **7 suite/114 test PASS**, frontend **32/32 unit**, `tsc --noEmit`, build, lint 0 lỗi/2 cảnh báo cũ, Compose rebuild HTTP 200 và Playwright `admin-payment.spec.ts` **7/7 PASS** tại 1440/768/390.
+- [ ] T08 vẫn `IN_PROGRESS` tới khi quan sát callback IPN HTTPS thật trên portal/VSM.
+
 ## Cho VNPAY hosted hiển thị các phương thức TEST được cấp — 2026-11-11
 
 - [x] Để `VNPAY_BANK_CODE=` trong `.env` local; gateway không thêm `vnp_BankCode` và không ép luồng QR.

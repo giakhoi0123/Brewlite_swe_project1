@@ -334,6 +334,72 @@ describeDatabase('VNPAY Payment and Order PostgreSQL integration', () => {
     ).toBe(40);
   });
 
+  it('immediately finalizes PAYMENT_FAILED and releases stock on a signed cancelled Return', async () => {
+    await db.ingredient.update({
+      where: { id: userId },
+      data: { stock: 50, version: 1 },
+    });
+    const order = await createOrder();
+    const created = await pay(order.id, randomUUID()).expect(201);
+    const cancelledQuery = callback(created.body.paymentUrl, '24', '02');
+
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/return')
+      .query({ ...cancelledQuery, vnp_SecureHash: '0'.repeat(128) })
+      .expect(302)
+      .expect('Location', `${origin}/payment/error`);
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: order.id } }),
+    ).toMatchObject({ status: 'PENDING', inventoryHeld: true });
+
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/return')
+      .query(cancelledQuery)
+      .expect(302)
+      .expect('Location', `${origin}/payment/${order.id}/failure`);
+
+    expect(
+      await db.payment.findUniqueOrThrow({ where: { id: created.body.id } }),
+    ).toMatchObject({
+      status: 'PAYMENT_FAILED',
+      vnpResponseCode: '24',
+      vnpTransactionStatus: '02',
+    });
+    const failedOrder = await db.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: { statusHistory: { orderBy: { version: 'asc' } } },
+    });
+    expect(failedOrder).toMatchObject({
+      status: 'PAYMENT_FAILED',
+      inventoryHeld: false,
+    });
+    expect(failedOrder.statusHistory.map((row) => row.toStatus)).toEqual([
+      'PENDING',
+      'PAYMENT_FAILED',
+    ]);
+    expect(
+      (
+        await db.ingredient.findUniqueOrThrow({ where: { id: userId } })
+      ).stock.toNumber(),
+    ).toBe(50);
+
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(cancelledQuery)
+      .expect(200, {
+        RspCode: '02',
+        Message: 'Order already confirmed',
+      });
+    expect(
+      (
+        await db.ingredient.findUniqueOrThrow({ where: { id: userId } })
+      ).stock.toNumber(),
+    ).toBe(50);
+
+    const retry = await pay(order.id, randomUUID()).expect(201);
+    expect(retry.body.status).toBe('PROCESSING');
+  });
+
   it('queues ADMIN_APPROVAL and lets only ADMIN atomically approve or reject it', async () => {
     const approvedOrder = await createOrder();
     const created = await request(app.getHttpServer())
