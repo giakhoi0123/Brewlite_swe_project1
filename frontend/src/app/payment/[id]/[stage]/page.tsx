@@ -288,6 +288,7 @@ export default function PaymentPage({
     }
   }, [stage, order, user, clearPaidCart]);
 
+  const orderStatus = order?.status;
   useEffect(() => {
     if (
       stage !== "failure" ||
@@ -296,6 +297,9 @@ export default function PaymentPage({
       orderOwnerId !== currentUserId
     )
       return;
+    if (orderStatus === "PAYMENT_FAILED" || orderStatus === "CANCELLED") {
+      removePaymentIntent(id);
+    }
     let active = true;
     void services.payments
       .get(id)
@@ -306,7 +310,7 @@ export default function PaymentPage({
     return () => {
       active = false;
     };
-  }, [stage, id, orderOwnerId, currentUserId]);
+  }, [stage, id, orderOwnerId, currentUserId, orderStatus]);
 
   const verify = async () => {
     if (verifyBusy) return;

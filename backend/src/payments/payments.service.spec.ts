@@ -618,7 +618,7 @@ describe('PaymentsService VNPAY flow', () => {
     });
   });
 
-  it('return verifies reference and amount, routes every signed result to verification, and never finalizes', async () => {
+  it('return routes signed success and ambiguous codes to verification without finalizing, and finalizes signed cancellation immediately', async () => {
     verifyCallback.mockReturnValue({
       valid: true,
       params: {
@@ -642,6 +642,76 @@ describe('PaymentsService VNPAY flow', () => {
         vnp_TmnCode: 'BREWTEST',
         vnp_TxnRef: payment().vnpTxnRef!,
         vnp_Amount: '9800000',
+        vnp_ResponseCode: '07',
+        vnp_TransactionStatus: '02',
+      },
+    });
+    await expect(service.handleReturn({})).resolves.toBe(
+      `https://shop.test/payment/${orderId}/verifying`,
+    );
+    expect(conditionalFinalize).not.toHaveBeenCalled();
+    expect(applyPaymentResult).not.toHaveBeenCalled();
+
+    verifyCallback.mockReturnValue({
+      valid: true,
+      params: {
+        vnp_TmnCode: 'BREWTEST',
+        vnp_TxnRef: payment().vnpTxnRef!,
+        vnp_Amount: '9800000',
+        vnp_ResponseCode: '24',
+        vnp_TransactionStatus: '02',
+      },
+    });
+    await expect(service.handleReturn({})).resolves.toBe(
+      `https://shop.test/payment/${orderId}/failure`,
+    );
+    expect(conditionalFinalize).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        id: paymentId,
+        status: 'PAYMENT_FAILED',
+        responseCode: '24',
+        transactionStatus: '02',
+      }),
+    );
+    expect(applyPaymentResult).toHaveBeenCalledWith(
+      { orderId, userId, method: 'VNPAY_QR', status: 'PAYMENT_FAILED' },
+      tx,
+    );
+
+    jest.clearAllMocks();
+    transaction.mockImplementation(async (work) => work(tx));
+    conditionalFinalize.mockResolvedValue({ count: 1 });
+    isExpectedMerchant.mockReturnValue(true);
+    frontendRedirect.mockImplementation((path) => `https://shop.test${path}`);
+    findByTxnRef.mockResolvedValue(payment());
+    verifyCallback.mockReturnValue({
+      valid: true,
+      params: {
+        vnp_TmnCode: 'BREWTEST',
+        vnp_TxnRef: payment().vnpTxnRef!,
+        vnp_Amount: '9800000',
+        vnp_ResponseCode: '24',
+      },
+    });
+    await expect(service.handleReturn({})).resolves.toBe(
+      `https://shop.test/payment/${orderId}/failure`,
+    );
+    expect(applyPaymentResult).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'PAYMENT_FAILED' }),
+      tx,
+    );
+
+    jest.clearAllMocks();
+    isExpectedMerchant.mockReturnValue(true);
+    frontendRedirect.mockImplementation((path) => `https://shop.test${path}`);
+    findByTxnRef.mockResolvedValue(payment('PAID'));
+    verifyCallback.mockReturnValue({
+      valid: true,
+      params: {
+        vnp_TmnCode: 'BREWTEST',
+        vnp_TxnRef: payment().vnpTxnRef!,
+        vnp_Amount: '9800000',
         vnp_ResponseCode: '24',
         vnp_TransactionStatus: '02',
       },
@@ -650,6 +720,30 @@ describe('PaymentsService VNPAY flow', () => {
       `https://shop.test/payment/${orderId}/verifying`,
     );
     expect(conditionalFinalize).not.toHaveBeenCalled();
+    expect(applyPaymentResult).not.toHaveBeenCalled();
+
+    jest.clearAllMocks();
+    transaction.mockImplementation(async (work) => work(tx));
+    isExpectedMerchant.mockReturnValue(true);
+    frontendRedirect.mockImplementation((path) => `https://shop.test${path}`);
+    findByTxnRef
+      .mockResolvedValueOnce(payment('PROCESSING'))
+      .mockResolvedValueOnce(payment('PROCESSING'))
+      .mockResolvedValueOnce(payment('PAID'));
+    conditionalFinalize.mockResolvedValue({ count: 0 });
+    verifyCallback.mockReturnValue({
+      valid: true,
+      params: {
+        vnp_TmnCode: 'BREWTEST',
+        vnp_TxnRef: payment().vnpTxnRef!,
+        vnp_Amount: '9800000',
+        vnp_ResponseCode: '24',
+        vnp_TransactionStatus: '02',
+      },
+    });
+    await expect(service.handleReturn({})).resolves.toBe(
+      `https://shop.test/payment/${orderId}/verifying`,
+    );
     expect(applyPaymentResult).not.toHaveBeenCalled();
 
     verifyCallback.mockReturnValue({ valid: false, params: {} });

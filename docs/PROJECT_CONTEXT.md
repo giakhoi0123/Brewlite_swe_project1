@@ -1,5 +1,9 @@
 # Ngữ cảnh dự án cho phiên làm việc tiếp theo
 
+## Chốt ngay PAYMENT_FAILED khi hủy trên VNPAY Return — 2026-11-16
+
+Khi khách bấm hủy trên trang VNPAY (`vnp_ResponseCode=24`) hoặc VNPAY Return trả mã thất bại rõ ràng, `PaymentsService.handleReturn` (sau khi kiểm chữ ký HMAC-SHA512, merchant, reference và amount) chốt atomic Payment/Order sang `PAYMENT_FAILED` (hoàn kho/voucher nếu còn `PROCESSING`, không ghi đè `PAID`) và chuyển hướng thẳng về `/payment/:orderId/failure` thay vì chờ polling/QueryDR trên `/verifying`. Return `00` hoặc mã mơ hồ vẫn vào `/verifying` để IPN/QueryDR chốt `PAID`. Màn `failure` cũng dọn `paymentIntent` cũ trong `sessionStorage`. Đã kiểm chứng backend non-DB 339/339, PostgreSQL Payment 114/114 với 19 migration, frontend 32/32, build/lint/tsc, Compose rebuild HTTP 200 và Playwright `admin-payment.spec.ts` 7/7 tại 1440/768/390; IPN HTTPS E2E vẫn là blocker độc lập của T08.
+
 ## Mở lại VNPAY và xác minh phương thức NCB TEST — 2026-11-11
 
 Checkout hiện mở `VNPAY_QR` làm lựa chọn mặc định và giữ `ADMIN_APPROVAL` song song; retry sau khi reconcile xác nhận `PAYMENT_FAILED` cũng mở lại hai phương thức. Với `VNPAY_BANK_CODE=` trên local, một Order TEST 43.000đ có attempt đầu mã hủy `24` lưu `PAYMENT_FAILED`, sau đó attempt mới qua NCB được lưu `PAID` với `vnp_TransactionNo=15733709`, response/status `00`; Order `ac15afd4-9cf8-461d-81a4-fe359cb21e43` đã thành `PAID`. Frontend 32/32 unit, TypeScript, build, lint 0 lỗi/2 warning cũ và Playwright 6/6 PASS. Schema không lưu nguồn finalize nên chưa thể kết luận callback IPN đã chạy; T08 vẫn `IN_PROGRESS`.

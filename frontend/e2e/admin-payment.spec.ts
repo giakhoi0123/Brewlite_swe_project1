@@ -478,3 +478,82 @@ test('a resumed VNPAY checkout can reconcile and unlock another method', async (
     ).toBeTruthy();
   }
 });
+
+test('cancelled VNPAY return redirects directly to failure without verifying wait', async ({ page }) => {
+  const orderId = '21a650c7-8597-4a01-a8e2-000000000102';
+  let reconcileCalls = 0;
+
+  await page.addInitScript(
+    ({ key, value }) => sessionStorage.setItem(key, value),
+    {
+      key: `brewlite-payment-${orderId}`,
+      value: JSON.stringify({ key: 'cancelled-key', method: 'VNPAY_QR' }),
+    },
+  );
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: 'customer-1',
+          email: 'customer@example.test',
+          name: 'Khách kiểm thử',
+          role: 'CUSTOMER',
+          loyaltyPoints: 0,
+        },
+      },
+    }),
+  );
+  await page.route(`**/api/orders/${orderId}`, (route) =>
+    route.fulfill({
+      json: {
+        id: orderId,
+        userId: 'customer-1',
+        items: [],
+        subtotal: 45000,
+        discount: 0,
+        total: 45000,
+        status: 'PAYMENT_FAILED',
+        createdAt: '2026-11-16T15:00:00.000Z',
+      },
+    }),
+  );
+  await page.route(`**/api/payments/order/${orderId}`, (route) =>
+    route.fulfill({
+      json: {
+        id: 'payment-cancelled',
+        orderId,
+        method: 'VNPAY_QR',
+        status: 'PAYMENT_FAILED',
+        idempotencyKey: 'cancelled-key',
+      },
+    }),
+  );
+  await page.route(`**/api/payments/${orderId}/reconcile`, (route) => {
+    reconcileCalls += 1;
+    return route.fulfill({ status: 500 });
+  });
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/payment/${orderId}/failure`);
+    await expect(
+      page.getByRole('heading', { name: 'Thanh toán chưa thành công' }),
+    ).toBeVisible();
+    await expect(page.getByText('Thanh toán thất bại')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Thử thanh toán lại' }),
+    ).toBeVisible();
+    expect(reconcileCalls).toBe(0);
+    expect(
+      await page.evaluate(
+        (key) => sessionStorage.getItem(key),
+        `brewlite-payment-${orderId}`,
+      ),
+    ).toBeNull();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
