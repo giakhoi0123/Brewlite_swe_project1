@@ -8,19 +8,23 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3001/api"
+      "value": "http://localhost:3001/api",
+      "type": "string"
     },
     {
       "key": "frontendOrigin",
-      "value": "http://localhost:3000"
+      "value": "http://localhost:3000",
+      "type": "string"
     },
     {
       "key": "customerEmail",
-      "value": ""
+      "value": "",
+      "type": "string"
     },
     {
       "key": "customerPassword",
-      "value": "Password123"
+      "value": "Password123",
+      "type": "string"
     }
   ],
   "event": [
@@ -62,10 +66,16 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/loyalty/me",
-          "host": ["{{baseUrl}}"],
-          "path": ["loyalty", "me"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "loyalty",
+            "me"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "02. Register Customer (Setup)",
@@ -101,14 +111,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"TV6 Loyalty Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+          "raw": "{\n  \"name\": \"TV6 Loyalty Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/register",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "register"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "03. Get My Loyalty Points",
@@ -135,10 +156,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/loyalty/me",
-          "host": ["{{baseUrl}}"],
-          "path": ["loyalty", "me"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "loyalty",
+            "me"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "04. Get Available Vouchers",
@@ -164,10 +191,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/loyalty/vouchers",
-          "host": ["{{baseUrl}}"],
-          "path": ["loyalty", "vouchers"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "loyalty",
+            "vouchers"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "05. Validate Empty Promotion Code",
@@ -199,14 +232,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"code\": \"\",\n  \"subtotal\": 50000\n}"
+          "raw": "{\n  \"code\": \"\",\n  \"subtotal\": 50000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/promotions/validate",
-          "host": ["{{baseUrl}}"],
-          "path": ["promotions", "validate"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "promotions",
+            "validate"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "06. Error - Validate Non-existent Promotion Code (400)",
@@ -233,14 +277,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"code\": \"KHONG_TON_TAI_2026\",\n  \"subtotal\": 50000\n}"
+          "raw": "{\n  \"code\": \"KHONG_TON_TAI_2026\",\n  \"subtotal\": 50000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/promotions/validate",
-          "host": ["{{baseUrl}}"],
-          "path": ["promotions", "validate"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "promotions",
+            "validate"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "07. Error - Redeem Reward Insufficient Points (400)",
@@ -267,14 +322,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"rewardId\": \"rw-10k\"\n}"
+          "raw": "{\n  \"rewardId\": \"rw-10k\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/loyalty/redeem",
-          "host": ["{{baseUrl}}"],
-          "path": ["loyalty", "redeem"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "loyalty",
+            "redeem"
+          ]
         }
-      }
+      },
+      "response": []
     }
   ]
 }

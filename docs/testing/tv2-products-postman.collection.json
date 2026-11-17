@@ -8,19 +8,23 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3001/api"
+      "value": "http://localhost:3001/api",
+      "type": "string"
     },
     {
       "key": "frontendOrigin",
-      "value": "http://localhost:3000"
+      "value": "http://localhost:3000",
+      "type": "string"
     },
     {
       "key": "productId",
-      "value": "31a650c7-8597-4a01-a8e2-000000000001"
+      "value": "31a650c7-8597-4a01-a8e2-000000000001",
+      "type": "string"
     },
     {
       "key": "toppingId",
-      "value": "b4151b67-4044-43ce-9cac-000000000001"
+      "value": "b4151b67-4044-43ce-9cac-000000000001",
+      "type": "string"
     }
   ],
   "event": [
@@ -65,10 +69,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/products",
-          "host": ["{{baseUrl}}"],
-          "path": ["products"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "02. Get Product Detail by ID",
@@ -99,10 +108,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/products/{{productId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["products", "{{productId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products",
+            "{{productId}}"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "03. Preview Selection Capacity",
@@ -136,14 +151,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"candidate\": {\n    \"productId\": \"{{productId}}\",\n    \"size\": \"M\",\n    \"toppingIds\": [\"{{toppingId}}\"],\n    \"quantity\": 1,\n    \"ice\": \"100% đá\",\n    \"sugar\": \"100% chuẩn\"\n  },\n  \"cartItems\": []\n}"
+          "raw": "{\n  \"candidate\": {\n    \"productId\": \"{{productId}}\",\n    \"size\": \"M\",\n    \"toppingIds\": [\"{{toppingId}}\"],\n    \"quantity\": 1,\n    \"ice\": \"100% đá\",\n    \"sugar\": \"100% chuẩn\"\n  },\n  \"cartItems\": []\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/products/preview",
-          "host": ["{{baseUrl}}"],
-          "path": ["products", "preview"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products",
+            "preview"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "04. Check Cart Availability",
@@ -175,14 +201,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"toppingIds\": [\"{{toppingId}}\"],\n      \"quantity\": 2,\n      \"ice\": \"70% đá\",\n      \"sugar\": \"70% ngọt vừa\"\n    }\n  ]\n}"
+          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"toppingIds\": [\"{{toppingId}}\"],\n      \"quantity\": 2,\n      \"ice\": \"70% đá\",\n      \"sugar\": \"70% ngọt vừa\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/products/availability",
-          "host": ["{{baseUrl}}"],
-          "path": ["products", "availability"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products",
+            "availability"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "05. Error - Product Not Found (404)",
@@ -204,10 +241,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/products/00000000-0000-4000-8000-000000000000",
-          "host": ["{{baseUrl}}"],
-          "path": ["products", "00000000-0000-4000-8000-000000000000"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products",
+            "00000000-0000-4000-8000-000000000000"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "06. Error - Invalid Product UUID (400)",
@@ -229,10 +272,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/products/not-a-valid-uuid",
-          "host": ["{{baseUrl}}"],
-          "path": ["products", "not-a-valid-uuid"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products",
+            "not-a-valid-uuid"
+          ]
         }
-      }
+      },
+      "response": []
     }
   ]
 }
