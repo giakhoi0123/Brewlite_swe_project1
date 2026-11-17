@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "BrewLite - Backend main flows",
+    "name": "BrewLite - Backend main flows v2",
     "description": "Đọc docs/BACKEND_API_TEST_GUIDE.md trước khi chạy. Chọn từng luồng, không Run toàn collection: các nhánh hủy/thất bại/VNPAY loại trừ nhau. Điền credential seed ở Variables. Cookie jar tự giữ phiên. Không có secret trong file.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -93,6 +93,76 @@
     {
       "key": "subtotal",
       "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "raceUserAEmail",
+      "value": "qa.race.a@example.com",
+      "type": "string"
+    },
+    {
+      "key": "raceUserBEmail",
+      "value": "qa.race.b@example.com",
+      "type": "string"
+    },
+    {
+      "key": "racePassword",
+      "value": "QaRace123!",
+      "type": "string"
+    },
+    {
+      "key": "raceTokenA",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceTokenB",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceSize",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceQty",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceMode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceStockBefore",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceStockAfter",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceResults",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceCancelResults",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceOrderIdA",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "raceOrderIdB",
+      "value": "",
       "type": "string"
     }
   ],
@@ -1272,6 +1342,397 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10 Đồng thời - 2 khách cùng đặt 1 sản phẩm",
+      "description": "Hai khách khác nhau (A, B) cùng đặt một sản phẩm/size tại cùng thời điểm để kiểm tra khóa kho (optimistic lock theo version của ingredients).\nChạy cả folder bằng Collection Runner (Run folder) theo thứ tự 01 → 07. Folder độc lập với các folder khác: dùng tài khoản và token riêng, tắt cookie jar nên không ảnh hưởng phiên khách chính.\nBiến cần có: baseUrl, origin, raceUserAEmail, raceUserBEmail, racePassword. productId để trống thì tự chọn.",
+      "item": [
+        {
+          "name": "01 Đăng ký khách A",
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          },
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Tạo tài khoản khách A riêng cho test đồng thời. 201 khi mới tạo, 409 nếu email đã tồn tại (chạy lại) — cả hai đều được.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Khách Race A\",\n  \"email\": \"{{raceUserAEmail}}\",\n  \"password\": \"{{racePassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201, 409];",
+                  "pm.test('HTTP ' + expected.join('/'), () => pm.expect(pm.response.code).to.be.oneOf(expected));",
+                  "const setCookie = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie').map(h => h.value).join('; ');",
+                  "const m = setCookie.match(/brewlite_session=([^;]+)/);",
+                  "if (m) pm.collectionVariables.set('raceTokenA', m[1]);",
+                  "if (pm.response.code !== 409) pm.test('Lấy được token phiên khách A', () => pm.expect(m, 'Set-Cookie brewlite_session').to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 Đăng nhập khách A",
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          },
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Cookie jar bị tắt cho request này; token trong Set-Cookie được lưu vào raceTokenA và gửi lại bằng header Authorization: Bearer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{raceUserAEmail}}\",\n  \"password\": \"{{racePassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test('HTTP ' + expected.join('/'), () => pm.expect(pm.response.code).to.be.oneOf(expected));",
+                  "const setCookie = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie').map(h => h.value).join('; ');",
+                  "const m = setCookie.match(/brewlite_session=([^;]+)/);",
+                  "if (m) pm.collectionVariables.set('raceTokenA', m[1]);",
+                  "if (pm.response.code !== 409) pm.test('Lấy được token phiên khách A', () => pm.expect(m, 'Set-Cookie brewlite_session').to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 Đăng ký khách B",
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          },
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Tạo tài khoản khách B riêng cho test đồng thời. 201 khi mới tạo, 409 nếu email đã tồn tại (chạy lại) — cả hai đều được.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Khách Race B\",\n  \"email\": \"{{raceUserBEmail}}\",\n  \"password\": \"{{racePassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201, 409];",
+                  "pm.test('HTTP ' + expected.join('/'), () => pm.expect(pm.response.code).to.be.oneOf(expected));",
+                  "const setCookie = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie').map(h => h.value).join('; ');",
+                  "const m = setCookie.match(/brewlite_session=([^;]+)/);",
+                  "if (m) pm.collectionVariables.set('raceTokenB', m[1]);",
+                  "if (pm.response.code !== 409) pm.test('Lấy được token phiên khách B', () => pm.expect(m, 'Set-Cookie brewlite_session').to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 Đăng nhập khách B",
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          },
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Cookie jar bị tắt cho request này; token trong Set-Cookie được lưu vào raceTokenB và gửi lại bằng header Authorization: Bearer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{raceUserBEmail}}\",\n  \"password\": \"{{racePassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expected = [201];",
+                  "pm.test('HTTP ' + expected.join('/'), () => pm.expect(pm.response.code).to.be.oneOf(expected));",
+                  "const setCookie = pm.response.headers.all().filter(h => h.key.toLowerCase() === 'set-cookie').map(h => h.value).join('; ');",
+                  "const m = setCookie.match(/brewlite_session=([^;]+)/);",
+                  "if (m) pm.collectionVariables.set('raceTokenB', m[1]);",
+                  "if (pm.response.code !== 409) pm.test('Lấy được token phiên khách B', () => pm.expect(m, 'Set-Cookie brewlite_session').to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 Chọn sản phẩm và tính số lượng tranh chấp",
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "description": "Nếu productId trống, pre-request tự lấy sản phẩm đầu tiên còn hàng từ GET /products.\nGhi lại stock của size đang chọn (N). Nếu N <= 197: mỗi khách đặt q = floor(N/2) + 1 ly, mỗi đơn riêng lẻ đều đủ kho nhưng tổng 2q > N, nên chỉ được phép 1 đơn thành công (chế độ LAST_STOCK).\nNếu N > 197 (q sẽ vượt 99): mỗi khách đặt 1 ly, kho đủ cho cả hai (chế độ ENOUGH).\nLưu ý: test này giữ (trừ) nguyên liệu thật trong DB; bước 07 hủy đơn để hoàn kho."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('productId')) return;",
+                  "pm.sendRequest({ url: pm.variables.replaceIn('{{baseUrl}}/products'), method: 'GET' }, (err, res) => {",
+                  "  if (err || res.code !== 200) return;",
+                  "  const p = res.json().find(x => x.stock > 0);",
+                  "  if (p) pm.collectionVariables.set('productId', p.id);",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "const s = p.sizes.find(x => x.available && x.id === p.defaultSizeId) || p.sizes.find(x => x.available);",
+                  "pm.test('Có size còn hàng để tranh chấp', () => pm.expect(s, 'size available').to.exist);",
+                  "if (!s) return;",
+                  "const n = s.stock;",
+                  "const mode = n <= 197 ? 'LAST_STOCK' : 'ENOUGH';",
+                  "const q = mode === 'LAST_STOCK' ? Math.floor(n / 2) + 1 : 1;",
+                  "pm.collectionVariables.set('raceSize', s.code);",
+                  "pm.collectionVariables.set('raceStockBefore', String(n));",
+                  "pm.collectionVariables.set('raceQty', String(q));",
+                  "pm.collectionVariables.set('raceMode', mode);",
+                  "pm.collectionVariables.set('raceOrderIdA', '');",
+                  "pm.collectionVariables.set('raceOrderIdB', '');",
+                  "console.log('Race setup', { product: p.name, size: s.code, stockBefore: n, qtyEach: q, mode });",
+                  "pm.test('Mỗi đơn riêng lẻ đều đủ kho (q <= N, q <= 99)', () => { pm.expect(q).to.be.at.most(n); pm.expect(q).to.be.at.most(99); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 Gửi đồng thời 2 đơn (A và B) rồi đọc lại tồn kho",
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "description": "Collection Runner của Postman chạy tuần tự, nên 2 đơn được bắn trong pre-request script bằng 2 lệnh pm.sendRequest gọi liền nhau — chúng chạy song song thật (kiểm tra bằng khoảng thời gian chồng lấn).\nMỗi đơn: POST /orders, cùng productId/size/quantity, khách A dùng Bearer raceTokenA, khách B dùng Bearer raceTokenB.\nRequest chính (GET chi tiết sản phẩm) chạy sau khi cả 2 đơn xong, để đọc tồn kho sau tranh chấp.\nKỳ vọng: LAST_STOCK → đúng 1 đơn 201, đơn còn lại 409, không bán vượt kho. ENOUGH → cả 2 đơn 201. Mọi chế độ: stock sau = stock trước − tổng số ly của các đơn thành công.\nChỉ chạy khi không ai khác đang đặt cùng món trên DB này, nếu không phép so stock sẽ lệch."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const v = (k) => pm.collectionVariables.get(k);",
+                  "const body = JSON.stringify({ items: [{ productId: v('productId'), size: v('raceSize'), toppingIds: [], quantity: Number(v('raceQty')), ice: '70% đá', sugar: '50% ít ngọt', note: 'Race test' }] });",
+                  "const results = {};",
+                  "const order = (who) => {",
+                  "  const started = Date.now();",
+                  "  pm.sendRequest({",
+                  "    url: pm.variables.replaceIn('{{baseUrl}}/orders'),",
+                  "    method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json', Origin: v('origin'), Authorization: 'Bearer ' + v('raceToken' + who) },",
+                  "    body: { mode: 'raw', raw: body },",
+                  "  }, (err, res) => {",
+                  "    let json = null;",
+                  "    try { json = res && res.json(); } catch (e) {}",
+                  "    results[who] = { started, finished: Date.now(), code: err ? 0 : res.code, error: err ? String(err) : undefined, id: json && json.id, status: json && json.status, message: json && json.message };",
+                  "    if (results.A && results.B) pm.collectionVariables.set('raceResults', JSON.stringify(results));",
+                  "  });",
+                  "};",
+                  "pm.collectionVariables.set('raceResults', '');",
+                  "// Fired back-to-back without waiting: both requests are in flight at the same time.",
+                  "order('A');",
+                  "order('B');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 khi đọc lại sản phẩm', () => pm.response.to.have.status(200));",
+                  "const r = JSON.parse(pm.collectionVariables.get('raceResults') || '{}');",
+                  "console.log('Race results', r);",
+                  "const mode = pm.collectionVariables.get('raceMode');",
+                  "const qty = Number(pm.collectionVariables.get('raceQty'));",
+                  "const before = Number(pm.collectionVariables.get('raceStockBefore'));",
+                  "pm.test('Có kết quả của cả 2 đơn', () => { pm.expect(r.A, 'đơn A').to.exist; pm.expect(r.B, 'đơn B').to.exist; });",
+                  "if (!r.A || !r.B) return;",
+                  "pm.test('Hai request thực sự chạy chồng lấn thời gian', () => {",
+                  "  pm.expect(r.A.started).to.be.below(r.B.finished);",
+                  "  pm.expect(r.B.started).to.be.below(r.A.finished);",
+                  "});",
+                  "pm.test('Mỗi đơn trả 201 hoặc 409, không lỗi 5xx', () => {",
+                  "  pm.expect(r.A.code, 'A: ' + r.A.message).to.be.oneOf([201, 409]);",
+                  "  pm.expect(r.B.code, 'B: ' + r.B.message).to.be.oneOf([201, 409]);",
+                  "});",
+                  "const ok = ['A', 'B'].filter(w => r[w].code === 201);",
+                  "ok.forEach(w => pm.collectionVariables.set('raceOrderId' + w, r[w].id));",
+                  "ok.forEach(w => pm.test('Đơn ' + w + ' thành công ở trạng thái PENDING', () => pm.expect(r[w].status).to.eql('PENDING')));",
+                  "if (mode === 'LAST_STOCK') {",
+                  "  pm.test('LAST_STOCK: đúng 1 đơn thành công, đơn kia bị từ chối 409', () => {",
+                  "    pm.expect(ok.length, JSON.stringify({ A: r.A.code + ' ' + (r.A.message || ''), B: r.B.code + ' ' + (r.B.message || '') })).to.eql(1);",
+                  "  });",
+                  "} else {",
+                  "  pm.test('ENOUGH: kho đủ nên cả 2 đơn đều thành công', () => {",
+                  "    pm.expect(ok.length, JSON.stringify({ A: r.A.code + ' ' + (r.A.message || ''), B: r.B.code + ' ' + (r.B.message || '') })).to.eql(2);",
+                  "  });",
+                  "}",
+                  "const size = pm.response.json().sizes.find(s => s.code === pm.collectionVariables.get('raceSize'));",
+                  "pm.collectionVariables.set('raceStockAfter', String(size.stock));",
+                  "pm.test('Tồn kho giảm đúng bằng số ly đã bán, không âm', () => {",
+                  "  pm.expect(size.stock).to.be.at.least(0);",
+                  "  pm.expect(size.stock).to.eql(before - ok.length * qty);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 Hủy đơn race và kiểm tra hoàn kho",
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          },
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "description": "Pre-request hủy các đơn race đã tạo bằng token của chính chủ đơn (POST /orders/:id/cancel), rồi request chính đọc lại sản phẩm. Kỳ vọng tồn kho trở về đúng giá trị trước khi chạy bước 06."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const v = (k) => pm.collectionVariables.get(k);",
+                  "const done = {};",
+                  "const targets = ['A', 'B'].filter(w => v('raceOrderId' + w));",
+                  "pm.collectionVariables.set('raceCancelResults', '{}');",
+                  "targets.forEach(w => pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{baseUrl}}/orders/' + v('raceOrderId' + w) + '/cancel'),",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json', Origin: v('origin'), Authorization: 'Bearer ' + v('raceToken' + w) },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ reason: 'Dọn dẹp race test' }) },",
+                  "}, (err, res) => {",
+                  "  done[w] = err ? 0 : res.code;",
+                  "  pm.collectionVariables.set('raceCancelResults', JSON.stringify(done));",
+                  "}));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const done = JSON.parse(pm.collectionVariables.get('raceCancelResults') || '{}');",
+                  "Object.keys(done).forEach(w => pm.test('Hủy đơn ' + w + ' bằng token khách ' + w + ' thành công', () => pm.expect(done[w]).to.be.oneOf([200, 201])));",
+                  "const size = pm.response.json().sizes.find(s => s.code === pm.collectionVariables.get('raceSize'));",
+                  "pm.test('Tồn kho được hoàn về như trước khi tranh chấp', () => pm.expect(size.stock).to.eql(Number(pm.collectionVariables.get('raceStockBefore'))));",
+                  "['raceOrderIdA', 'raceOrderIdB'].forEach(k => pm.collectionVariables.set(k, ''));"
                 ]
               }
             }
