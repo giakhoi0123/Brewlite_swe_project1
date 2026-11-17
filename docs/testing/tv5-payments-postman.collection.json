@@ -8,39 +8,48 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3001/api"
+      "value": "http://localhost:3001/api",
+      "type": "string"
     },
     {
       "key": "frontendOrigin",
-      "value": "http://localhost:3000"
+      "value": "http://localhost:3000",
+      "type": "string"
     },
     {
       "key": "customerEmail",
-      "value": ""
+      "value": "",
+      "type": "string"
     },
     {
       "key": "customerPassword",
-      "value": "Password123"
+      "value": "Password123",
+      "type": "string"
     },
     {
       "key": "productId",
-      "value": "31a650c7-8597-4a01-a8e2-000000000001"
+      "value": "31a650c7-8597-4a01-a8e2-000000000001",
+      "type": "string"
     },
     {
       "key": "orderId",
-      "value": ""
+      "value": "",
+      "type": "string"
     },
     {
       "key": "idempotencyKey",
-      "value": ""
+      "value": "",
+      "type": "string"
     },
     {
       "key": "paymentId",
-      "value": ""
+      "value": "",
+      "type": "string"
     },
     {
       "key": "paymentUrl",
-      "value": ""
+      "value": "",
+      "type": "string"
     }
   ],
   "event": [
@@ -86,14 +95,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"orderId\": \"00000000-0000-4000-8000-000000000000\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"00000000-0000-4000-8000-000000000001\"\n}"
+          "raw": "{\n  \"orderId\": \"00000000-0000-4000-8000-000000000000\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"00000000-0000-4000-8000-000000000001\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/payments",
-          "host": ["{{baseUrl}}"],
-          "path": ["payments"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "payments"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "02. Register Customer (Setup)",
@@ -129,14 +148,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"TV5 Payment Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+          "raw": "{\n  \"name\": \"TV5 Payment Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/register",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "register"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "03. Create Order for Payment (Setup)",
@@ -169,14 +199,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"toppingIds\": [],\n      \"quantity\": 1,\n      \"ice\": \"100% đá\",\n      \"sugar\": \"100% chuẩn\"\n    }\n  ]\n}"
+          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"size\": \"M\",\n      \"toppingIds\": [],\n      \"quantity\": 1,\n      \"ice\": \"100% đá\",\n      \"sugar\": \"100% chuẩn\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": ["{{baseUrl}}"],
-          "path": ["orders"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "04. Create VNPAY Payment (PROCESSING)",
@@ -231,14 +271,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"{{idempotencyKey}}\"\n}"
+          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"{{idempotencyKey}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/payments",
-          "host": ["{{baseUrl}}"],
-          "path": ["payments"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "payments"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "05. Replay Same Idempotency-Key",
@@ -274,14 +324,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"{{idempotencyKey}}\"\n}"
+          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"{{idempotencyKey}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/payments",
-          "host": ["{{baseUrl}}"],
-          "path": ["payments"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "payments"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "06. Reconcile Payment Status (QueryDR)",
@@ -308,10 +368,17 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/payments/{{orderId}}/reconcile",
-          "host": ["{{baseUrl}}"],
-          "path": ["payments", "{{orderId}}", "reconcile"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "payments",
+            "{{orderId}}",
+            "reconcile"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "07. Error - Invalid Idempotency-Key (400 Bad Request)",
@@ -342,14 +409,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"not-a-valid-uuid\"\n}"
+          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"VNPAY_QR\",\n  \"idempotencyKey\": \"not-a-valid-uuid\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/payments",
-          "host": ["{{baseUrl}}"],
-          "path": ["payments"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "payments"
+          ]
         }
-      }
+      },
+      "response": []
     }
   ]
 }

@@ -8,35 +8,43 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3001/api"
+      "value": "http://localhost:3001/api",
+      "type": "string"
     },
     {
       "key": "frontendOrigin",
-      "value": "http://localhost:3000"
+      "value": "http://localhost:3000",
+      "type": "string"
     },
     {
       "key": "customerEmail",
-      "value": ""
+      "value": "",
+      "type": "string"
     },
     {
       "key": "customerPassword",
-      "value": "Password123"
+      "value": "Password123",
+      "type": "string"
     },
     {
       "key": "productId",
-      "value": "31a650c7-8597-4a01-a8e2-000000000001"
+      "value": "31a650c7-8597-4a01-a8e2-000000000001",
+      "type": "string"
     },
     {
       "key": "secondProductId",
-      "value": "31a650c7-8597-4a01-a8e2-000000000002"
+      "value": "31a650c7-8597-4a01-a8e2-000000000002",
+      "type": "string"
     },
     {
       "key": "toppingId",
-      "value": "b4151b67-4044-43ce-9cac-000000000001"
+      "value": "b4151b67-4044-43ce-9cac-000000000001",
+      "type": "string"
     },
     {
       "key": "cartItemId",
-      "value": ""
+      "value": "",
+      "type": "string"
     }
   ],
   "event": [
@@ -78,10 +86,15 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/cart",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "02. Register Customer (Setup)",
@@ -117,14 +130,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"TV3 Cart Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+          "raw": "{\n  \"name\": \"TV3 Cart Tester\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/register",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "register"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "03. Get Empty Cart",
@@ -152,10 +176,15 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/cart",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "04. Add Item to Cart",
@@ -189,14 +218,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"toppingIds\": [\"{{toppingId}}\"],\n  \"quantity\": 1,\n  \"ice\": \"100% đá\",\n  \"sugar\": \"100% chuẩn\",\n  \"note\": \"Ít bọt\"\n}"
+          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"toppingIds\": [\"{{toppingId}}\"],\n  \"quantity\": 1,\n  \"ice\": \"100% đá\",\n  \"sugar\": \"100% chuẩn\",\n  \"note\": \"Ít bọt\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/cart/items",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart", "items"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart",
+            "items"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "05. Update Cart Item Quantity & Size",
@@ -230,14 +270,26 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"quantity\": 2,\n  \"size\": \"L\"\n}"
+          "raw": "{\n  \"quantity\": 2,\n  \"size\": \"L\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart", "items", "{{cartItemId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart",
+            "items",
+            "{{cartItemId}}"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "06. Merge Cart Items",
@@ -269,14 +321,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{secondProductId}}\",\n      \"size\": \"S\",\n      \"toppingIds\": [],\n      \"quantity\": 1,\n      \"ice\": \"70% đá\",\n      \"sugar\": \"70% ngọt vừa\"\n    }\n  ]\n}"
+          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{secondProductId}}\",\n      \"size\": \"S\",\n      \"toppingIds\": [],\n      \"quantity\": 1,\n      \"ice\": \"70% đá\",\n      \"sugar\": \"70% ngọt vừa\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/cart/merge",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart", "merge"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart",
+            "merge"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "07. Remove Cart Item",
@@ -303,10 +366,17 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/cart/items/{{cartItemId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart", "items", "{{cartItemId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart",
+            "items",
+            "{{cartItemId}}"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "08. Error - Add Invalid Ice Level (400 Bad Request)",
@@ -333,14 +403,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"toppingIds\": [],\n  \"quantity\": 1,\n  \"ice\": \"INVALID_ICE\",\n  \"sugar\": \"100% chuẩn\"\n}"
+          "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"size\": \"M\",\n  \"toppingIds\": [],\n  \"quantity\": 1,\n  \"ice\": \"INVALID_ICE\",\n  \"sugar\": \"100% chuẩn\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/cart/items",
-          "host": ["{{baseUrl}}"],
-          "path": ["cart", "items"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "cart",
+            "items"
+          ]
         }
-      }
+      },
+      "response": []
     }
   ]
 }

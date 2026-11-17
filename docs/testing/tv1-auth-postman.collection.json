@@ -8,27 +8,33 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3001/api"
+      "value": "http://localhost:3001/api",
+      "type": "string"
     },
     {
       "key": "frontendOrigin",
-      "value": "http://localhost:3000"
+      "value": "http://localhost:3000",
+      "type": "string"
     },
     {
       "key": "customerEmail",
-      "value": ""
+      "value": "",
+      "type": "string"
     },
     {
       "key": "customerPassword",
-      "value": "Password123"
+      "value": "Password123",
+      "type": "string"
     },
     {
       "key": "newPassword",
-      "value": "NewPassword123"
+      "value": "NewPassword123",
+      "type": "string"
     },
     {
       "key": "userId",
-      "value": ""
+      "value": "",
+      "type": "string"
     }
   ],
   "event": [
@@ -88,14 +94,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"Nguyen Van A\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+          "raw": "{\n  \"name\": \"Nguyen Van A\",\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/register",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "register"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "02. Login Customer (Happy Path)",
@@ -127,14 +144,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+          "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "03. Get Current User Profile (Me)",
@@ -162,10 +190,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/auth/me",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "me"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "04. Change Password",
@@ -196,14 +230,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"oldPassword\": \"{{customerPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}"
+          "raw": "{\n  \"oldPassword\": \"{{customerPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/change-password",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "change-password"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "change-password"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "05. Login with New Password",
@@ -234,14 +279,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{newPassword}}\"\n}"
+          "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "login"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "06. Logout (Invalidate Session)",
@@ -267,10 +323,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/auth/logout",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "logout"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "logout"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "07. Error - Get Me After Logout (401 Unauthorized)",
@@ -292,10 +354,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/auth/me",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "me"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "08. Error - Register Weak Password (400 Bad Request)",
@@ -322,14 +390,25 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"A\",\n  \"email\": \"invalid-email\",\n  \"password\": \"123\"\n}"
+          "raw": "{\n  \"name\": \"A\",\n  \"email\": \"invalid-email\",\n  \"password\": \"123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
           "raw": "{{baseUrl}}/auth/register",
-          "host": ["{{baseUrl}}"],
-          "path": ["auth", "register"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
         }
-      }
+      },
+      "response": []
     }
   ]
 }
